@@ -1,0 +1,6 @@
+{
+  "name": "MiniBid — Lowest Unique Bid Platform",
+  "description": "High-end reverse-auction and financial operations platform operating on lowest unique bid mechanics with full RBAC, secure wallet management, and P&L auditing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
