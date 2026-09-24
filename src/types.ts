@@ -42,6 +42,7 @@ export interface Auction {
   winner_phone?: string;
   winner_email?: string;
   winning_bid_amount?: number;
+  is_showcase?: boolean;
 }
 
 export type BidUniquenessStatus = 'unique_lowest' | 'unique_not_lowest' | 'not_unique' | 'submitted';

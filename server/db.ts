@@ -750,6 +750,10 @@ class Database {
     return seed;
   }
 
+  public reload(): void {
+    this.memoryData = this.loadData();
+  }
+
   private persist(data: DatabaseSchema) {
     if (this.isWriting) return;
     this.isWriting = true;
@@ -2122,8 +2126,9 @@ class Database {
     const pendingDepositsAmount = pendingDeposits.reduce((acc, d) => acc + d.amount, 0);
     const rejectedDepositsAmount = rejectedDeposits.reduce((acc, d) => acc + d.amount, 0);
 
-    // Per-auction P&L breakdown
-    const auctionsPnL: AuctionPnL[] = this.memoryData.auctions.map(auc => {
+    // Per-auction P&L breakdown (showcase demonstration auctions are excluded from active platform ledger so financial page starts at clean 0.00 ETB)
+    const auditedAuctions = this.memoryData.auctions.filter(auc => !auc.is_showcase);
+    const auctionsPnL: AuctionPnL[] = auditedAuctions.map(auc => {
       const auctionBids = this.memoryData.bids.filter(b => b.auction_id === auc.id && filterDate(b.created_at));
       const totalFeesCollected = auctionBids.reduce((acc, b) => acc + b.fee_paid, 0);
       const winningBidAmount = auc.winning_bid_amount || 0;

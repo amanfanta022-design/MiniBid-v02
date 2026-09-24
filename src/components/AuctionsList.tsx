@@ -18,12 +18,14 @@ interface AuctionsListProps {
   onSelectAuction: (id: string) => void;
   onOpenHowItWorks: () => void;
   onOpenDeposit: () => void;
+  onViewWinners?: () => void;
 }
 
 export const AuctionsList: React.FC<AuctionsListProps> = ({
   onSelectAuction,
   onOpenHowItWorks,
   onOpenDeposit,
+  onViewWinners,
 }) => {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -167,8 +169,27 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
       {isLoading ? (
         <div className="py-20 text-center text-xs text-zinc-500">Loading live auction catalog...</div>
       ) : filteredAuctions.length === 0 ? (
-        <div className="py-20 text-center text-zinc-500 text-xs bg-[#121215] rounded-2xl border border-[#27272a]">
-          No active auctions found matching "{searchQuery}".
+        <div className="py-16 px-6 text-center bg-gradient-to-b from-[#18181b]/80 to-[#121215] rounded-3xl border border-[#27272a] space-y-5 max-w-xl mx-auto shadow-2xl">
+          <div className="w-14 h-14 rounded-2xl bg-[#E5B842]/10 border border-[#E5B842]/30 flex items-center justify-center mx-auto text-[#E5B842] shadow-[0_0_20px_rgba(229,184,66,0.2)]">
+            <Trophy className="w-7 h-7" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-serif font-bold text-white text-lg">
+              All Previous Auctions Concluded & Settled!
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed max-w-md mx-auto">
+              Our active auction round has completed. Explore our <strong>Concluded Auctions Showcase</strong> to inspect previous winning bids, audited uniqueness rankings, and player logs.
+            </p>
+          </div>
+          {onViewWinners && (
+            <button
+              onClick={onViewWinners}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+            >
+              <span>View Concluded Auctions & Winners</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

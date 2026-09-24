@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import {
@@ -538,6 +539,59 @@ app.get('/api/payments/channels', (_req: Request, res: Response) => {
   });
 });
 
+// Custom Brand Logo Upload (Super Admin Only)
+app.post('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Access restricted: Only Super Admin can change the brand logo.' });
+  }
+
+  const { dataUrl } = req.body;
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'Valid image data URL required' });
+  }
+
+  try {
+    const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!matches) {
+      return res.status(400).json({ error: 'Invalid base64 image data' });
+    }
+    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    const filename = `sunfyre_custom_logo.${ext}`;
+    const targetPath = path.join(process.cwd(), 'public', 'assets', 'images', filename);
+    fs.writeFileSync(targetPath, buffer);
+
+    res.json({
+      success: true,
+      logoUrl: `/assets/images/${filename}?t=${Date.now()}`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to save logo: ' + err.message });
+  }
+});
+
+// Reset Brand Logo to Default (Super Admin Only)
+app.delete('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Access restricted: Only Super Admin can reset the brand logo.' });
+  }
+
+  try {
+    const dir = path.join(process.cwd(), 'public', 'assets', 'images');
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir);
+      for (const f of files) {
+        if (f.startsWith('sunfyre_custom_logo.')) {
+          fs.unlinkSync(path.join(dir, f));
+        }
+      }
+    }
+    res.json({ success: true, message: 'Brand logo reset to default.' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to reset logo: ' + err.message });
+  }
+});
+
 // Submit Deposit Request
 app.post('/api/payments/deposit', authenticate, (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role === 'superadmin') {
@@ -737,6 +791,47 @@ app.post(
       res.json({ report });
     } catch (err: any) {
       res.status(500).json({ error: 'Failed to complete financial integrity test suite: ' + err.message });
+    }
+  }
+);
+
+// Super Admin: Reset Financial System to pristine 0.00 ETB baseline & clear all live auctions
+app.post(
+  '/api/admin/financial-baseline/reset',
+  authenticate,
+  requireRole(['superadmin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const DB_FILE = path.join(process.cwd(), 'data', 'minibid_db.json');
+      if (fs.existsSync(DB_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+        // Reset wallets to 0
+        for (const u of raw.users) {
+          u.wallet_balance = 0.0;
+          u.is_flagged = false;
+          u.duplicate_txn_attempts = 0;
+        }
+        // End all active auctions
+        for (const a of raw.auctions) {
+          a.status = 'ended';
+          a.is_showcase = true;
+          a.internal_cost = 0;
+        }
+        raw.deposits = [];
+        raw.financial_ledger = [];
+        raw.blocked_approval_attempts = [];
+        raw.idempotency_cache = {};
+        raw.admin_float_requests = [];
+        raw.transactions = [];
+        fs.writeFileSync(DB_FILE, JSON.stringify(raw, null, 2), 'utf-8');
+      }
+      db.reload();
+      res.json({
+        success: true,
+        message: 'Financial system successfully reset to clean 0.00 ETB baseline. All live auctions ended and cleared.',
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to reset baseline: ' + err.message });
     }
   }
 );

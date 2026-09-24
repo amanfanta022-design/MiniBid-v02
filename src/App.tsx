@@ -17,11 +17,16 @@ import { SuperAdminBalanceAdjuster } from './components/SuperAdminBalanceAdjuste
 import { SuperAdminAuditLogs } from './components/SuperAdminAuditLogs.js';
 import { AuthModal } from './components/AuthModal.js';
 import { GoldenParticleBackground } from './components/GoldenParticleBackground.js';
+import { SunfyreLiveIntro } from './components/SunfyreLiveIntro.js';
 import { User } from './types.js';
 import { ShieldCheck, Lock, Coins, Sparkles } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
+
+  const [showIntro, setShowIntro] = useState<boolean>(() => {
+    return !sessionStorage.getItem('sunfyre_intro_dismissed');
+  });
 
   const [currentTab, setCurrentTab] = useState<string>('auctions');
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
@@ -72,6 +77,16 @@ const MainAppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen text-zinc-100 flex flex-col selection:bg-[#E5B842]/30 selection:text-[#E5B842] font-sans relative overflow-x-hidden">
+      {/* 3D Live Sunfyre Intro Animation */}
+      {showIntro && (
+        <SunfyreLiveIntro
+          onComplete={() => {
+            sessionStorage.setItem('sunfyre_intro_dismissed', 'true');
+            setShowIntro(false);
+          }}
+        />
+      )}
+
       {/* Eye-comfortable glowing golden lines & dots animated background */}
       <GoldenParticleBackground />
 
@@ -91,6 +106,7 @@ const MainAppContent: React.FC = () => {
         onOpenHowItWorks={() => setIsHowItWorksOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenCreateAuction={() => setIsCreateAuctionOpen(true)}
+        onReplayIntro={() => setShowIntro(true)}
       />
 
       {/* 2. Main Workspace / Content */}
@@ -135,6 +151,7 @@ const MainAppContent: React.FC = () => {
           <AuctionsList
             onSelectAuction={id => setSelectedAuctionId(id)}
             onOpenHowItWorks={() => setIsHowItWorksOpen(true)}
+            onViewWinners={() => setCurrentTab('winners')}
             onOpenDeposit={() => {
               if (!user) setIsAuthOpen(true);
               else setIsDepositOpen(true);

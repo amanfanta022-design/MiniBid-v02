@@ -99,6 +99,9 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
         if (res.ok) {
           const data = await res.json();
           setAuction(data.auction);
+          if (data.auction?.status === 'ended') {
+            setActiveTab('history');
+          }
           setUserBids(data.user_bids || []);
           setConcludedBids(data.concluded_bids || []);
           if (data.superadmin_bids) setSuperadminBids(data.superadmin_bids);

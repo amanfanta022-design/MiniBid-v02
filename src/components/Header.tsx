@@ -20,9 +20,13 @@ import {
   Lock,
   PlusSquare,
   FileSpreadsheet,
+  Sparkles,
+  Upload,
+  RotateCcw,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
 import { PlatformNotification } from '../types.js';
+import { useBrandLogo } from '../utils/brandLogo.js';
 
 interface HeaderProps {
   currentTab: string;
@@ -32,6 +36,7 @@ interface HeaderProps {
   onOpenHowItWorks: () => void;
   onOpenAuth: () => void;
   onOpenCreateAuction: () => void;
+  onReplayIntro?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -42,8 +47,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHowItWorks,
   onOpenAuth,
   onOpenCreateAuction,
+  onReplayIntro,
 }) => {
   const { user, logout } = useAuth();
+  const { logoUrl, isCustom, uploadCustomLogo, resetToDefault } = useBrandLogo();
   const [audioOn, setAudioOn] = useState(true);
   const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
@@ -124,9 +131,33 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center justify-between h-18 gap-4">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => onSelectTab('auctions')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E5B842] via-[#D4AF37] to-[#997920] p-0.5 shadow-[0_0_15px_rgba(229,184,66,0.3)]">
-              <div className="w-full h-full bg-[#09090b] rounded-[10px] flex items-center justify-center">
-                <span className="font-serif font-black text-[#E5B842] text-xl tracking-tighter">MB</span>
+            <div className="relative group/logo w-11 h-11 rounded-xl bg-gradient-to-br from-[#E5B842] via-[#F3C34F] to-[#997920] p-0.5 shadow-[0_0_18px_rgba(229,184,66,0.35)] shrink-0 overflow-hidden">
+              <div className="w-full h-full bg-[#09090b] rounded-[10px] overflow-hidden flex items-center justify-center relative">
+                <img
+                  src={logoUrl}
+                  alt="Sunfyre General Trading Logo"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                {user?.role === 'superadmin' && (
+                  <label
+                    onClick={e => e.stopPropagation()}
+                    className="absolute inset-0 bg-black/80 backdrop-blur-xs opacity-0 group-hover/logo:opacity-100 flex flex-col items-center justify-center text-[7px] text-[#E5B842] font-mono font-semibold transition-opacity cursor-pointer text-center p-0.5"
+                    title="Super Admin: Upload your custom logo"
+                  >
+                    <Upload className="w-3 h-3 text-[#E5B842] mb-0.5" />
+                    <span>CUSTOM</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadCustomLogo(file);
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             </div>
             <div>
@@ -136,12 +167,38 @@ export const Header: React.FC<HeaderProps> = ({
                   {user?.role || 'Guest'}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 -mt-0.5 font-sans tracking-wide">Lowest Unique Bid Platform</p>
+              <p className="text-[10px] text-[#E5B842] -mt-0.5 font-mono tracking-wider font-medium flex items-center gap-1.5">
+                <span>Powered by Sunfyre General Trading</span>
+                {isCustom && user?.role === 'superadmin' && (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      resetToDefault();
+                    }}
+                    className="text-[9px] text-zinc-400 hover:text-red-400 underline cursor-pointer"
+                    title="Reset to default luxury crest"
+                  >
+                    (Reset)
+                  </button>
+                )}
+              </p>
             </div>
           </div>
 
           {/* Navigation Bar */}
           <nav className="hidden md:flex items-center gap-1 bg-[#121214] p-1 rounded-xl border border-[#27272a]">
+            {onReplayIntro && (
+              <button
+                onClick={onReplayIntro}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#E5B842] hover:bg-[#E5B842]/10 transition-all border border-[#E5B842]/30"
+                title="Replay 3D Live Intro"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>3D Intro</span>
+              </button>
+            )}
+
             <button
               id="nav-tab-auctions"
               onClick={() => onSelectTab('auctions')}

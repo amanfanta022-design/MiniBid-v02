@@ -51,6 +51,36 @@ export const SuperAdminFinancials: React.FC = () => {
   const [testReport, setTestReport] = useState<IntegrityTestSuiteReport | null>(null);
   const [isRunningTests, setIsRunningTests] = useState(false);
   const [testError, setTestError] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState('');
+
+  const handleResetBaseline = async () => {
+    if (!token) return;
+    if (!window.confirm('Are you sure you want to reset the financial system to 0.00 ETB baseline? All live auctions will end and clear, and all deposits/ledger will reset to 0.00 ETB for fresh testing.')) {
+      return;
+    }
+    setIsResetting(true);
+    setResetSuccessMessage('');
+    try {
+      const res = await fetch('/api/admin/financial-baseline/reset', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetSuccessMessage(data.message || 'System reset to clean 0.00 ETB baseline!');
+        fetchFinancials(dateRange);
+        fetchDepositsAndLedger();
+        setTimeout(() => setResetSuccessMessage(''), 6000);
+      } else {
+        alert(data.error || 'Failed to reset baseline');
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const fetchFinancials = async (range: string) => {
     if (!token) return;
@@ -244,8 +274,25 @@ export const SuperAdminFinancials: React.FC = () => {
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
           </button>
+
+          <button
+            onClick={handleResetBaseline}
+            disabled={isResetting}
+            title="Reset Platform Financials to clean 0.00 ETB baseline and clear live auctions"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 text-xs font-semibold transition-all cursor-pointer shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+            <span>{isResetting ? 'Resetting...' : 'Reset 0.00 ETB'}</span>
+          </button>
         </div>
       </div>
+
+      {resetSuccessMessage && (
+        <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/60 text-emerald-200 text-xs flex items-center gap-2 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{resetSuccessMessage}</span>
+        </div>
+      )}
 
       {/* Financial Overview Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
