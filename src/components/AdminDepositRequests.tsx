@@ -107,9 +107,13 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
     }
 
     try {
+      const idempotencyKey = `appr_${depId}_${Date.now()}`;
       const res = await fetch(`/api/admin/deposits/${depId}/approve`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Idempotency-Key': idempotencyKey,
+        },
       });
       const data = await res.json();
       if (res.ok) {
@@ -118,7 +122,12 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         await refreshUser();
         fetchDeposits();
       } else {
-        setActionError(data.error || 'Failed to approve deposit');
+        if (res.status === 409 || data.is_conflict) {
+          setActionError('Already processed by another administrator.');
+        } else {
+          setActionError(data.error || 'Failed to approve deposit');
+        }
+        fetchDeposits();
       }
     } catch {
       setActionError('Network error while processing approval.');
@@ -146,7 +155,12 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         setInspectDeposit(null);
         fetchDeposits();
       } else {
-        setActionError(data.error || 'Failed to reject deposit');
+        if (res.status === 409 || data.is_conflict) {
+          setActionError('Already processed by another administrator.');
+        } else {
+          setActionError(data.error || 'Failed to reject deposit');
+        }
+        fetchDeposits();
       }
     } catch {
       setActionError('Network error while rejecting deposit.');

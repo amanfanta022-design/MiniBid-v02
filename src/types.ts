@@ -57,25 +57,79 @@ export interface Bid {
   status?: BidUniquenessStatus;
 }
 
-export type DepositStatus = 'pending' | 'approved' | 'rejected';
+export type DepositStatus = 'pending' | 'approved' | 'rejected' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface DepositRequest {
   id: string;
-  user_id: string;
+  user_id: string; // Customer ID
   username: string;
   user_phone: string;
   user_email: string;
   amount: number;
   payment_channel: 'Commercial Bank of Ethiopia (CBE)' | 'Telebirr' | 'Awash Bank' | 'Dashen Bank' | string;
-  reference_code: string;
+  payment_method?: string; // alias
+  reference_code: string; // Transaction number
+  transaction_number?: string; // alias
   receipt_url: string;
   receipt_name?: string;
   receipt_mime?: string;
+  receipt_size_bytes?: number;
   status: DepositStatus;
   rejection_reason?: string;
   created_at: string;
   reviewed_at?: string;
   reviewed_by?: string;
+  approved_at?: string; // alias
+  approved_by?: string; // alias
+  idempotency_key?: string;
+}
+
+export interface FinancialLedgerEntry {
+  id: string;
+  deposit_request_id: string; // UNIQUE CONSTRAINT in database
+  customer_id: string;
+  customer_username: string;
+  amount: number;
+  currency: 'ETB';
+  type: 'DEPOSIT';
+  status: 'COMPLETED';
+  payment_method: string;
+  transaction_number: string;
+  approved_by: string;
+  approved_by_id: string;
+  balance_before: number;
+  balance_after: number;
+  created_at: string;
+}
+
+export interface BlockedApprovalAttempt {
+  id: string;
+  deposit_id: string;
+  attempted_by_id: string;
+  attempted_by_username: string;
+  winning_admin_username: string;
+  attempted_at: string;
+  reason: string;
+}
+
+export interface FinancialIntegrityTestStep {
+  testId: string;
+  name: string;
+  description: string;
+  passed: boolean;
+  durationMs: number;
+  details: string;
+  evidence: Record<string, any>;
+}
+
+export interface IntegrityTestSuiteReport {
+  timestamp: string;
+  allPassed: boolean;
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+  totalDurationMs: number;
+  steps: FinancialIntegrityTestStep[];
 }
 
 export type TransactionType = 'deposit' | 'bid_fee' | 'bid_amount' | 'refund' | 'admin_adjustment' | 'admin_disbursement' | 'admin_float_credit';
@@ -145,6 +199,10 @@ export interface AuctionPnL {
 
 export interface FinancialReport {
   total_approved_deposits: number;
+  total_pending_deposits: number;
+  total_rejected_deposits: number;
+  pending_deposits_amount: number;
+  rejected_deposits_amount: number;
   total_confidential_costs: number;
   total_bidding_revenue: number;
   net_profit_loss: number;

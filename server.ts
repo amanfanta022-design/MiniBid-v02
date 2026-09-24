@@ -2,7 +2,17 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
-import { db, hashPassword, verifyPassword } from './server/db.js';
+import {
+  db,
+  hashPassword,
+  verifyPassword,
+  ConcurrentApprovalConflictError,
+  LedgerConstraintViolationError,
+  DuplicateTransactionNumberError,
+  InsufficientFloatError,
+  InvalidReceiptError,
+} from './server/db.js';
+import { runFinancialIntegrityTests } from './server/integrityTests.js';
 import { UserRole } from './src/types.js';
 
 const app = express();
@@ -611,28 +621,125 @@ app.get('/api/admin/deposits', authenticate, requireRole(['admin', 'superadmin']
   res.json({ deposits });
 });
 
-// Approve Deposit Request
-app.post('/api/admin/deposits/:id/approve', authenticate, requireRole(['admin', 'superadmin']), (req: AuthenticatedRequest, res: Response) => {
-  const result = db.approveDeposit(req.params.id, req.user!);
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
+// Approve Deposit Request (Atomic CAS, Financial Ledger, Concurrency Protection)
+app.post(
+  '/api/admin/deposits/:id/approve',
+  authenticate,
+  requireRole(['admin', 'superadmin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const idempotencyKey = (req.headers['x-idempotency-key'] as string) || req.body?.idempotency_key;
+
+    try {
+      const result = await db.approveDeposit(req.params.id, req.user!, { idempotencyKey });
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json({
+        message: result.was_idempotent
+          ? 'Deposit approval was already processed (idempotent result).'
+          : 'Deposit approved and wallet credited successfully.',
+        deposit: result.deposit,
+        ledger: result.ledger,
+        was_idempotent: result.was_idempotent,
+      });
+    } catch (err: any) {
+      if (err instanceof ConcurrentApprovalConflictError) {
+        return res.status(409).json({
+          error: 'This deposit has already been processed by another administrator.',
+          is_conflict: true,
+        });
+      }
+      if (err instanceof LedgerConstraintViolationError) {
+        return res.status(409).json({
+          error: 'A financial ledger record already exists for this deposit request.',
+          is_conflict: true,
+        });
+      }
+      if (err instanceof InsufficientFloatError) {
+        return res.status(400).json({ error: err.message });
+      }
+      return res.status(500).json({ error: err.message || 'Deposit approval failed.' });
+    }
   }
-  res.json({ message: 'Deposit approved and wallet credited successfully.', deposit: result.deposit });
-});
+);
 
 // Reject Deposit Request
-app.post('/api/admin/deposits/:id/reject', authenticate, requireRole(['admin', 'superadmin']), (req: AuthenticatedRequest, res: Response) => {
-  const { reason } = req.body;
-  if (!reason || !reason.trim()) {
-    return res.status(400).json({ error: 'Rejection reason explanation is required.' });
-  }
+app.post(
+  '/api/admin/deposits/:id/reject',
+  authenticate,
+  requireRole(['admin', 'superadmin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Rejection reason explanation is required.' });
+    }
 
-  const result = db.rejectDeposit(req.params.id, reason, req.user!);
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
+    try {
+      const result = await db.rejectDeposit(req.params.id, reason, req.user!);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      return res.json({ message: 'Deposit rejected and applicant notified.', deposit: result.deposit });
+    } catch (err: any) {
+      if (err instanceof ConcurrentApprovalConflictError) {
+        return res.status(409).json({
+          error: 'This deposit has already been processed by another administrator.',
+          is_conflict: true,
+        });
+      }
+      return res.status(500).json({ error: err.message || 'Deposit rejection failed.' });
+    }
   }
-  res.json({ message: 'Deposit rejected and applicant notified.', deposit: result.deposit });
-});
+);
+
+// Financial Ledger Directory (Auditable 1:1 records of every approved deposit)
+app.get(
+  '/api/admin/financial-ledger',
+  authenticate,
+  requireRole(['admin', 'superadmin']),
+  (_req: Request, res: Response) => {
+    const ledger = db.getFinancialLedger();
+    res.json({ ledger });
+  }
+);
+
+// Blocked Concurrent Approval Attempts Audit (Race condition defense logs)
+app.get(
+  '/api/admin/blocked-attempts',
+  authenticate,
+  requireRole(['admin', 'superadmin']),
+  (_req: Request, res: Response) => {
+    const attempts = db.getBlockedApprovalAttempts();
+    res.json({ attempts });
+  }
+);
+
+// Deposit Reconciliation Summary
+app.get(
+  '/api/admin/deposits/summary',
+  authenticate,
+  requireRole(['admin', 'superadmin']),
+  (_req: Request, res: Response) => {
+    const summary = db.getDepositSummary();
+    res.json({ summary });
+  }
+);
+
+// Financial Concurrency & Integrity Test Suite Runner (Executes all 10 integrity tests)
+app.post(
+  '/api/admin/financial-integrity/run-tests',
+  authenticate,
+  requireRole(['admin', 'superadmin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const report = await runFinancialIntegrityTests(req.user!);
+      res.json({ report });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to complete financial integrity test suite: ' + err.message });
+    }
+  }
+);
 
 // Active Users Directory - Super Admin must NOT be visible to anyone including admins!
 app.get('/api/admin/users', authenticate, requireRole(['admin', 'superadmin']), (_req: Request, res: Response) => {

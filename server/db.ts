@@ -13,13 +13,108 @@ import {
   AuctionPnL,
   UserRole,
   AdminFloatRequest,
+  FinancialLedgerEntry,
+  BlockedApprovalAttempt,
 } from '../src/types.js';
+
+// ========================================================
+// CRITICAL FINANCIAL INTEGRITY ERROR CLASSES
+// ========================================================
+export class DuplicateTransactionNumberError extends Error {
+  constructor(message = 'This transaction number has already been submitted.') {
+    super(message);
+    this.name = 'DuplicateTransactionNumberError';
+  }
+}
+
+export class ConcurrentApprovalConflictError extends Error {
+  constructor(message = 'This deposit has already been processed by another administrator.') {
+    super(message);
+    this.name = 'ConcurrentApprovalConflictError';
+  }
+}
+
+export class LedgerConstraintViolationError extends Error {
+  constructor(message = 'Financial integrity violation: Multiple ledger entries detected for deposit.') {
+    super(message);
+    this.name = 'LedgerConstraintViolationError';
+  }
+}
+
+export class InsufficientFloatError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InsufficientFloatError';
+  }
+}
+
+export class InvalidReceiptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidReceiptError';
+  }
+}
+
+// Receipt Validation Helper (File size <= 5MB, MIME, binary magic bytes)
+export function validateReceiptPayload(payload: {
+  receipt_url?: string;
+  receipt_name?: string;
+  receipt_mime?: string;
+  receipt_size_bytes?: number;
+}): { valid: boolean; error?: string } {
+  const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+  if (payload.receipt_size_bytes && payload.receipt_size_bytes > MAX_BYTES) {
+    return { valid: false, error: 'Receipt attachment exceeds strict 5MB limit. Please compress your file.' };
+  }
+
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+  if (payload.receipt_mime && !allowedMimes.includes(payload.receipt_mime.toLowerCase())) {
+    return { valid: false, error: 'Invalid file type. Only JPEG, PNG, and WebP receipts are accepted.' };
+  }
+
+  if (payload.receipt_url && payload.receipt_url.startsWith('data:')) {
+    const commaIdx = payload.receipt_url.indexOf(',');
+    if (commaIdx === -1) {
+      return { valid: false, error: 'Malformed receipt image payload.' };
+    }
+    const base64Data = payload.receipt_url.substring(commaIdx + 1);
+    const approxBytes = Math.floor((base64Data.length * 3) / 4);
+    if (approxBytes > MAX_BYTES) {
+      return { valid: false, error: 'Uploaded receipt file exceeds 5MB size limit.' };
+    }
+
+    // Magic bytes header inspection
+    try {
+      const headerBuffer = Buffer.from(base64Data.substring(0, 32), 'base64');
+      if (headerBuffer.length >= 4) {
+        const isJpeg = headerBuffer[0] === 0xff && headerBuffer[1] === 0xd8 && headerBuffer[2] === 0xff;
+        const isPng = headerBuffer[0] === 0x89 && headerBuffer[1] === 0x50 && headerBuffer[2] === 0x4e && headerBuffer[3] === 0x47;
+        const isWebp = headerBuffer.toString('ascii', 0, 4) === 'RIFF';
+
+        if (!isJpeg && !isPng && !isWebp) {
+          return {
+            valid: false,
+            error: 'Receipt binary integrity check failed. File signature does not match a valid JPEG, PNG, or WebP image.',
+          };
+        }
+      }
+    } catch {
+      return { valid: false, error: 'Failed to parse receipt image binary.' };
+    }
+  }
+
+  return { valid: true };
+}
 
 interface DatabaseSchema {
   users: (User & { password_hash: string; salt: string })[];
   auctions: Auction[];
   bids: Bid[];
   deposits: DepositRequest[];
+  financial_ledger: FinancialLedgerEntry[];
+  blocked_approval_attempts: BlockedApprovalAttempt[];
+  idempotency_cache: Record<string, { deposit_id: string; result: any; created_at: string }>;
   admin_float_requests: AdminFloatRequest[];
   transactions: Transaction[];
   notifications: PlatformNotification[];
@@ -528,11 +623,34 @@ function getInitialSeed(): DatabaseSchema {
     },
   ];
 
+  const financial_ledger: FinancialLedgerEntry[] = [
+    {
+      id: 'led_init_dep_3',
+      deposit_request_id: 'dep_3',
+      customer_id: 'usr_dawit',
+      customer_username: 'dawit_crypto',
+      amount: 2000,
+      currency: 'ETB',
+      type: 'DEPOSIT',
+      status: 'COMPLETED',
+      payment_method: 'Awash Bank',
+      transaction_number: 'AWB-2024-8849102',
+      approved_by: 'admin_ops',
+      approved_by_id: 'usr_admin_ops',
+      balance_before: 0,
+      balance_after: 2000,
+      created_at: new Date(Date.now() - 2 * 86400000 + 1800000).toISOString(),
+    },
+  ];
+
   return {
     users,
     auctions,
     bids,
     deposits,
+    financial_ledger,
+    blocked_approval_attempts: [],
+    idempotency_cache: {},
     admin_float_requests: [],
     transactions,
     notifications,
@@ -543,6 +661,7 @@ function getInitialSeed(): DatabaseSchema {
 class Database {
   private memoryData: DatabaseSchema;
   private isWriting = false;
+  private depositMutexes = new Map<string, Promise<void>>();
 
   constructor() {
     this.ensureDirectory();
@@ -568,6 +687,42 @@ class Database {
           if (!parsed.admin_float_requests) {
             parsed.admin_float_requests = [];
           }
+          if (!parsed.blocked_approval_attempts) {
+            parsed.blocked_approval_attempts = [];
+          }
+          if (!parsed.idempotency_cache) {
+            parsed.idempotency_cache = {};
+          }
+          if (!parsed.financial_ledger) {
+            parsed.financial_ledger = [];
+          }
+
+          // Migrate any existing approved deposits to financial_ledger if not present
+          for (const dep of parsed.deposits || []) {
+            if (
+              (dep.status === 'approved' || dep.status === 'APPROVED') &&
+              !parsed.financial_ledger.some((l: any) => l.deposit_request_id === dep.id)
+            ) {
+              parsed.financial_ledger.push({
+                id: `led_migrated_${dep.id}`,
+                deposit_request_id: dep.id,
+                customer_id: dep.user_id,
+                customer_username: dep.username,
+                amount: dep.amount,
+                currency: 'ETB',
+                type: 'DEPOSIT',
+                status: 'COMPLETED',
+                payment_method: dep.payment_channel || dep.payment_method || 'Commercial Bank of Ethiopia (CBE)',
+                transaction_number: dep.reference_code || dep.transaction_number || 'LEGACY_REF',
+                approved_by: dep.reviewed_by || dep.approved_by || 'admin_ops',
+                approved_by_id: 'usr_admin_ops',
+                balance_before: 0,
+                balance_after: dep.amount,
+                created_at: dep.reviewed_at || dep.approved_at || dep.created_at,
+              });
+            }
+          }
+
           // Normalize start_price for items that previously had low fraction placeholders
           const priceMap: Record<string, number> = {
             auc_iphone16pro: 185000,
@@ -1010,6 +1165,58 @@ class Database {
     };
   }
 
+  // --- Database Constraints & Concurrency Lock ---
+  private checkTransactionNumberUniqueness(paymentMethod: string, transactionNumber: string, excludeDepositId?: string): void {
+    const normMethod = (paymentMethod || '').trim().toLowerCase();
+    const normTxn = (transactionNumber || '').trim().toLowerCase();
+
+    if (!normTxn) {
+      throw new Error('Transaction reference number is required.');
+    }
+
+    const duplicate = this.memoryData.deposits.find(d => {
+      if (excludeDepositId && d.id === excludeDepositId) return false;
+      const dMethod = (d.payment_channel || d.payment_method || '').trim().toLowerCase();
+      const dTxn = (d.reference_code || d.transaction_number || '').trim().toLowerCase();
+      return dMethod === normMethod && dTxn === normTxn;
+    });
+
+    if (duplicate) {
+      throw new DuplicateTransactionNumberError('This transaction number has already been submitted.');
+    }
+  }
+
+  private checkLedgerUniqueness(depositRequestId: string): void {
+    if (!this.memoryData.financial_ledger) {
+      this.memoryData.financial_ledger = [];
+    }
+    const exists = this.memoryData.financial_ledger.some(l => l.deposit_request_id === depositRequestId);
+    if (exists) {
+      throw new LedgerConstraintViolationError(
+        `Financial integrity violation: Deposit #${depositRequestId} has already generated a financial ledger entry.`
+      );
+    }
+  }
+
+  private async withDepositLock<T>(depositId: string, fn: () => Promise<T> | T): Promise<T> {
+    const current = this.depositMutexes.get(depositId) || Promise.resolve();
+    let release: () => void;
+    const next = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    this.depositMutexes.set(depositId, current.then(() => next));
+
+    await current;
+    try {
+      return await fn();
+    } finally {
+      release!();
+      if (this.depositMutexes.get(depositId) === current.then(() => next)) {
+        this.depositMutexes.delete(depositId);
+      }
+    }
+  }
+
   // Create Deposit Request
   public createDepositRequest(depositData: {
     user_id: string;
@@ -1019,125 +1226,66 @@ class Database {
     receipt_url: string;
     receipt_name?: string;
     receipt_mime?: string;
+    receipt_size_bytes?: number;
   }): { success: boolean; deposit?: DepositRequest; error?: string; is_flagged?: boolean; attempts?: number } {
     const user = this.findUserById(depositData.user_id);
     if (!user) return { success: false, error: 'User not found' };
 
+    if (typeof depositData.amount !== 'number' || isNaN(depositData.amount) || depositData.amount < 50) {
+      return { success: false, error: 'Minimum deposit is 50 ETB.' };
+    }
+
+    if (!depositData.payment_channel || !depositData.payment_channel.trim()) {
+      return { success: false, error: 'Payment method is required.' };
+    }
+
+    if (!depositData.reference_code || !depositData.reference_code.trim()) {
+      return { success: false, error: 'Transaction number is required and cannot be blank.' };
+    }
+
+    // Backend receipt validation: strict <= 5MB limit and magic bytes inspection
+    const receiptValidation = validateReceiptPayload({
+      receipt_url: depositData.receipt_url,
+      receipt_name: depositData.receipt_name,
+      receipt_mime: depositData.receipt_mime,
+      receipt_size_bytes: depositData.receipt_size_bytes,
+    });
+    if (!receiptValidation.valid) {
+      return { success: false, error: receiptValidation.error || 'Invalid receipt upload.' };
+    }
+
     const cleanRef = depositData.reference_code.trim();
-    const lowerRef = cleanRef.toLowerCase();
+    const cleanMethod = depositData.payment_channel.trim();
 
-    // 1. Check if this transaction number has ALREADY been approved (used) by this user or ANY other user
-    const alreadyApprovedDeposit = this.memoryData.deposits.find(
-      d => d.reference_code.trim().toLowerCase() === lowerRef && d.status === 'approved'
-    );
-
-    if (alreadyApprovedDeposit) {
-      // Transaction reference number has already been verified and used
+    // DATABASE CONSTRAINT: payment_method + transaction_number must be strictly unique
+    try {
+      this.checkTransactionNumberUniqueness(cleanMethod, cleanRef);
+    } catch (err: any) {
+      // Track duplicate attempts for fraud detection
       user.duplicate_txn_attempts = (user.duplicate_txn_attempts || 0) + 1;
-
-      // Rule: If attempted MORE than 2 times (attempt 3+), flag that user and warn him & the super admin as well
       if (user.duplicate_txn_attempts > 2) {
         user.is_flagged = true;
-        user.flag_reason = `Attempted ${user.duplicate_txn_attempts} times to reuse approved transaction reference number: ${cleanRef}`;
+        user.flag_reason = `Attempted ${user.duplicate_txn_attempts} times to reuse submitted transaction number: ${cleanRef}`;
         user.flagged_at = new Date().toISOString();
 
-        // Warning notification to the user
-        this.memoryData.notifications.unshift({
-          id: `notif_fraud_warn_${Date.now()}`,
-          recipient_type: 'user',
-          target_user_id: user.id,
-          target_username: user.username,
-          title: '🚨 SECURITY WARNING: Account Flagged',
-          message: `Your account has been FLAGGED by system security. You have attempted ${user.duplicate_txn_attempts} times to reuse already-approved transaction number "${cleanRef}". Operations and Super Admin have been alerted. Further attempts will lead to permanent suspension.`,
-          type: 'alert',
-          created_at: new Date().toISOString(),
-          read_by: [],
-        });
-
-        // Warning notification specifically to Super Admin
-        this.memoryData.notifications.unshift({
-          id: `notif_fraud_sa_${Date.now()}`,
-          recipient_type: 'superadmin',
-          target_username: 'superadmin',
-          title: `🚨 FRAUD SECURITY ALERT: User @${user.username} Flagged`,
-          message: `Security Alert: User @${user.username} (Phone: ${user.phone}, ID: ${user.id}) has been automatically FLAGGED after attempting ${user.duplicate_txn_attempts} times to reuse verified transaction number "${cleanRef}".`,
-          type: 'alert',
-          created_at: new Date().toISOString(),
-          read_by: [],
-        });
-
-        // Alert Admins as well
-        this.memoryData.notifications.unshift({
-          id: `notif_fraud_adm_${Date.now()}`,
-          recipient_type: 'admin',
-          title: `🚨 FRAUD ALERT: User @${user.username} Flagged`,
-          message: `Security Notice: User @${user.username} (Phone: ${user.phone}) has been FLAGGED by security for repeatedly attempting to reuse verified transaction reference "${cleanRef}" (${user.duplicate_txn_attempts} attempts).`,
-          type: 'alert',
-          created_at: new Date().toISOString(),
-          read_by: [],
-        });
-
-        // Record in Master Audit Log
         this.memoryData.audit_logs.unshift({
           id: `aud_fraud_${Date.now()}`,
           actor_id: user.id,
           actor_username: user.username,
           actor_role: user.role,
           action: 'FRAUD_ALERT_TXN_REUSE',
-          details: `CRITICAL FRAUD ALERT: User @${user.username} (ID: ${user.id}, Phone: ${user.phone}) attempted to reuse approved deposit transaction reference "${cleanRef}" (Attempt #${user.duplicate_txn_attempts}). Account flagged for fraudulent reuse.`,
+          details: `CRITICAL FRAUD ALERT: User @${user.username} repeatedly attempted to reuse transaction number "${cleanRef}" (${user.duplicate_txn_attempts} attempts). Account flagged.`,
           ip_reference: '197.156.103.1',
           created_at: new Date().toISOString(),
         });
-
-        this.persist(this.memoryData);
-
-        return {
-          success: false,
-          error: `This transaction number is already used! 🚨 WARNING: Your account has been FLAGGED for repeatedly attempting to reuse verified transaction reference numbers (${user.duplicate_txn_attempts} attempts). Super Admin and Operations have been alerted.`,
-          is_flagged: true,
-          attempts: user.duplicate_txn_attempts,
-        };
-      } else {
-        // Attempt 1 or 2: Alert Admins & Super Admin and inform user
-        this.memoryData.notifications.unshift({
-          id: `notif_reuse_adm_${Date.now()}`,
-          recipient_type: 'admin',
-          title: `⚠️ Reused Txn Attempt: @${user.username}`,
-          message: `User @${user.username} (Phone: ${user.phone}) attempted to enter already-approved transaction reference "${cleanRef}" (Attempt #${user.duplicate_txn_attempts}/2).`,
-          type: 'alert',
-          created_at: new Date().toISOString(),
-          read_by: [],
-        });
-
-        this.memoryData.notifications.unshift({
-          id: `notif_reuse_sa_${Date.now()}`,
-          recipient_type: 'superadmin',
-          target_username: 'superadmin',
-          title: `⚠️ Reused Txn Attempt: @${user.username}`,
-          message: `User @${user.username} (Phone: ${user.phone}) attempted to enter already-approved transaction reference "${cleanRef}" (Attempt #${user.duplicate_txn_attempts}/2).`,
-          type: 'alert',
-          created_at: new Date().toISOString(),
-          read_by: [],
-        });
-
-        this.persist(this.memoryData);
-        return {
-          success: false,
-          error: `This transaction number is already used! Please provide a new, valid bank or Telebirr transaction reference. (Attempt ${user.duplicate_txn_attempts}/2 before your account is flagged by security).`,
-          is_flagged: false,
-          attempts: user.duplicate_txn_attempts,
-        };
       }
-    }
 
-    // 2. Check if this reference is currently pending verification
-    const pendingDeposit = this.memoryData.deposits.find(
-      d => d.reference_code.trim().toLowerCase() === lowerRef && d.status === 'pending'
-    );
-    if (pendingDeposit) {
+      this.persist(this.memoryData);
       return {
         success: false,
-        error: 'This transaction reference number is currently pending administrative verification. Please wait for operations approval.',
+        error: 'This transaction number has already been submitted.',
+        is_flagged: user.is_flagged,
+        attempts: user.duplicate_txn_attempts,
       };
     }
 
@@ -1147,12 +1295,15 @@ class Database {
       username: user.username,
       user_phone: user.phone,
       user_email: user.email,
-      amount: depositData.amount,
-      payment_channel: depositData.payment_channel,
+      amount: Number(depositData.amount.toFixed(2)),
+      payment_channel: cleanMethod,
+      payment_method: cleanMethod,
       reference_code: cleanRef,
+      transaction_number: cleanRef,
       receipt_url: depositData.receipt_url,
       receipt_name: depositData.receipt_name || 'receipt_attachment',
       receipt_mime: depositData.receipt_mime || 'image/jpeg',
+      receipt_size_bytes: depositData.receipt_size_bytes || 0,
       status: 'pending',
       created_at: new Date().toISOString(),
     };
@@ -1188,162 +1339,325 @@ class Database {
     return { success: true, user };
   }
 
-  // Approve Deposit Request (Credits User Balance Atomics, Deducts from Admin Float)
-  public approveDeposit(depositId: string, reviewer: { id: string; username: string; role: UserRole }): { success: boolean; error?: string; deposit?: DepositRequest } {
-    const deposit = this.memoryData.deposits.find(d => d.id === depositId);
-    if (!deposit) return { success: false, error: 'Deposit request not found' };
-    if (deposit.status !== 'pending') return { success: false, error: `Deposit is already ${deposit.status}` };
+  // Approve Deposit Request (Atomic CAS, Financial Ledger, Concurrency Protection, Zero Double Credit)
+  public async approveDeposit(
+    depositId: string,
+    reviewer: { id: string; username: string; role: UserRole },
+    options?: { idempotencyKey?: string; simulateFailure?: boolean }
+  ): Promise<{ success: boolean; error?: string; deposit?: DepositRequest; ledger?: FinancialLedgerEntry; was_idempotent?: boolean }> {
+    // 0. Check Idempotency Cache
+    if (options?.idempotencyKey && this.memoryData.idempotency_cache?.[options.idempotencyKey]) {
+      const cached = this.memoryData.idempotency_cache[options.idempotencyKey];
+      const dep = this.memoryData.deposits.find(d => d.id === cached.deposit_id);
+      const led = this.memoryData.financial_ledger?.find(l => l.deposit_request_id === cached.deposit_id);
+      return {
+        success: true,
+        deposit: dep,
+        ledger: led,
+        was_idempotent: true,
+      };
+    }
 
-    const user = this.findUserById(deposit.user_id);
-    if (!user) return { success: false, error: 'Recipient user account not found' };
-
-    const reviewerUser = this.findUserById(reviewer.id);
-    if (!reviewerUser) return { success: false, error: 'Reviewer staff account not found' };
-
-    // STRICT BUSINESS RULE:
-    // Only Admins can deposit for users after approving user's request.
-    // Each time Admins deposit for users, the Admin's balance MUST be deducted!
-    // If the Admin's balance is lower than the deposit amount, block and instruct Admin to ask Super Admin for float.
-    if (reviewer.role === 'admin') {
-      if (reviewerUser.wallet_balance < deposit.amount) {
-        return {
-          success: false,
-          error: `Insufficient Admin operational balance! Your balance is ${reviewerUser.wallet_balance.toFixed(2)} ETB, but approving this customer deposit requires ${deposit.amount.toFixed(2)} ETB. Please submit a Float Deposit Request to Super Admin first to replenish your balance.`,
-        };
+    return this.withDepositLock(depositId, async () => {
+      // 1. Lock and claim the pending deposit request
+      const deposit = this.memoryData.deposits.find(d => d.id === depositId);
+      if (!deposit) {
+        return { success: false, error: 'Deposit request not found' };
       }
 
-      // Deduct from Admin's wallet balance
-      reviewerUser.wallet_balance = Number((reviewerUser.wallet_balance - deposit.amount).toFixed(2));
+      // 2. ATOMIC CONDITIONAL CHECK: Verify that it is still PENDING
+      // Equivalent to SQL: UPDATE deposits SET ... WHERE id = :id AND status = 'pending'
+      if (deposit.status.toLowerCase() !== 'pending') {
+        // Row affected = 0: Request was already processed by another administrator!
+        const originalApprover = deposit.reviewed_by || deposit.approved_by || 'another administrator';
 
-      // Add disbursement transaction for Admin
-      this.memoryData.transactions.unshift({
-        id: `tx_disb_${Date.now()}`,
-        user_id: reviewerUser.id,
-        type: 'admin_disbursement',
-        amount: -deposit.amount,
-        description: `Disbursed deposit for customer @${user.username} (Ref: ${deposit.reference_code})`,
-        reference_id: deposit.id,
-        balance_after: reviewerUser.wallet_balance,
-        created_at: new Date().toISOString(),
-      });
-    }
+        if (!this.memoryData.blocked_approval_attempts) {
+          this.memoryData.blocked_approval_attempts = [];
+        }
 
-    deposit.status = 'approved';
-    deposit.reviewed_at = new Date().toISOString();
-    deposit.reviewed_by = reviewer.username;
+        const blockedAttempt: BlockedApprovalAttempt = {
+          id: `blk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          deposit_id: deposit.id,
+          attempted_by_id: reviewer.id,
+          attempted_by_username: reviewer.username,
+          winning_admin_username: originalApprover,
+          attempted_at: new Date().toISOString(),
+          reason: `Deposit #${deposit.id} was already processed by Admin @${originalApprover}. Concurrent approval safely rejected.`,
+        };
+        this.memoryData.blocked_approval_attempts.unshift(blockedAttempt);
 
-    // Atomic credit to user's wallet balance
-    user.wallet_balance = Number((user.wallet_balance + deposit.amount).toFixed(2));
+        // Record in Audit Log
+        this.memoryData.audit_logs.unshift({
+          id: `aud_blk_${Date.now()}`,
+          actor_id: reviewer.id,
+          actor_username: reviewer.username,
+          actor_role: reviewer.role,
+          action: 'BLOCKED_CONCURRENT_APPROVAL',
+          details: `CONCURRENCY SAFETY LOCK: Admin @${reviewer.username} attempted concurrent approval on Deposit #${deposit.id} (${deposit.amount} ETB), but request was already claimed and approved by Admin @${originalApprover}. Zero double credit guaranteed.`,
+          ip_reference: '197.156.103.1',
+          created_at: new Date().toISOString(),
+        });
 
-    // Add transaction for recipient user
-    this.memoryData.transactions.unshift({
-      id: `tx_dep_${Date.now()}`,
-      user_id: user.id,
-      type: 'deposit',
-      amount: deposit.amount,
-      description: `Approved Deposit via ${deposit.payment_channel} (Disbursed by Admin @${reviewer.username}, Ref: ${deposit.reference_code})`,
-      reference_id: deposit.id,
-      balance_after: user.wallet_balance,
-      created_at: new Date().toISOString(),
+        this.persist(this.memoryData);
+
+        throw new ConcurrentApprovalConflictError('This deposit has already been processed by another administrator.');
+      }
+
+      const user = this.findUserById(deposit.user_id);
+      if (!user) throw new Error('Recipient user account not found');
+
+      const reviewerUser = this.findUserById(reviewer.id);
+
+      // Verify Admin operational float if role is admin
+      if (reviewer.role === 'admin') {
+        if (!reviewerUser) {
+          throw new Error('Reviewer staff account not found');
+        }
+        if (reviewerUser.wallet_balance < deposit.amount) {
+          throw new InsufficientFloatError(
+            `Insufficient Admin operational balance! Your balance is ${reviewerUser.wallet_balance.toFixed(2)} ETB, but approving this customer deposit requires ${deposit.amount.toFixed(2)} ETB. Please submit a Float Deposit Request to Super Admin first to replenish your balance.`
+          );
+        }
+      }
+
+      // BEGIN ATOMIC TRANSACTION SNAPSHOT FOR ZERO-PARTIAL-FAIL ROLLBACK
+      const preTxSnapshot = JSON.stringify(this.memoryData);
+
+      try {
+        // 3. DATABASE CONSTRAINT CHECK: Unique deposit in financial ledger
+        this.checkLedgerUniqueness(deposit.id);
+
+        // 4. Change deposit status to APPROVED
+        deposit.status = 'approved';
+        deposit.reviewed_at = new Date().toISOString();
+        deposit.approved_at = deposit.reviewed_at;
+        deposit.reviewed_by = reviewer.username;
+        deposit.approved_by = reviewer.username;
+
+        // Deduct from Admin float if applicable
+        if (reviewer.role === 'admin' && reviewerUser) {
+          reviewerUser.wallet_balance = Number((reviewerUser.wallet_balance - deposit.amount).toFixed(2));
+          this.memoryData.transactions.unshift({
+            id: `tx_disb_${Date.now()}`,
+            user_id: reviewerUser.id,
+            type: 'admin_disbursement',
+            amount: -deposit.amount,
+            description: `Disbursed deposit for customer @${user.username} (Ref: ${deposit.reference_code})`,
+            reference_id: deposit.id,
+            balance_after: reviewerUser.wallet_balance,
+            created_at: new Date().toISOString(),
+          });
+        }
+
+        // 5. Credit the customer's balance/wallet/account
+        const balanceBefore = user.wallet_balance;
+        user.wallet_balance = Number((user.wallet_balance + deposit.amount).toFixed(2));
+        const balanceAfter = user.wallet_balance;
+
+        // 6. Create the corresponding financial ledger entry
+        if (!this.memoryData.financial_ledger) {
+          this.memoryData.financial_ledger = [];
+        }
+
+        const ledgerEntry: FinancialLedgerEntry = {
+          id: `led_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          deposit_request_id: deposit.id,
+          customer_id: user.id,
+          customer_username: user.username,
+          amount: deposit.amount,
+          currency: 'ETB',
+          type: 'DEPOSIT',
+          status: 'COMPLETED',
+          payment_method: deposit.payment_channel || deposit.payment_method || 'Commercial Bank of Ethiopia (CBE)',
+          transaction_number: deposit.reference_code || deposit.transaction_number || 'UNKNOWN',
+          approved_by: reviewer.username,
+          approved_by_id: reviewer.id,
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
+          created_at: new Date().toISOString(),
+        };
+        this.memoryData.financial_ledger.unshift(ledgerEntry);
+
+        // Verification of uniqueness constraint
+        const ledgersForDep = this.memoryData.financial_ledger.filter(l => l.deposit_request_id === deposit.id);
+        if (ledgersForDep.length > 1) {
+          throw new LedgerConstraintViolationError(`Duplicate ledger detected for deposit #${deposit.id}`);
+        }
+
+        // 7. Add customer wallet transaction
+        this.memoryData.transactions.unshift({
+          id: `tx_dep_${Date.now()}`,
+          user_id: user.id,
+          type: 'deposit',
+          amount: deposit.amount,
+          description: `Approved Deposit via ${deposit.payment_channel} (Disbursed by Admin @${reviewer.username}, Ref: ${deposit.reference_code})`,
+          reference_id: deposit.id,
+          balance_after: user.wallet_balance,
+          created_at: new Date().toISOString(),
+        });
+
+        // 8. Create an audit log
+        this.memoryData.audit_logs.unshift({
+          id: `aud_${Date.now()}`,
+          actor_id: reviewer.id,
+          actor_username: reviewer.username,
+          actor_role: reviewer.role,
+          action: 'DEPOSIT_APPROVAL',
+          details: `Admin ${reviewer.username} approved & disbursed ${deposit.amount} ETB to user ${user.username} (Ref: ${deposit.reference_code}). Ledger ID: ${ledgerEntry.id}.`,
+          ip_reference: '197.156.103.1',
+          created_at: new Date().toISOString(),
+        });
+
+        // Notifications
+        this.memoryData.notifications.unshift({
+          id: `notif_dep_app_${Date.now()}`,
+          recipient_type: 'user',
+          target_user_id: user.id,
+          target_username: user.username,
+          title: `Deposit Approved: ${deposit.amount.toLocaleString()} ETB Credited`,
+          message: `Your deposit via ${deposit.payment_channel} (Ref: ${deposit.reference_code}) has been verified and disbursed by Admin @${reviewer.username}. Ledger ID: ${ledgerEntry.id}.`,
+          type: 'success',
+          created_at: new Date().toISOString(),
+          read_by: [],
+        });
+
+        if (reviewer.role !== 'superadmin') {
+          const remainingFloat = reviewerUser?.wallet_balance !== undefined ? `${reviewerUser.wallet_balance.toFixed(2)} ETB` : 'Operational';
+          this.memoryData.notifications.unshift({
+            id: `notif_sa_op_dep_${Date.now()}`,
+            recipient_type: 'superadmin',
+            target_username: 'superadmin',
+            title: `⚡ Admin Deposit Approval: @${reviewer.username}`,
+            message: `Admin @${reviewer.username} approved & disbursed ${deposit.amount.toLocaleString()} ETB for user @${user.username} (Ref: ${deposit.reference_code}). Admin float remaining: ${remainingFloat}.`,
+            type: 'info',
+            created_at: new Date().toISOString(),
+            read_by: [],
+          });
+        }
+
+        // SIMULATED FAILURE TEST HOOK (TEST 8)
+        if (options?.simulateFailure) {
+          throw new Error('SIMULATED_DATABASE_FAILURE_AFTER_CREDIT');
+        }
+
+        // Cache Idempotency Key
+        if (options?.idempotencyKey) {
+          if (!this.memoryData.idempotency_cache) {
+            this.memoryData.idempotency_cache = {};
+          }
+          this.memoryData.idempotency_cache[options.idempotencyKey] = {
+            deposit_id: deposit.id,
+            result: { success: true, deposit_id: deposit.id, amount: deposit.amount },
+            created_at: new Date().toISOString(),
+          };
+        }
+
+        // 9. Persist atomically to disk
+        this.persist(this.memoryData);
+
+        return {
+          success: true,
+          deposit,
+          ledger: ledgerEntry,
+        };
+      } catch (txError: any) {
+        // ATOMIC ROLLBACK: Restore memoryData to exact pre-transaction state
+        console.warn('Financial transaction aborted, rolling back all modifications:', txError.message);
+        this.memoryData = JSON.parse(preTxSnapshot);
+        this.persist(this.memoryData);
+        throw txError;
+      }
     });
-
-    // Notify user
-    this.memoryData.notifications.unshift({
-      id: `notif_dep_app_${Date.now()}`,
-      recipient_type: 'user',
-      target_user_id: user.id,
-      target_username: user.username,
-      title: `Deposit Approved: ${deposit.amount.toLocaleString()} ETB Credited`,
-      message: `Your deposit via ${deposit.payment_channel} (Ref: ${deposit.reference_code}) has been verified and disbursed by Admin @${reviewer.username}.`,
-      type: 'success',
-      created_at: new Date().toISOString(),
-      read_by: [],
-    });
-
-    // Notify Super Admin of Admin's operation (Requirement 5)
-    if (reviewer.role !== 'superadmin') {
-      this.memoryData.notifications.unshift({
-        id: `notif_sa_op_dep_${Date.now()}`,
-        recipient_type: 'superadmin',
-        target_username: 'superadmin',
-        title: `⚡ Admin Deposit Approval: @${reviewer.username}`,
-        message: `Admin @${reviewer.username} approved & disbursed ${deposit.amount.toLocaleString()} ETB for user @${user.username} (Ref: ${deposit.reference_code}). Admin float remaining: ${reviewerUser.wallet_balance.toFixed(2)} ETB.`,
-        type: 'info',
-        created_at: new Date().toISOString(),
-        read_by: [],
-      });
-    }
-
-    // Audit log
-    this.memoryData.audit_logs.unshift({
-      id: `aud_${Date.now()}`,
-      actor_id: reviewer.id,
-      actor_username: reviewer.username,
-      actor_role: reviewer.role,
-      action: 'DEPOSIT_APPROVAL',
-      details: `Admin ${reviewer.username} approved & disbursed ${deposit.amount} ETB to user ${user.username} (Ref: ${deposit.reference_code}). Admin float remaining: ${reviewerUser.wallet_balance} ETB`,
-      ip_reference: '197.156.103.1',
-      created_at: new Date().toISOString(),
-    });
-
-    this.persist(this.memoryData);
-    return { success: true, deposit };
   }
 
-  // Reject Deposit Request
-  public rejectDeposit(depositId: string, reason: string, reviewer: { id: string; username: string; role: UserRole }): { success: boolean; error?: string; deposit?: DepositRequest } {
-    const deposit = this.memoryData.deposits.find(d => d.id === depositId);
-    if (!deposit) return { success: false, error: 'Deposit request not found' };
-    if (deposit.status !== 'pending') return { success: false, error: `Deposit is already ${deposit.status}` };
+  // Reject Deposit Request (Atomic CAS & Lock)
+  public async rejectDeposit(
+    depositId: string,
+    reason: string,
+    reviewer: { id: string; username: string; role: UserRole }
+  ): Promise<{ success: boolean; error?: string; deposit?: DepositRequest }> {
+    return this.withDepositLock(depositId, async () => {
+      const deposit = this.memoryData.deposits.find(d => d.id === depositId);
+      if (!deposit) return { success: false, error: 'Deposit request not found' };
+      if (deposit.status.toLowerCase() !== 'pending') {
+        throw new ConcurrentApprovalConflictError('This deposit has already been processed by another administrator.');
+      }
 
-    const user = this.findUserById(deposit.user_id);
+      const user = this.findUserById(deposit.user_id);
 
-    deposit.status = 'rejected';
-    deposit.rejection_reason = reason.trim();
-    deposit.reviewed_at = new Date().toISOString();
-    deposit.reviewed_by = reviewer.username;
+      deposit.status = 'rejected';
+      deposit.rejection_reason = reason.trim();
+      deposit.reviewed_at = new Date().toISOString();
+      deposit.approved_at = deposit.reviewed_at;
+      deposit.reviewed_by = reviewer.username;
+      deposit.approved_by = reviewer.username;
 
-    if (user) {
-      this.memoryData.notifications.unshift({
-        id: `notif_dep_rej_${Date.now()}`,
-        recipient_type: 'user',
-        target_user_id: user.id,
-        target_username: user.username,
-        title: `Deposit Rejected: Ref ${deposit.reference_code}`,
-        message: `Your deposit request for ${deposit.amount.toLocaleString()} ETB was rejected. Reason: ${deposit.rejection_reason}`,
-        type: 'alert',
+      if (user) {
+        this.memoryData.notifications.unshift({
+          id: `notif_dep_rej_${Date.now()}`,
+          recipient_type: 'user',
+          target_user_id: user.id,
+          target_username: user.username,
+          title: `Deposit Rejected: Ref ${deposit.reference_code}`,
+          message: `Your deposit request for ${deposit.amount.toLocaleString()} ETB was rejected. Reason: ${deposit.rejection_reason}`,
+          type: 'alert',
+          created_at: new Date().toISOString(),
+          read_by: [],
+        });
+      }
+
+      if (reviewer.role !== 'superadmin') {
+        this.memoryData.notifications.unshift({
+          id: `notif_sa_op_dep_rej_${Date.now()}`,
+          recipient_type: 'superadmin',
+          target_username: 'superadmin',
+          title: `Admin Deposit Rejection: @${reviewer.username}`,
+          message: `Admin @${reviewer.username} rejected deposit request (Ref: ${deposit.reference_code}) for user @${user?.username || 'user'}. Reason: "${deposit.rejection_reason}"`,
+          type: 'info',
+          created_at: new Date().toISOString(),
+          read_by: [],
+        });
+      }
+
+      this.memoryData.audit_logs.unshift({
+        id: `aud_${Date.now()}`,
+        actor_id: reviewer.id,
+        actor_username: reviewer.username,
+        actor_role: reviewer.role,
+        action: 'DEPOSIT_REJECTION',
+        details: `Rejected ${deposit.amount} ETB deposit for ${deposit.username}. Reason: ${deposit.rejection_reason}`,
+        ip_reference: '197.156.103.1',
         created_at: new Date().toISOString(),
-        read_by: [],
       });
-    }
 
-    // Super Admin notification of Admin's operation
-    if (reviewer.role !== 'superadmin') {
-      this.memoryData.notifications.unshift({
-        id: `notif_sa_op_dep_rej_${Date.now()}`,
-        recipient_type: 'superadmin',
-        target_username: 'superadmin',
-        title: `Admin Deposit Rejection: @${reviewer.username}`,
-        message: `Admin @${reviewer.username} rejected deposit request (Ref: ${deposit.reference_code}) for user @${user?.username || 'user'}. Reason: "${deposit.rejection_reason}"`,
-        type: 'info',
-        created_at: new Date().toISOString(),
-        read_by: [],
-      });
-    }
-
-    this.memoryData.audit_logs.unshift({
-      id: `aud_${Date.now()}`,
-      actor_id: reviewer.id,
-      actor_username: reviewer.username,
-      actor_role: reviewer.role,
-      action: 'DEPOSIT_REJECTION',
-      details: `Rejected ${deposit.amount} ETB deposit for ${deposit.username}. Reason: ${deposit.rejection_reason}`,
-      ip_reference: '197.156.103.1',
-      created_at: new Date().toISOString(),
+      this.persist(this.memoryData);
+      return { success: true, deposit };
     });
+  }
 
-    this.persist(this.memoryData);
-    return { success: true, deposit };
+  // Financial Ledger & Audit Getters
+  public getFinancialLedger(): FinancialLedgerEntry[] {
+    return this.memoryData.financial_ledger || [];
+  }
+
+  public getBlockedApprovalAttempts(): BlockedApprovalAttempt[] {
+    return this.memoryData.blocked_approval_attempts || [];
+  }
+
+  public getDepositSummary() {
+    const deposits = this.memoryData.deposits || [];
+    const pending = deposits.filter(d => d.status.toLowerCase() === 'pending');
+    const approved = deposits.filter(d => d.status.toLowerCase() === 'approved');
+    const rejected = deposits.filter(d => d.status.toLowerCase() === 'rejected');
+
+    return {
+      total_pending_deposits: pending.length,
+      total_approved_deposits: approved.length,
+      total_rejected_deposits: rejected.length,
+      pending_deposits_amount: pending.reduce((sum, d) => sum + d.amount, 0),
+      approved_deposits_amount: approved.reduce((sum, d) => sum + d.amount, 0),
+      rejected_deposits_amount: rejected.reduce((sum, d) => sum + d.amount, 0),
+    };
   }
 
   // Admin Float Requests (Admins ask Super Admin for operational balance)
@@ -1795,9 +2109,18 @@ class Database {
 
     // Filter deposits
     const approvedDeposits = this.memoryData.deposits.filter(
-      d => d.status === 'approved' && filterDate(d.reviewed_at || d.created_at)
+      d => (d.status === 'approved' || d.status === 'APPROVED') && filterDate(d.reviewed_at || d.created_at)
     );
+    const pendingDeposits = this.memoryData.deposits.filter(
+      d => (d.status === 'pending' || d.status === 'PENDING') && filterDate(d.created_at)
+    );
+    const rejectedDeposits = this.memoryData.deposits.filter(
+      d => (d.status === 'rejected' || d.status === 'REJECTED') && filterDate(d.reviewed_at || d.created_at)
+    );
+
     const totalApprovedDeposits = approvedDeposits.reduce((acc, d) => acc + d.amount, 0);
+    const pendingDepositsAmount = pendingDeposits.reduce((acc, d) => acc + d.amount, 0);
+    const rejectedDepositsAmount = rejectedDeposits.reduce((acc, d) => acc + d.amount, 0);
 
     // Per-auction P&L breakdown
     const auctionsPnL: AuctionPnL[] = this.memoryData.auctions.map(auc => {
@@ -1830,6 +2153,10 @@ class Database {
 
     return {
       total_approved_deposits: totalApprovedDeposits,
+      total_pending_deposits: pendingDeposits.length,
+      total_rejected_deposits: rejectedDeposits.length,
+      pending_deposits_amount: pendingDepositsAmount,
+      rejected_deposits_amount: rejectedDepositsAmount,
       total_confidential_costs: totalConfidentialCosts,
       total_bidding_revenue: totalBiddingRevenue,
       net_profit_loss: netProfitLoss,
