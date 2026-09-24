@@ -119,6 +119,7 @@ interface DatabaseSchema {
   transactions: Transaction[];
   notifications: PlatformNotification[];
   audit_logs: AuditLog[];
+  brand_logo_url?: string | null;
 }
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -771,6 +772,15 @@ class Database {
   }
 
   // --- Read Operations ---
+  public getBrandLogo(): string {
+    return this.memoryData.brand_logo_url || '/assets/images/sunfyre_luxury_crest.jpg';
+  }
+
+  public setBrandLogo(logoUrl: string | null): void {
+    this.memoryData.brand_logo_url = logoUrl || null;
+    this.persist(this.memoryData);
+  }
+
   public getUsers() {
     return this.memoryData.users;
   }
@@ -849,6 +859,20 @@ class Database {
 
   public getAuditLogs() {
     return this.memoryData.audit_logs;
+  }
+
+  public addAuditLog(entry: Omit<AuditLog, 'id' | 'created_at'>) {
+    const newLog: AuditLog = {
+      id: `log_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      created_at: new Date().toISOString(),
+      ...entry,
+    };
+    this.memoryData.audit_logs.unshift(newLog);
+    if (this.memoryData.audit_logs.length > 500) {
+      this.memoryData.audit_logs = this.memoryData.audit_logs.slice(0, 500);
+    }
+    this.persist(this.memoryData);
+    return newLog;
   }
 
   // --- Lowest Unique Bid Evaluation Engine ---

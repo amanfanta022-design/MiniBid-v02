@@ -214,9 +214,9 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
       onClick={e => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto"
     >
-      <div className="relative w-full max-w-5xl bg-[#121215] border border-[#27272a] rounded-3xl shadow-2xl p-5 sm:p-8 text-zinc-100 my-6 max-h-[92vh] overflow-y-auto">
+      <div className="relative w-full max-w-5xl bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 md:p-8 text-zinc-100 my-auto sm:my-6 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
         {/* Navigation Bar inside modal: Back Button + Close X Button */}
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#27272a]">
           <button

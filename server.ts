@@ -539,6 +539,20 @@ app.get('/api/payments/channels', (_req: Request, res: Response) => {
   });
 });
 
+// ==========================================
+// BRAND LOGO ENDPOINTS
+// ==========================================
+
+// Public Brand Logo Endpoint (Accessible by all users, guests, admins)
+app.get('/api/brand/logo', (_req: Request, res: Response) => {
+  const currentLogo = db.getBrandLogo();
+  const isCustom = currentLogo !== '/assets/images/sunfyre_luxury_crest.jpg';
+  res.json({
+    logoUrl: currentLogo,
+    isCustom,
+  });
+});
+
 // Custom Brand Logo Upload (Super Admin Only)
 app.post('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'superadmin') {
@@ -558,12 +572,35 @@ app.post('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Respo
     const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
     const buffer = Buffer.from(matches[2], 'base64');
     const filename = `sunfyre_custom_logo.${ext}`;
-    const targetPath = path.join(process.cwd(), 'public', 'assets', 'images', filename);
-    fs.writeFileSync(targetPath, buffer);
+
+    // Write to public directory
+    const publicDir = path.join(process.cwd(), 'public', 'assets', 'images');
+    if (!fs.existsSync(publicDir)) {
+      fs.mkdirSync(publicDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(publicDir, filename), buffer);
+
+    // Also write to dist directory if present
+    const distDir = path.join(process.cwd(), 'dist', 'assets', 'images');
+    if (fs.existsSync(distDir)) {
+      fs.writeFileSync(path.join(distDir, filename), buffer);
+    }
+
+    const relativeUrl = `/assets/images/${filename}`;
+    db.setBrandLogo(relativeUrl);
+
+    db.addAuditLog({
+      action: 'BRAND_LOGO_UPDATED',
+      actor_id: req.user.id,
+      actor_username: req.user.username,
+      actor_role: req.user.role,
+      ip_reference: req.ip || '127.0.0.1',
+      details: `Updated brand logo: ${filename} (${buffer.length} bytes)`,
+    });
 
     res.json({
       success: true,
-      logoUrl: `/assets/images/${filename}?t=${Date.now()}`,
+      logoUrl: `${relativeUrl}?t=${Date.now()}`,
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to save logo: ' + err.message });
@@ -577,15 +614,37 @@ app.delete('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Res
   }
 
   try {
-    const dir = path.join(process.cwd(), 'public', 'assets', 'images');
-    if (fs.existsSync(dir)) {
-      const files = fs.readdirSync(dir);
+    const publicDir = path.join(process.cwd(), 'public', 'assets', 'images');
+    if (fs.existsSync(publicDir)) {
+      const files = fs.readdirSync(publicDir);
       for (const f of files) {
         if (f.startsWith('sunfyre_custom_logo.')) {
-          fs.unlinkSync(path.join(dir, f));
+          fs.unlinkSync(path.join(publicDir, f));
         }
       }
     }
+
+    const distDir = path.join(process.cwd(), 'dist', 'assets', 'images');
+    if (fs.existsSync(distDir)) {
+      const files = fs.readdirSync(distDir);
+      for (const f of files) {
+        if (f.startsWith('sunfyre_custom_logo.')) {
+          fs.unlinkSync(path.join(distDir, f));
+        }
+      }
+    }
+
+    db.setBrandLogo(null);
+
+    db.addAuditLog({
+      action: 'BRAND_LOGO_RESET',
+      actor_id: req.user.id,
+      actor_username: req.user.username,
+      actor_role: req.user.role,
+      ip_reference: req.ip || '127.0.0.1',
+      details: 'Reset brand logo to default luxury crest',
+    });
+
     res.json({ success: true, message: 'Brand logo reset to default.' });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to reset logo: ' + err.message });
@@ -1161,6 +1220,9 @@ app.post('/api/notifications/:id/read', authenticate, (req: AuthenticatedRequest
 // VITE MIDDLEWARE & STATIC SERVING
 // ==========================================
 async function start() {
+  // Explicitly serve /assets so uploaded brand logos are served reliably in all modes
+  app.use('/assets', express.static(path.join(process.cwd(), 'public', 'assets')));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

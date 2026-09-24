@@ -110,7 +110,7 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* 2. Main Workspace / Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20 md:pb-12">
         {/* Welcome announcement banner for guest visitors */}
         {!user && (
           <div className="relative mb-6 rounded-3xl overflow-hidden bg-gradient-to-r from-amber-500/15 via-[#E5B842]/10 to-amber-600/10 border border-[#E5B842]/40 p-4 sm:p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
@@ -255,7 +255,7 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* 4. Luxury FinTech Footer */}
-      <footer className="border-t border-[#27272a] bg-[#0c0c0e] text-xs text-zinc-400 py-10 mt-16">
+      <footer className="border-t border-[#27272a] bg-[#0c0c0e] text-xs text-zinc-400 pt-10 pb-28 md:pb-10 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-[#27272a]/60">
             {/* Brand column */}

@@ -68,28 +68,28 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
   return (
     <div className="space-y-8 pb-12">
       {/* Luxury Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden border border-[#27272a] bg-gradient-to-br from-[#121215] via-[#0d0d10] to-[#09090b] p-6 sm:p-10 shadow-2xl">
+      <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-[#27272a] bg-gradient-to-br from-[#121215] via-[#0d0d10] to-[#09090b] p-5 sm:p-8 md:p-10 shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#E5B842]/10 via-[#d4af37]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5B842]/10 border border-[#E5B842]/30 text-[#E5B842] text-xs font-mono font-semibold tracking-wider uppercase">
+        <div className="relative z-10 max-w-3xl space-y-3 sm:space-y-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5B842]/10 border border-[#E5B842]/30 text-[#E5B842] text-[11px] sm:text-xs font-mono font-semibold tracking-wider uppercase">
             <Sparkles className="w-3.5 h-3.5" /> Lowest Unique Bid Architecture
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold font-serif tracking-tight text-white leading-tight">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold font-serif tracking-tight text-white leading-tight">
             Win Luxury Tech, Gold & Watches for <span className="text-[#E5B842] underline decoration-[#E5B842]/40">Pocket Change</span>
           </h1>
 
-          <p className="text-sm sm:text-base text-zinc-400 max-w-2xl leading-relaxed">
+          <p className="text-xs sm:text-sm md:text-base text-zinc-400 max-w-2xl leading-relaxed">
             MiniBid turns ordinary auction dynamics upside down: hidden bids, mathematical uniqueness, and guaranteed financial auditability.
             Submit the lowest bid that nobody else duplicated to claim the prize.
           </p>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 pt-2">
             <button
               id="hero-how-it-works-btn"
               onClick={onOpenHowItWorks}
-              className="px-5 py-2.5 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(229,184,66,0.3)] transition-all cursor-pointer flex items-center gap-2"
+              className="px-5 py-3 sm:py-2.5 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(229,184,66,0.3)] transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <span>See How It Works</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -98,7 +98,7 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
             <button
               id="hero-deposit-btn"
               onClick={onOpenDeposit}
-              className="px-5 py-2.5 rounded-xl bg-[#18181b] hover:bg-zinc-800 border border-[#27272a] text-zinc-200 font-semibold text-xs tracking-wider transition-all cursor-pointer flex items-center gap-2"
+              className="px-5 py-3 sm:py-2.5 rounded-xl bg-[#18181b] hover:bg-zinc-800 border border-[#27272a] text-zinc-200 font-semibold text-xs tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <Coins className="w-3.5 h-3.5 text-[#E5B842]" />
               <span>Top Up Wallet</span>
@@ -107,32 +107,32 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
         </div>
 
         {/* Live Metrics Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-[#27272a]/70 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-[#27272a]/70 text-xs">
           <div>
-            <div className="text-zinc-500 font-mono text-[11px] uppercase">Live Auctions</div>
-            <div className="font-bold text-lg text-white font-mono mt-0.5">{activeAuctions.length} Active</div>
+            <div className="text-zinc-500 font-mono text-[10px] sm:text-[11px] uppercase">Live Auctions</div>
+            <div className="font-bold text-base sm:text-lg text-white font-mono mt-0.5">{activeAuctions.length} Active</div>
           </div>
           <div>
-            <div className="text-zinc-500 font-mono text-[11px] uppercase">Total Bids Placed</div>
-            <div className="font-bold text-lg text-[#E5B842] font-mono mt-0.5">
+            <div className="text-zinc-500 font-mono text-[10px] sm:text-[11px] uppercase">Total Bids Placed</div>
+            <div className="font-bold text-base sm:text-lg text-[#E5B842] font-mono mt-0.5">
               {activeAuctions.reduce((acc, a) => acc + a.total_bids, 0)} Bids
             </div>
           </div>
           <div>
-            <div className="text-zinc-500 font-mono text-[11px] uppercase">Payment Rails</div>
-            <div className="font-bold text-lg text-white font-mono mt-0.5">CBE & Telebirr</div>
+            <div className="text-zinc-500 font-mono text-[10px] sm:text-[11px] uppercase">Payment Rails</div>
+            <div className="font-bold text-base sm:text-lg text-white font-mono mt-0.5">CBE & Telebirr</div>
           </div>
           <div>
-            <div className="text-zinc-500 font-mono text-[11px] uppercase">Security Standard</div>
-            <div className="font-bold text-lg text-emerald-400 font-mono mt-0.5">ACID Encrypted</div>
+            <div className="text-zinc-500 font-mono text-[10px] sm:text-[11px] uppercase">Security Standard</div>
+            <div className="font-bold text-base sm:text-lg text-emerald-400 font-mono mt-0.5">ACID Encrypted</div>
           </div>
         </div>
       </div>
 
       {/* Filters & Search Row */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+        {/* Category Pills with smooth horizontal scrolling */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0 scrollbar-none -mx-1 px-1 sm:mx-0 sm:px-0">
           {categories.map(cat => {
             const isSelected = selectedCategory === cat;
             return (
@@ -153,14 +153,14 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
         </div>
 
         {/* Search Bar */}
-        <div className="relative min-w-[240px]">
+        <div className="relative w-full sm:w-auto sm:min-w-[240px]">
           <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
           <input
             type="text"
             placeholder="Search items, specs, luxury..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#121215] border border-[#27272a] text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-[#E5B842]"
+            className="w-full pl-9 pr-4 py-2.5 sm:py-2 rounded-xl bg-[#121215] border border-[#27272a] text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-[#E5B842]"
           />
         </div>
       </div>
