@@ -807,7 +807,7 @@ class Database {
   }
 
   public findUserByEmail(email: string) {
-    return this.memoryData.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    return this.memoryData.users.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
   }
 
   public getAuctions() {
@@ -967,7 +967,7 @@ class Database {
   // User Registration (All users start with 0.00 ETB)
   public createUser(userData: {
     username: string;
-    email: string;
+    email?: string;
     phone: string;
     password: string;
     role?: UserRole;
@@ -976,10 +976,11 @@ class Database {
   }): User {
     const { hash, salt } = hashPassword(userData.password);
     const initialBalance = userData.initial_balance || 0;
+    const finalEmail = userData.email?.trim().toLowerCase() || `${userData.username.trim().toLowerCase()}@user.minibid.et`;
     const newUser: DatabaseSchema['users'][0] = {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       username: userData.username.trim(),
-      email: userData.email.trim().toLowerCase(),
+      email: finalEmail,
       phone: userData.phone.trim(),
       role: userData.role || 'customer',
       wallet_balance: initialBalance, // Exactly 0.00 ETB at start
@@ -1013,7 +1014,7 @@ class Database {
   // Super Admin adds & provisions Admin (with optional initial float deposit)
   public createAdmin(adminData: {
     username: string;
-    email: string;
+    email?: string;
     phone: string;
     password: string;
     role?: UserRole;
@@ -1060,13 +1061,59 @@ class Database {
     return newAdmin;
   }
 
-  // Update user profile
-  public updateUserProfile(userId: string, data: Partial<Pick<User, 'email' | 'phone' | 'email_verified'>>): User | null {
+  // Update user profile (username, phone, password for users, admins, superadmin)
+  public updateUserProfile(
+    userId: string,
+    data: {
+      username?: string;
+      phone?: string;
+      password?: string;
+      email?: string;
+      email_verified?: boolean;
+    }
+  ): User | null {
     const user = this.findUserById(userId);
     if (!user) return null;
 
+    // 1. Username update & uniqueness
+    if (data.username && data.username.trim() !== user.username) {
+      const cleanUsername = data.username.trim();
+      if (cleanUsername.length <= 5) {
+        throw new Error('Username must be more than 5 characters.');
+      }
+      const existingUser = this.findUserByUsername(cleanUsername);
+      if (existingUser && existingUser.id !== userId) {
+        throw new Error('This username is already taken by another person.');
+      }
+      user.username = cleanUsername;
+    }
+
+    // 2. Phone update & uniqueness (strict Ethiopian formats)
+    if (data.phone && data.phone.trim() !== user.phone) {
+      const cleanPhone = data.phone.trim();
+      const phoneRegex = /^(\+251[79]\d{8}|0[79]\d{8})$/;
+      if (!phoneRegex.test(cleanPhone)) {
+        throw new Error('Phone number must match Ethiopian format (+2519..., 09..., or 07...) with exact digits.');
+      }
+      const existingPhone = this.findUserByPhone(cleanPhone);
+      if (existingPhone && existingPhone.id !== userId) {
+        throw new Error('This phone number is already registered to another person.');
+      }
+      user.phone = cleanPhone;
+    }
+
+    // 3. Password update
+    if (data.password) {
+      if (data.password.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+      const { hash, salt } = hashPassword(data.password);
+      user.password_hash = hash;
+      user.salt = salt;
+    }
+
+    // 4. Optional email update
     if (data.email) user.email = data.email.trim().toLowerCase();
-    if (data.phone) user.phone = data.phone.trim();
     if (data.email_verified !== undefined) user.email_verified = data.email_verified;
 
     this.persist(this.memoryData);
@@ -1194,7 +1241,12 @@ class Database {
   }
 
   // --- Database Constraints & Concurrency Lock ---
-  private checkTransactionNumberUniqueness(paymentMethod: string, transactionNumber: string, excludeDepositId?: string): void {
+  private checkTransactionNumberUniqueness(
+    paymentMethod: string,
+    transactionNumber: string,
+    userId?: string,
+    excludeDepositId?: string
+  ): { attemptNumber: number } {
     const normMethod = (paymentMethod || '').trim().toLowerCase();
     const normTxn = (transactionNumber || '').trim().toLowerCase();
 
@@ -1202,16 +1254,58 @@ class Database {
       throw new Error('Transaction reference number is required.');
     }
 
-    const duplicate = this.memoryData.deposits.find(d => {
+    // 1. SUPREME RULE (Requirement 4):
+    // "even in the first attempt the admin approves thier deposte request that transaction number should not be used by anyone! anyone!!"
+    const approvedDuplicate = this.memoryData.deposits.find(d => {
       if (excludeDepositId && d.id === excludeDepositId) return false;
-      const dMethod = (d.payment_channel || d.payment_method || '').trim().toLowerCase();
       const dTxn = (d.reference_code || d.transaction_number || '').trim().toLowerCase();
-      return dMethod === normMethod && dTxn === normTxn;
+      return dTxn === normTxn && (d.status === 'approved' || d.status === 'APPROVED');
     });
 
-    if (duplicate) {
-      throw new DuplicateTransactionNumberError('This transaction number has already been submitted.');
+    if (approvedDuplicate) {
+      throw new DuplicateTransactionNumberError(
+        'This transaction number has already been verified and approved by administration. Approved transaction numbers can never be used again by anyone.'
+      );
     }
+
+    // 2. UNAPPROVED RETRY RULE (Requirement 4):
+    // "users can use same transaction number if it's not approved by admins (if there pervoius rquest not approved they can use the transaction number 3 times)"
+    const existingSameTxn = this.memoryData.deposits.filter(d => {
+      if (excludeDepositId && d.id === excludeDepositId) return false;
+      const dTxn = (d.reference_code || d.transaction_number || '').trim().toLowerCase();
+      return dTxn === normTxn;
+    });
+
+    if (existingSameTxn.length > 0) {
+      if (userId) {
+        // Disallow other persons from claiming an unapproved transaction number submitted by someone else
+        const otherUser = existingSameTxn.find(d => d.user_id !== userId);
+        if (otherUser) {
+          throw new DuplicateTransactionNumberError(
+            'This transaction number has already been submitted under another user account.'
+          );
+        }
+
+        // Count previous attempts by this user
+        const sameUserAttempts = existingSameTxn.filter(d => d.user_id === userId).length;
+        if (sameUserAttempts >= 3) {
+          throw new DuplicateTransactionNumberError(
+            'This unapproved transaction number has reached the maximum allowed limit of 3 submission attempts.'
+          );
+        }
+
+        return { attemptNumber: sameUserAttempts + 1 };
+      }
+
+      if (existingSameTxn.length >= 3) {
+        throw new DuplicateTransactionNumberError(
+          'This transaction number has reached the maximum allowed submission attempts.'
+        );
+      }
+      return { attemptNumber: existingSameTxn.length + 1 };
+    }
+
+    return { attemptNumber: 1 };
   }
 
   private checkLedgerUniqueness(depositRequestId: string): void {
@@ -1285,13 +1379,17 @@ class Database {
     const cleanRef = depositData.reference_code.trim();
     const cleanMethod = depositData.payment_channel.trim();
 
-    // DATABASE CONSTRAINT: payment_method + transaction_number must be strictly unique
+    // DATABASE CONSTRAINT:
+    // 1. If approved, cannot be reused by ANYONE
+    // 2. If unapproved, the same user can reuse it up to 3 times
+    let attemptNumber = 1;
     try {
-      this.checkTransactionNumberUniqueness(cleanMethod, cleanRef);
+      const checkRes = this.checkTransactionNumberUniqueness(cleanMethod, cleanRef, depositData.user_id);
+      attemptNumber = checkRes.attemptNumber;
     } catch (err: any) {
       // Track duplicate attempts for fraud detection
       user.duplicate_txn_attempts = (user.duplicate_txn_attempts || 0) + 1;
-      if (user.duplicate_txn_attempts > 2) {
+      if (user.duplicate_txn_attempts > 3) {
         user.is_flagged = true;
         user.flag_reason = `Attempted ${user.duplicate_txn_attempts} times to reuse submitted transaction number: ${cleanRef}`;
         user.flagged_at = new Date().toISOString();
@@ -1311,7 +1409,7 @@ class Database {
       this.persist(this.memoryData);
       return {
         success: false,
-        error: 'This transaction number has already been submitted.',
+        error: err.message || 'This transaction number cannot be submitted.',
         is_flagged: user.is_flagged,
         attempts: user.duplicate_txn_attempts,
       };
@@ -1334,12 +1432,49 @@ class Database {
       receipt_size_bytes: depositData.receipt_size_bytes || 0,
       status: 'pending',
       created_at: new Date().toISOString(),
+      attempt_number: attemptNumber,
     };
 
     this.memoryData.deposits.unshift(newDeposit);
     this.persist(this.memoryData);
 
     return { success: true, deposit: newDeposit };
+  }
+
+  // Direct Admin Messaging to a specific user (Requirement 7)
+  public sendDirectMessage(
+    sender: { id: string; username: string; role: UserRole },
+    targetUserId: string,
+    title: string,
+    message: string
+  ): PlatformNotification {
+    const targetUser = this.findUserById(targetUserId);
+    const newNotif: PlatformNotification = {
+      id: `notif_msg_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      recipient_type: 'user',
+      target_user_id: targetUserId,
+      target_username: targetUser?.username,
+      title: title.trim(),
+      message: message.trim(),
+      type: 'info',
+      created_at: new Date().toISOString(),
+      read_by: [],
+    };
+    this.memoryData.notifications.unshift(newNotif);
+
+    this.memoryData.audit_logs.unshift({
+      id: `aud_msg_${Date.now()}`,
+      actor_id: sender.id,
+      actor_username: sender.username,
+      actor_role: sender.role,
+      action: 'ADMIN_DIRECT_MESSAGE',
+      details: `Admin @${sender.username} sent direct message to user @${targetUser?.username || targetUserId}: "${title}"`,
+      ip_reference: '197.156.103.1',
+      created_at: new Date().toISOString(),
+    });
+
+    this.persist(this.memoryData);
+    return newNotif;
   }
 
   // Clear user fraud flag (Super Admin Governance)

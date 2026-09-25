@@ -61,44 +61,72 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
   }
 
   // ----------------------------------------------------
-  // TEST 2: Customer submits the exact same transaction number again
+  // TEST 2: Unapproved 3-attempt retry & Approved transaction reuse protection
   // ----------------------------------------------------
   {
     const t0 = Date.now();
-    const duplicateTxn = `TXN_DUP_TEST2_${Date.now()}`;
+    const retryTxn = `TXN_RETRY_TEST2_${Date.now()}`;
     // 1st submission
-    db.createDepositRequest({
+    const res1 = db.createDepositRequest({
       user_id: customer.id,
       amount: 600,
       payment_channel: 'Commercial Bank of Ethiopia (CBE)',
-      reference_code: duplicateTxn,
+      reference_code: retryTxn,
       receipt_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-      receipt_name: 'test2_cbe.png',
+      receipt_name: 'test2_attempt1.png',
       receipt_mime: 'image/png',
     });
 
-    // 2nd duplicate submission (same payment_channel + reference_code)
+    // 2nd submission (unapproved retry allowed, attempt 2)
     const res2 = db.createDepositRequest({
       user_id: customer.id,
       amount: 600,
       payment_channel: 'Commercial Bank of Ethiopia (CBE)',
-      reference_code: duplicateTxn,
+      reference_code: retryTxn,
       receipt_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-      receipt_name: 'test2_duplicate.png',
+      receipt_name: 'test2_attempt2.png',
       receipt_mime: 'image/png',
     });
 
-    const passed = !res2.success && (res2.error?.includes('already been submitted') || false);
+    // 3rd submission (unapproved retry allowed, attempt 3)
+    const res3 = db.createDepositRequest({
+      user_id: customer.id,
+      amount: 600,
+      payment_channel: 'Commercial Bank of Ethiopia (CBE)',
+      reference_code: retryTxn,
+      receipt_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      receipt_name: 'test2_attempt3.png',
+      receipt_mime: 'image/png',
+    });
+
+    // 4th submission (exceeds 3 attempts -> MUST FAIL!)
+    const res4 = db.createDepositRequest({
+      user_id: customer.id,
+      amount: 600,
+      payment_channel: 'Commercial Bank of Ethiopia (CBE)',
+      reference_code: retryTxn,
+      receipt_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      receipt_name: 'test2_attempt4.png',
+      receipt_mime: 'image/png',
+    });
+
+    const passed =
+      res1.success &&
+      res2.success &&
+      res3.success &&
+      !res4.success &&
+      (res4.error?.includes('3 submission attempts') || false);
+
     steps.push({
       testId: 'TEST_2',
-      name: 'Duplicate Transaction Number Rejection',
-      description: 'Submitting the exact same transaction number on the same payment method must be rejected by database unique constraint.',
+      name: 'Unapproved Retry Rule (3 Attempts) & Enforcement',
+      description: 'Customer can resubmit unapproved transaction number up to 3 times. Attempt 4 is strictly rejected by database integrity rules.',
       passed,
       durationMs: Date.now() - t0,
       details: passed
-        ? `Duplicate submission correctly rejected with message: "${res2.error}". Database constraint enforced.`
-        : `Security Failure: Duplicate submission was accepted or gave wrong error: ${res2.error}`,
-      evidence: { duplicateTxn, rejected: !res2.success, error: res2.error },
+        ? `Attempts 1, 2, 3 accepted for unapproved retries. Attempt 4 rejected with: "${res4.error}".`
+        : `Failure: Attempt sequence check failed (res1: ${res1.success}, res2: ${res2.success}, res3: ${res3.success}, res4: ${res4.success})`,
+      evidence: { retryTxn, res1Success: res1.success, res2Success: res2.success, res3Success: res3.success, res4Success: res4.success, res4Error: res4.error },
     });
   }
 

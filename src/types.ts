@@ -5,12 +5,12 @@ export type UserStatus = 'active' | 'suspended';
 export interface User {
   id: string;
   username: string;
-  email: string;
+  email?: string;
   phone: string;
   role: UserRole;
   wallet_balance: number;
   status: UserStatus;
-  email_verified: boolean;
+  email_verified?: boolean;
   created_at: string;
   is_flagged?: boolean;
   flag_reason?: string;
@@ -20,10 +20,23 @@ export interface User {
 
 export type AuctionStatus = 'active' | 'paused' | 'ended' | 'cancelled';
 
+export type AuctionCategory =
+  | 'Accessories'
+  | 'Kitchen & Dining'
+  | 'Electronics'
+  | 'Vehicles & Automotive'
+  | 'Luxury & Watches'
+  | 'Smartphones & Tablets'
+  | 'Gaming & Consoles'
+  | 'Fashion & Apparel'
+  | 'Home Appliances'
+  | 'Collectibles & Art'
+  | string;
+
 export interface Auction {
   id: string;
   title: string;
-  category: 'Tech' | 'Luxury' | 'Jewelry' | 'Vehicles' | 'Appliances' | string;
+  category: AuctionCategory;
   description: string;
   image_url: string;
   start_price: number;
@@ -65,7 +78,7 @@ export interface DepositRequest {
   user_id: string; // Customer ID
   username: string;
   user_phone: string;
-  user_email: string;
+  user_email?: string;
   amount: number;
   payment_channel: 'Commercial Bank of Ethiopia (CBE)' | 'Telebirr' | 'Awash Bank' | 'Dashen Bank' | string;
   payment_method?: string; // alias
@@ -83,6 +96,7 @@ export interface DepositRequest {
   approved_at?: string; // alias
   approved_by?: string; // alias
   idempotency_key?: string;
+  attempt_number?: number;
 }
 
 export interface FinancialLedgerEntry {

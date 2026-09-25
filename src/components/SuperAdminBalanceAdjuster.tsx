@@ -82,11 +82,11 @@ export const SuperAdminBalanceAdjuster: React.FC<SuperAdminBalanceAdjusterProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md bg-[#121215] border border-[#E5B842]/40 rounded-2xl shadow-2xl p-6 text-zinc-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+      <div className="relative w-full max-w-md bg-[#121215] border border-[#E5B842]/40 rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-6 text-zinc-100 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer"
+          className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer z-10"
         >
           <X className="w-4 h-4" />
         </button>

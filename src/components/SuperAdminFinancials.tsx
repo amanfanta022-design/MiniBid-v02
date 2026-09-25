@@ -949,14 +949,14 @@ export const SuperAdminFinancials: React.FC = () => {
       {/* INSPECT RECEIPT & SLIP AUDIT MODAL */}
       {/* ==================================================== */}
       {inspectedDeposit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-          <div className="bg-[#18181b] border border-[#27272a] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-[#27272a] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl sm:rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200 my-auto max-h-[96vh] sm:max-h-[90vh] flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-[#27272a] flex items-center justify-between">
               <div>
                 <div className="text-xs font-mono text-[#E5B842] uppercase tracking-wider">
                   Deposit Audit Inspection
                 </div>
-                <h3 className="text-lg font-bold font-serif text-white">Deposit #{inspectedDeposit.id}</h3>
+                <h3 className="text-base sm:text-lg font-bold font-serif text-white">Deposit #{inspectedDeposit.id}</h3>
               </div>
               <button
                 onClick={() => setInspectedDeposit(null)}
@@ -966,8 +966,8 @@ export const SuperAdminFinancials: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="p-3.5 rounded-xl bg-[#121215] border border-zinc-800">
                   <div className="text-[10px] text-zinc-500 font-mono uppercase">Customer Account</div>
                   <div className="text-sm font-bold text-white mt-0.5">@{inspectedDeposit.username}</div>

@@ -555,8 +555,8 @@ export const SuperAdminAdmins: React.FC = () => {
 
       {/* Direct Deposit Float Modal */}
       {depositModalAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121215] border border-[#27272a] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-[#E5B842]/10 border border-[#E5B842]/30 flex items-center justify-center text-[#E5B842]">
@@ -652,8 +652,8 @@ export const SuperAdminAdmins: React.FC = () => {
 
       {/* Reject Float Request Modal */}
       {rejectingRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121215] border border-red-900/50 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border border-red-900/50 rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <h3 className="font-serif font-bold text-white text-base">Reject Admin Float Request</h3>
             <p className="text-xs text-zinc-400">
               Rejecting request of {rejectingRequest.amount.toLocaleString()} ETB for @{rejectingRequest.admin_username}. Specify an audit reason.
@@ -673,7 +673,7 @@ export const SuperAdminAdmins: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setRejectingRequest(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium"
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -691,8 +691,8 @@ export const SuperAdminAdmins: React.FC = () => {
 
       {/* Add New Admin Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121215] border border-[#27272a] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-purple-900/30 border border-purple-700/40 flex items-center justify-center text-purple-400">

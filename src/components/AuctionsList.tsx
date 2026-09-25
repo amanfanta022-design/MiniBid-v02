@@ -13,6 +13,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { Auction } from '../types.js';
+import { useTranslation } from '../utils/i18n.js';
 
 interface AuctionsListProps {
   onSelectAuction: (id: string) => void;
@@ -27,12 +28,25 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
   onOpenDeposit,
   onViewWinners,
 }) => {
+  const { language, t } = useTranslation();
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
-  const categories = ['All', 'Tech', 'Luxury', 'Jewelry', 'Vehicles', 'Appliances'];
+  // Requirement 6: Expanded auction categories (Accessories, Kitchen, Electronics, Vehicles, Luxury, Tech, Smartphones, Jewelry, Appliances)
+  const categories = [
+    'All',
+    'Accessories',
+    'Kitchen',
+    'Electronics',
+    'Vehicles',
+    'Luxury',
+    'Tech',
+    'Smartphones',
+    'Jewelry',
+    'Appliances',
+  ];
 
   const fetchAuctions = async () => {
     try {
@@ -55,6 +69,26 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
   }, []);
 
   const activeAuctions = auctions.filter(a => a.status === 'active');
+
+  const getCategoryLabel = (cat: string) => {
+    if (language !== 'am') return cat;
+    const amMap: Record<string, string> = {
+      All: 'ሁሉም',
+      Accessories: 'መለዋወጫዎች',
+      Kitchen: 'የወጥ ቤት ዕቃዎች',
+      Electronics: 'ኤሌክትሮኒክስ',
+      Vehicles: 'ተሽከርካሪዎች',
+      Luxury: 'የቅንጦት ዕቃዎች',
+      Tech: 'ቴክኖሎጂ',
+      Smartphones: 'ስልኮች',
+      Gaming: 'ጌሚንግ',
+      Fashion: 'ፋሽን',
+      Jewelry: 'ወርቅና ጌጣጌጥ',
+      Appliances: 'የቤት ዕቃዎች',
+      Collectibles: 'ስብስቦች',
+    };
+    return amMap[cat] || cat;
+  };
 
   const filteredAuctions = activeAuctions.filter(a => {
     const matchesCat = selectedCategory === 'All' || a.category.toLowerCase() === selectedCategory.toLowerCase();
@@ -146,7 +180,7 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                     : 'bg-[#18181b] border border-[#27272a] text-zinc-400 hover:text-white hover:border-zinc-700'
                 }`}
               >
-                {cat}
+                {getCategoryLabel(cat)}
               </button>
             );
           })}

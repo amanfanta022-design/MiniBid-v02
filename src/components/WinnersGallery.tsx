@@ -222,7 +222,7 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                     </div>
 
                     {/* Masked Contact Details (Requirement 2) */}
-                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                       <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 flex flex-col">
                         <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1">
                           <Phone className="w-3 h-3 text-[#E5B842]" /> 2-Digit Masked Phone

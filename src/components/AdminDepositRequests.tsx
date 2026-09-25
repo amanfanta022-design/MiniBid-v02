@@ -561,8 +561,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
       {/* Float Request Submission Modal */}
       {showFloatModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#121215] border border-[#27272a] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-[#E5B842]/10 border border-[#E5B842]/30 flex items-center justify-center text-[#E5B842]">
@@ -669,17 +669,17 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
       {/* Inspect Slip Modal */}
       {inspectDeposit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121215] border border-[#27272a] rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-lg w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <h3 className="font-serif font-bold text-white text-base">Deposit Receipt Slip & Audit</h3>
-              <button onClick={() => setInspectDeposit(null)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setInspectDeposit(null)} className="text-zinc-400 hover:text-white cursor-pointer">
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800">
                 <div>
                   <span className="text-zinc-500 text-[10px] font-mono uppercase">User</span>
                   <div className="font-bold text-white">@{inspectDeposit.username}</div>
@@ -717,12 +717,12 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2 border-t border-zinc-800">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-zinc-800">
               {inspectDeposit.status === 'pending' && (
                 <>
                   <button
                     onClick={() => handleApprove(inspectDeposit.id)}
-                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold font-mono flex items-center justify-center gap-1"
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold font-mono flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" /> Approve & Disburse
                   </button>
@@ -731,7 +731,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                       setRejectingDeposit(inspectDeposit);
                       setRejectReason('');
                     }}
-                    className="py-2.5 px-4 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600 hover:text-white font-semibold font-mono"
+                    className="py-2.5 px-4 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600 hover:text-white font-semibold font-mono cursor-pointer"
                   >
                     Reject
                   </button>
@@ -739,7 +739,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
               )}
               <button
                 onClick={() => setInspectDeposit(null)}
-                className="py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium"
+                className="py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium cursor-pointer"
               >
                 Close
               </button>
@@ -750,8 +750,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
       {/* Reject Modal */}
       {rejectingDeposit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121215] border border-red-900/50 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border border-red-900/50 rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <h3 className="font-serif font-bold text-white text-base">Reject Customer Deposit</h3>
             <p className="text-xs text-zinc-400">
               Please enter a clear audit reason. This will be transmitted to @{rejectingDeposit.username} and stored in the immutable platform log.

@@ -146,23 +146,23 @@ export const AdminCreateAuctionModal: React.FC<AdminCreateAuctionModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-[#121215] border border-[#27272a] rounded-2xl shadow-2xl p-6 sm:p-8 text-zinc-100 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+      <div className="relative w-full max-w-3xl bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 md:p-8 text-zinc-100 my-auto sm:my-8 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
+          className="absolute top-4 sm:top-5 right-4 sm:right-5 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer z-10"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-[#27272a] pb-4 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+        <div className="flex items-center gap-3 border-b border-[#27272a] pb-4 mb-6 pr-10">
+          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
             <PlusSquare className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold font-serif text-white">Add New Item / Create Auction</h2>
-            <p className="text-xs text-zinc-400">Catalog entry, item description, participation fees, and confidential item valuation</p>
+            <h2 className="text-base sm:text-lg font-bold font-serif text-white">Add New Item / Create Auction</h2>
+            <p className="text-[11px] sm:text-xs text-zinc-400">Catalog entry, item description, participation fees, and confidential item valuation</p>
           </div>
         </div>
 
@@ -192,11 +192,18 @@ export const AdminCreateAuctionModal: React.FC<AdminCreateAuctionModalProps> = (
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="Tech">Tech</option>
-                <option value="Luxury">Luxury</option>
-                <option value="Jewelry">Jewelry</option>
+                <option value="Accessories">Accessories</option>
+                <option value="Kitchen">Kitchen</option>
+                <option value="Electronics">Electronics</option>
                 <option value="Vehicles">Vehicles</option>
+                <option value="Luxury">Luxury</option>
+                <option value="Tech">Tech</option>
+                <option value="Smartphones">Smartphones</option>
+                <option value="Gaming">Gaming</option>
+                <option value="Fashion">Fashion</option>
+                <option value="Jewelry">Jewelry</option>
                 <option value="Appliances">Appliances</option>
+                <option value="Collectibles">Collectibles</option>
               </select>
             </div>
           </div>
@@ -380,18 +387,18 @@ export const AdminCreateAuctionModal: React.FC<AdminCreateAuctionModalProps> = (
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#27272a]">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-3 border-t border-[#27272a]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all cursor-pointer"
+              className="order-2 sm:order-1 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all cursor-pointer text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer disabled:opacity-50"
+              className="order-1 sm:order-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer disabled:opacity-50 text-center"
             >
               {isSubmitting ? 'Publishing Auction...' : 'Publish Auction to Live Catalog'}
             </button>

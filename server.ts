@@ -111,23 +111,38 @@ setInterval(() => {
 app.post('/api/auth/register', (req: Request, res: Response) => {
   const { username, email, phone, password } = req.body;
 
-  if (!username || !email || !phone || !password) {
-    return res.status(400).json({ error: 'Username, email, phone, and password are all mandatory.' });
+  if (!username || !phone || !password) {
+    return res.status(400).json({ error: 'Username, phone number, and password are required.' });
+  }
+
+  const cleanUsername = username.trim();
+  // Username must be more than 5 characters (6 or more)
+  if (cleanUsername.length <= 5) {
+    return res.status(400).json({ error: 'Username must be more than 5 characters.' });
   }
 
   // Alphanumeric handle validation
-  if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) {
-    return res.status(400).json({ error: 'Username must be 3-24 characters containing only letters, numbers, and underscores.' });
+  if (!/^[a-zA-Z0-9_]{6,30}$/.test(cleanUsername)) {
+    return res.status(400).json({ error: 'Username must contain only letters, numbers, and underscores.' });
   }
 
-  // Phone validation (Ethiopian +251 or general international)
-  const cleanPhone = phone.trim();
-  if (!/^\+?[0-9]{9,15}$/.test(cleanPhone.replace(/\s+/g, ''))) {
-    return res.status(400).json({ error: 'Invalid phone format. Please use Ethiopian format (e.g. +251911223344 or 0911223344).' });
+  // Exact Ethiopian Phone validation: (+2519******** or +2517******** or 09******** or 07********)
+  // Exact digit amounts only! Not above, not below.
+  const cleanPhone = phone.trim().replace(/\s+/g, '');
+  const phoneRegex = /^(\+251[79]\d{8}|0[79]\d{8})$/;
+  if (!phoneRegex.test(cleanPhone)) {
+    return res.status(400).json({
+      error: 'Invalid phone number. Must match Ethiopian format (+2519..., +2517..., 09..., or 07...) with the exact required digit count.',
+    });
+  }
+
+  // Password at least 6 digits/characters
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
   }
 
   // Check unique username
-  if (db.findUserByUsername(username)) {
+  if (db.findUserByUsername(cleanUsername)) {
     return res.status(400).json({ error: 'Username is already taken by another participant.' });
   }
 
@@ -136,18 +151,14 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'This phone number is already registered.' });
   }
 
-  // Check unique email
-  if (db.findUserByEmail(email)) {
+  // If email was provided, check uniqueness (otherwise optional/generated)
+  if (email && email.trim() && db.findUserByEmail(email.trim())) {
     return res.status(400).json({ error: 'This email address is already associated with an account.' });
   }
 
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-  }
-
   const user = db.createUser({
-    username,
-    email,
+    username: cleanUsername,
+    email: email?.trim(),
     phone: cleanPhone,
     password,
     role: 'customer',
@@ -174,17 +185,19 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   }
 
   const idLower = identifier.trim().toLowerCase();
+  const cleanPhoneInput = identifier.trim().replace(/\s+/g, '');
+
   const rawUser = db.getUsers().find(
     u =>
       u.username.toLowerCase() === idLower ||
-      u.phone.trim() === identifier.trim() ||
-      u.email.toLowerCase() === idLower ||
+      u.phone.trim() === cleanPhoneInput ||
+      (u.email && u.email.toLowerCase() === idLower) ||
       (idLower === 'admin' && (u.username === 'admin_ops' || u.role === 'admin')) ||
       (idLower === 'superadmin' && u.role === 'superadmin')
   );
 
   if (!rawUser) {
-    return res.status(401).json({ error: 'User account not found. Please verify your username.' });
+    return res.status(401).json({ error: 'User account not found. Please verify your username or phone number.' });
   }
 
   if (rawUser.status === 'suspended') {
@@ -241,21 +254,34 @@ app.get('/api/auth/me', authenticate, (req: AuthenticatedRequest, res: Response)
   res.json({ user });
 });
 
-// Update Profile & Optional Email Verification
+// Update Profile (username, phone, password for users, admins, superadmin)
 app.put('/api/auth/update-profile', authenticate, (req: AuthenticatedRequest, res: Response) => {
-  const { email, phone, verify_email } = req.body;
-  const updates: Parameters<typeof db.updateUserProfile>[1] = {};
+  const { username, phone, password, email, verify_email } = req.body;
 
-  if (email) updates.email = email;
-  if (phone) updates.phone = phone;
-  if (verify_email) updates.email_verified = true;
+  try {
+    const updated = db.updateUserProfile(req.user!.id, {
+      username,
+      phone,
+      password,
+      email,
+      email_verified: verify_email,
+    });
 
-  const updated = db.updateUserProfile(req.user!.id, updates);
-  if (!updated) {
-    return res.status(404).json({ error: 'User not found' });
+    if (!updated) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Refresh token with updated username if username changed
+    const token = generateToken({
+      id: updated.id,
+      username: updated.username,
+      role: updated.role,
+    });
+
+    res.json({ user: updated, token, message: 'Profile updated successfully' });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Failed to update profile' });
   }
-
-  res.json({ user: updated, message: 'Profile updated successfully' });
 });
 
 // ==========================================
@@ -915,6 +941,34 @@ app.post('/api/admin/users/:id/toggle-status', authenticate, requireRole(['admin
     return res.status(404).json({ error: 'User not found' });
   }
   res.json({ message: `User status changed to ${status}`, user: updated });
+});
+
+app.post('/api/admin/users/:id/status', authenticate, requireRole(['admin', 'superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const { status } = req.body;
+  if (!['active', 'suspended'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status. Must be active or suspended.' });
+  }
+
+  const updated = db.toggleUserStatus(req.params.id, status, req.user!);
+  if (!updated) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  res.json({ message: `User status changed to ${status}`, user: updated });
+});
+
+// Admin & Super Admin: Send Direct In-App Notification / Message to User (Requirement 7)
+app.post('/api/admin/users/:id/message', authenticate, requireRole(['admin', 'superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const { title, message } = req.body;
+  if (!title || !title.trim() || !message || !message.trim()) {
+    return res.status(400).json({ error: 'Message title and body are required.' });
+  }
+
+  try {
+    const notification = db.sendDirectMessage(req.user!, req.params.id, title, message);
+    res.status(201).json({ success: true, message: 'Direct message sent to user successfully.', notification });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to send message.' });
+  }
 });
 
 // Clear User Fraud Flag (Super Admin only)

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
+import { I18nProvider } from './utils/i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { Header } from './components/Header.js';
 import { AuctionsList } from './components/AuctionsList.js';
@@ -358,9 +359,11 @@ const MainAppContent: React.FC = () => {
 
 export function App() {
   return (
-    <AuthProvider>
-      <MainAppContent />
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        <MainAppContent />
+      </AuthProvider>
+    </I18nProvider>
   );
 }
 

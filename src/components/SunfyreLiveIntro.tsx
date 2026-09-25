@@ -322,7 +322,7 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
           transform: `perspective(1000px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)`,
           transition: 'transform 0.15s ease-out',
         }}
-        className="relative z-20 flex flex-col items-center text-center px-4 max-w-2xl my-auto"
+        className="relative z-20 flex flex-col items-center text-center px-4 max-w-2xl my-auto py-14 sm:py-10"
       >
         {/* Modern Sunfyre Golden Dragon 3D Crest */}
         <div
@@ -415,7 +415,7 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
       </div>
 
       {/* Bottom Subtle Trust Badges */}
-      <div className="absolute bottom-3 sm:bottom-6 flex items-center gap-2 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-zinc-500 z-30 px-3 text-center">
+      <div className="relative mt-6 sm:mt-0 sm:absolute sm:bottom-6 flex items-center justify-center flex-wrap gap-2 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-zinc-500 z-30 px-3 text-center">
         <span className="flex items-center gap-1 sm:gap-1.5">
           <Shield className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[#E5B842]" /> Zero Double-Spend Protected
         </span>

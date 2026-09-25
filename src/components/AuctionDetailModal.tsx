@@ -761,8 +761,8 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                     </div>
 
                     <div className="border border-purple-800/40 rounded-2xl overflow-hidden bg-[#18181b]">
-                      <div className="max-h-72 overflow-y-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="max-h-72 overflow-x-auto overflow-y-auto">
+                        <table className="w-full text-left text-xs min-w-[500px]">
                           <thead className="bg-purple-950/30 text-purple-200 border-b border-purple-800/40 font-mono text-[10px] uppercase">
                             <tr>
                               <th className="py-2.5 px-3">#</th>
@@ -813,8 +813,8 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                     </div>
 
                     <div className="border border-[#27272a] rounded-2xl overflow-hidden bg-[#18181b]">
-                      <div className="max-h-72 overflow-y-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="max-h-72 overflow-x-auto overflow-y-auto">
+                        <table className="w-full text-left text-xs min-w-[550px]">
                           <thead className="bg-[#09090b] text-zinc-400 border-b border-[#27272a] font-mono text-[10px] uppercase">
                             <tr>
                               <th className="py-2.5 px-3">Rank</th>

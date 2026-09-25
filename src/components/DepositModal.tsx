@@ -214,24 +214,24 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* Header & Tabs */}
-        <div className="flex items-center justify-between border-b border-[#27272a] pb-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#27272a] pb-4 mb-6 gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E5B842] to-amber-600 p-0.5 flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E5B842] to-amber-600 p-0.5 flex items-center justify-center shadow-lg shrink-0">
               <div className="w-full h-full bg-[#121215] rounded-[10px] flex items-center justify-center">
                 <CreditCard className="w-5 h-5 text-[#E5B842]" />
               </div>
             </div>
             <div>
-              <h2 className="text-lg font-bold font-serif text-white tracking-wide">Wallet Deposit (Top-Up)</h2>
-              <p className="text-xs text-zinc-400">Direct Ethiopian bank transfer & Telebirr integration</p>
+              <h2 className="text-base sm:text-lg font-bold font-serif text-white tracking-wide">Wallet Deposit (Top-Up)</h2>
+              <p className="text-[11px] sm:text-xs text-zinc-400">Direct Ethiopian bank transfer & Telebirr integration</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-xl border border-[#27272a]">
+          <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-xl border border-[#27272a] self-start sm:self-auto w-full sm:w-auto">
             <button
               id="deposit-tab-new"
               onClick={() => setActiveTab('new')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-center ${
                 activeTab === 'new' ? 'bg-[#E5B842] text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -369,7 +369,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                     <span className="absolute right-3.5 top-3 text-xs font-mono text-zinc-500">ETB</span>
                   </div>
                   {/* Quick Preset Buttons */}
-                  <div className="flex gap-1.5 mt-2">
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {['200', '500', '1000', '2500'].map(p => (
                       <button
                         key={p}
@@ -497,12 +497,12 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               )}
 
               {/* Action Buttons: Cancel/Back and Submit */}
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 pt-2">
                 <button
                   type="button"
                   id="cancel-deposit-btn"
                   onClick={onClose}
-                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer text-center"
+                  className="order-2 sm:order-1 sm:flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer text-center"
                 >
                   Cancel / Back
                 </button>
@@ -510,7 +510,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                   type="submit"
                   id="submit-deposit-btn"
                   disabled={isSubmitting}
-                  className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#E5B842] via-[#d4af37] to-amber-600 text-black font-bold text-xs uppercase tracking-wider shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+                  className="order-1 sm:order-2 sm:flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#E5B842] via-[#d4af37] to-amber-600 text-black font-bold text-xs uppercase tracking-wider shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'Verifying & Submitting...' : 'Submit Deposit for Verification'}
                 </button>

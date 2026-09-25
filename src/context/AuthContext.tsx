@@ -6,7 +6,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (data: { username: string; email: string; phone: string; password: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { username: string; email?: string; phone: string; password: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   updateUserBalance: (newBalance: number) => void;
@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (userData: { username: string; email: string; phone: string; password: string }) => {
+  const register = async (userData: { username: string; email?: string; phone: string; password: string }) => {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',

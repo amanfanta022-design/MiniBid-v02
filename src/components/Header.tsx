@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
+import { useTranslation } from '../utils/i18n.js';
 import {
   Coins,
   PlusCircle,
@@ -28,6 +29,8 @@ import {
   ChevronRight,
   Shield,
   Wallet,
+  Languages,
+  Settings,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
 import { PlatformNotification } from '../types.js';
@@ -55,11 +58,13 @@ export const Header: React.FC<HeaderProps> = ({
   onReplayIntro,
 }) => {
   const { user, logout } = useAuth();
+  const { language, setLanguage, t } = useTranslation();
   const { logoUrl, isCustom, uploadCustomLogo, resetToDefault } = useBrandLogo();
   const [audioOn, setAudioOn] = useState(true);
   const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
   const [pendingDepositsCount, setPendingDepositsCount] = useState<number>(0);
+  const [wonCount, setWonCount] = useState<number>(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -71,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
     setAudioOn(newState);
   };
 
-  // Poll notifications & pending deposits
+  // Poll notifications, won auctions & pending deposits
   useEffect(() => {
     if (!user) return;
 
@@ -87,6 +92,16 @@ export const Header: React.FC<HeaderProps> = ({
         if (notifRes.ok) {
           const data = await notifRes.json();
           setNotifications(data.notifications || []);
+        }
+
+        // Fetch auctions to check won status for Requirement 8
+        const aucRes = await fetch('/api/auctions');
+        if (aucRes.ok) {
+          const aucData = await aucRes.json();
+          const userWon = (aucData.auctions || []).filter(
+            (a: { winner_user_id?: string }) => a.winner_user_id === user.id
+          );
+          setWonCount(userWon.length);
         }
 
         // If admin/superadmin, fetch pending deposits count
@@ -223,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Flame className="w-3.5 h-3.5" />
-                Live Auctions
+                {t('live_auctions')}
               </button>
 
               <button
@@ -236,7 +251,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Trophy className="w-3.5 h-3.5" />
-                Winners
+                {t('winners')}
               </button>
 
               <button
@@ -245,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-[#1c1c20] transition-all"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
-                How It Works
+                {t('how_it_works')}
               </button>
 
               {/* Admin Management Links */}
@@ -260,7 +275,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Inbox className="w-3.5 h-3.5" />
-                  Deposit Requests
+                  {t('admin_deposits')}
                   {pendingDepositsCount > 0 && (
                     <span className="w-4 h-4 bg-amber-500 text-black font-bold text-[10px] rounded-full flex items-center justify-center animate-pulse">
                       {pendingDepositsCount}
@@ -280,7 +295,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
-                  Active Users
+                  {t('users_ledger')}
                 </button>
               )}
 
@@ -311,13 +326,40 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  Staff & Audit
+                  {t('staff_audit')}
                 </button>
               )}
             </nav>
 
             {/* Right Action Stack */}
             <div className="flex items-center gap-1.5 sm:gap-2.5">
+              {/* Requirement 8: When user wins an item, notify clearly with visible icons on their dashboard / header */}
+              {wonCount > 0 && (
+                <button
+                  id="header-won-alert-btn"
+                  onClick={onOpenLedger}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/25 via-yellow-400/30 to-[#E5B842]/40 border border-[#E5B842] text-[#E5B842] font-bold text-xs shadow-[0_0_15px_rgba(229,184,66,0.35)] animate-pulse cursor-pointer hover:brightness-125 transition-all"
+                  title={language === 'am' ? 'እንኳን ደስ አለዎት! ያሸነፉት ጨረታ አለ። ለማየት እዚህ ይጫኑ' : 'Congratulations! You won auctions. Click to claim.'}
+                >
+                  <Trophy className="w-4 h-4 text-[#E5B842] shrink-0" />
+                  <span className="hidden xs:inline">{language === 'am' ? 'ያሸነፉት' : 'Won!'}</span>
+                  <span className="w-4 h-4 rounded-full bg-[#E5B842] text-black text-[10px] font-black flex items-center justify-center">
+                    {wonCount}
+                  </span>
+                </button>
+              )}
+
+              {/* Requirement 2: Language Toggle (EN / አማርኛ) */}
+              <button
+                id="header-language-toggle-btn"
+                onClick={() => setLanguage(language === 'en' ? 'am' : 'en')}
+                title={language === 'en' ? 'ወደ አማርኛ ቀይር' : 'Switch to English'}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#27272a] bg-[#121214] text-xs font-semibold text-[#E5B842] hover:border-[#E5B842]/50 hover:bg-[#18181c] transition-all cursor-pointer"
+              >
+                <Languages className="w-3.5 h-3.5 text-[#E5B842]" />
+                <span className="font-mono">{language === 'en' ? 'አማርኛ' : 'EN'}</span>
+              </button>
+
               {/* Audio Toggle */}
               <button
                 id="audio-toggle-btn"
@@ -466,6 +508,25 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   )}
 
+                  {/* Requirement 8: Visible Won Items Notification Badge on dashboard */}
+                  {wonCount > 0 && (
+                    <button
+                      id="header-won-trophy-badge"
+                      onClick={onOpenLedger}
+                      title={
+                        language === 'am'
+                          ? `እንኳን ደስ አለዎት! ${wonCount} ዕቃዎችን አሸንፈዋል`
+                          : `Congratulations! You won ${wonCount} items! Click to view.`
+                      }
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/25 to-yellow-500/35 border-2 border-[#E5B842] text-[#E5B842] hover:brightness-110 shadow-[0_0_20px_rgba(229,184,66,0.4)] animate-pulse transition-all cursor-pointer"
+                    >
+                      <Trophy className="w-4 h-4 text-[#E5B842] shrink-0" />
+                      <span className="text-xs font-black font-mono text-white">
+                        {wonCount} {language === 'am' ? 'አሸንፈዋል!' : 'Won!'}
+                      </span>
+                    </button>
+                  )}
+
                   {/* User Profile Trigger */}
                   <div
                     onClick={onOpenLedger}
@@ -534,16 +595,56 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                   <div>
                     <span className="font-serif font-bold text-white text-base">MINIBID</span>
-                    <span className="block text-[9px] text-[#E5B842] font-mono">Ethiopia Luxury Auctions</span>
+                    <span className="block text-[9px] text-[#E5B842] font-mono">
+                      {language === 'am' ? 'የኢትዮጵያ ጨረታ' : 'Ethiopia Reverse Auctions'}
+                    </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {/* Language switch button in Drawer */}
+                  <button
+                    onClick={() => setLanguage(language === 'en' ? 'am' : 'en')}
+                    className="px-2 py-1 rounded-lg bg-zinc-800 text-[#E5B842] border border-[#27272a] text-[11px] font-mono font-bold flex items-center gap-1"
+                  >
+                    <Languages className="w-3.5 h-3.5" />
+                    <span>{language === 'en' ? 'አማርኛ' : 'EN'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+
+              {/* Winner Alert Banner in Mobile Drawer (Requirement 8) */}
+              {wonCount > 0 && (
+                <div
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenLedger();
+                  }}
+                  className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-[#E5B842]/30 border border-[#E5B842] flex items-center justify-between cursor-pointer animate-pulse"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Trophy className="w-5 h-5 text-[#E5B842] shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-white">
+                        {language === 'am' ? '🎉 እንኳን ደስ አለዎት!' : '🏆 Auction Won!'}
+                      </div>
+                      <div className="text-[10px] text-[#E5B842]">
+                        {language === 'am'
+                          ? `${wonCount} ጨረታ አሸንፈዋል! ለመረከብ ይጫኑ`
+                          : `You won ${wonCount} item(s)! Tap to claim.`}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#E5B842]" />
+                </div>
+              )}
 
               {/* User Profile Card in Drawer */}
               {user ? (
@@ -567,7 +668,11 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between">
                     <div>
                       <div className="text-[10px] text-zinc-500 font-mono uppercase">
-                        {user.role === 'admin' ? 'Operational Float' : isSuperAdmin ? 'Treasury Status' : 'Wallet Balance'}
+                        {user.role === 'admin'
+                          ? language === 'am' ? 'የአስተዳዳሪ ቀሪ' : 'Operational Float'
+                          : isSuperAdmin
+                          ? language === 'am' ? 'የገንዘብ ባለስልጣን' : 'Treasury Status'
+                          : language === 'am' ? 'ቀሪ ሒሳብ' : 'Wallet Balance'}
                       </div>
                       <div className="font-mono font-bold text-sm text-[#E5B842]">
                         {isSuperAdmin
@@ -586,15 +691,19 @@ export const Header: React.FC<HeaderProps> = ({
                         className="px-3 py-1.5 rounded-xl bg-[#E5B842] text-black font-bold text-xs flex items-center gap-1 shadow-sm"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
-                        <span>{user.role === 'admin' ? 'Float' : 'Deposit'}</span>
+                        <span>{user.role === 'admin' ? (language === 'am' ? 'ተጨማሪ' : 'Float') : (language === 'am' ? 'አስገባ' : 'Deposit')}</span>
                       </button>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 to-[#E5B842]/10 border border-[#E5B842]/30 space-y-2">
-                  <div className="font-serif font-bold text-white text-sm">Join MiniBid Ethiopia</div>
-                  <p className="text-xs text-zinc-400">Sign in to participate in live lowest unique reverse auctions.</p>
+                  <div className="font-serif font-bold text-white text-sm">
+                    {language === 'am' ? 'ወደ ሚኒቢድ እንኳን ደህና መጡ' : 'Join MiniBid Ethiopia'}
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    {language === 'am' ? 'በቀጥታ ዝቅተኛ ያልተደገመ ጨረታዎች ላይ ለመሳተፍ ይግቡ።' : 'Sign in to participate in live lowest unique reverse auctions.'}
+                  </p>
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
@@ -602,7 +711,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }}
                     className="w-full py-2.5 rounded-xl bg-[#E5B842] text-black font-extrabold text-xs shadow-md"
                   >
-                    Sign In / Register
+                    {language === 'am' ? 'ግባ / ተመዝገብ' : 'Sign In / Register'}
                   </button>
                 </div>
               )}
@@ -610,7 +719,7 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Main Navigation Links in Drawer */}
               <div className="space-y-1">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 px-2 pb-1">
-                  Navigation
+                  {language === 'am' ? 'ማውጫ' : 'Navigation'}
                 </div>
 
                 <button
@@ -623,7 +732,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
-                    <Flame className="w-4 h-4" /> Live Auctions
+                    <Flame className="w-4 h-4" /> {t('live_auctions')}
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
@@ -638,7 +747,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
-                    <Trophy className="w-4 h-4" /> Concluded Winners
+                    <Trophy className="w-4 h-4" /> {t('winners')}
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
@@ -651,7 +760,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-zinc-300 hover:bg-[#18181c] transition-all"
                 >
                   <span className="flex items-center gap-2.5">
-                    <HelpCircle className="w-4 h-4" /> How It Works Guide
+                    <HelpCircle className="w-4 h-4" /> {t('how_it_works')}
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
@@ -665,7 +774,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-zinc-300 hover:bg-[#18181c] transition-all"
                   >
                     <span className="flex items-center gap-2.5">
-                      <History className="w-4 h-4" /> My Ledger & History
+                      <History className="w-4 h-4" /> {language === 'am' ? 'የእኔ አካውንት እና ታሪክ' : 'My Account & Ledger'}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   </button>
