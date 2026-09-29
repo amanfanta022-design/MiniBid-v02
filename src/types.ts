@@ -56,6 +56,64 @@ export interface Auction {
   winner_email?: string;
   winning_bid_amount?: number;
   is_showcase?: boolean;
+  // Super Admin Live Tracking (Only returned to Super Admin)
+  superadmin_live_overview?: SuperAdminLiveOverview;
+}
+
+export interface SuperAdminLiveOverview {
+  currently_winning_bid_amount: number | null;
+  currently_winning_username: string | null;
+  currently_winning_phone: string | null;
+  total_bids: number;
+  unique_bids_count: number;
+  duplicate_bids_count: number;
+  gross_fees: number;
+  internal_cost: number;
+  projected_margin: number;
+}
+
+export interface SuperAdminLiveBid {
+  id: string;
+  rank: number;
+  bid_amount: number;
+  status: 'unique_lowest' | 'unique_not_lowest' | 'not_unique';
+  user_id: string;
+  username: string;
+  phone: string;
+  created_at: string;
+  fee_paid: number;
+  duplicate_count: number;
+  duplicate_bidders?: { username: string; phone: string; user_id: string; created_at?: string }[];
+}
+
+export interface SuperAdminCurrentlyWinningBid {
+  id: string;
+  bid_amount: number;
+  user_id: string;
+  username: string;
+  phone: string;
+  created_at: string;
+  fee_paid: number;
+}
+
+export interface SuperAdminDuplicateCluster {
+  amount: number;
+  count: number;
+  bidders: { username: string; phone: string; user_id: string; created_at: string }[];
+}
+
+export interface SuperAdminLiveGameDetail {
+  auction_id: string;
+  title: string;
+  status: AuctionStatus;
+  currently_winning_bid: SuperAdminCurrentlyWinningBid | null;
+  total_bids: number;
+  unique_bids_count: number;
+  duplicate_bids_count: number;
+  gross_fees_collected: number;
+  internal_cost: number;
+  projected_net_margin: number;
+  duplicate_clusters: SuperAdminDuplicateCluster[];
 }
 
 export type BidUniquenessStatus = 'unique_lowest' | 'unique_not_lowest' | 'not_unique' | 'submitted';

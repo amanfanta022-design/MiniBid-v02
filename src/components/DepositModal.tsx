@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { DepositRequest } from '../types.js';
 import { playDepositApprovalChime } from '../utils/audio.js';
+import { useTranslation } from '../utils/i18n.js';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -36,6 +37,7 @@ interface PaymentChannel {
 
 export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
   const { user, token, refreshUser } = useAuth();
+  const { language, t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
   const [channels, setChannels] = useState<PaymentChannel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string>('cbe');
@@ -201,7 +203,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold border border-zinc-700 transition-all cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 text-[#E5B842]" />
-            <span>← Back to Auctions</span>
+            <span>← {t('back_to_auctions_btn', 'Back to Auctions')}</span>
           </button>
 
           <button
@@ -222,8 +224,12 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               </div>
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold font-serif text-white tracking-wide">Wallet Deposit (Top-Up)</h2>
-              <p className="text-[11px] sm:text-xs text-zinc-400">Direct Ethiopian bank transfer & Telebirr integration</p>
+              <h2 className="text-base sm:text-lg font-bold font-serif text-white tracking-wide">
+                {t('deposit_modal_title', 'Wallet Deposit (Top-Up)')}
+              </h2>
+              <p className="text-[11px] sm:text-xs text-zinc-400">
+                {t('deposit_modal_sub', 'Direct Ethiopian bank transfer & Telebirr integration')}
+              </p>
             </div>
           </div>
 
@@ -235,7 +241,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                 activeTab === 'new' ? 'bg-[#E5B842] text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              New Deposit
+              {t('new_deposit_tab', 'New Deposit')}
             </button>
             <button
               id="deposit-tab-history"
@@ -248,7 +254,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               }`}
             >
               <History className="w-3.5 h-3.5" />
-              Status Tracker ({deposits.length})
+              {t('deposit_history_tab', 'Status Tracker')} ({deposits.length})
             </button>
           </div>
         </div>
@@ -260,10 +266,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               <div className="mb-5 p-4 rounded-xl bg-red-950/60 border border-red-500/70 text-xs text-red-200 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold text-red-300">Account Security Warning: Flagged for Duplicate Reference Reuse</p>
+                  <p className="font-bold text-red-300">
+                    {language === 'am' ? 'የደህንነት ማስጠንቀቂያ፦ የተደገመ የትራንዛክሽን ቁጥር ተጠቅመዋል' : 'Account Security Warning: Flagged for Duplicate Reference Reuse'}
+                  </p>
                   <p className="text-zinc-300 mt-1">
-                    Your account has been flagged for multiple attempts to reuse verified transaction numbers.
-                    Please submit only genuine, unsubmitted transaction receipts. Further unauthorized reuse will result in account suspension.
+                    {language === 'am'
+                      ? 'አካውንትዎ ቀደም ሲል የፀደቁ የትራንዛክሽን ቁጥሮችን ለመጠቀም በመሞከሩ ምክንያት ተስተውሏል። እባክዎ ትክክለኛ እና አዲስ የባንክ ደረሰኝ ብቻ ያስገቡ።'
+                      : 'Your account has been flagged for multiple attempts to reuse verified transaction numbers. Please submit only genuine, unsubmitted transaction receipts. Further unauthorized reuse will result in account suspension.'}
                   </p>
                 </div>
               </div>
@@ -272,7 +281,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
             {/* Step 1: Select Channel */}
             <div className="mb-5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                1. Select Payment Channel
+                {t('select_payment_channel', '1. Select Payment Channel')}
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {channels.map(c => {
@@ -318,7 +327,9 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 text-xs">
                   <div className="p-2.5 rounded-lg bg-[#09090b] border border-zinc-800">
-                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Account Number / Merchant ID</div>
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
+                      {t('account_number_label', 'Account Number / Merchant ID')}
+                    </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="font-mono font-bold text-white text-sm tracking-wide">
                         {currentChannelObj.account_number}
@@ -327,7 +338,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                         type="button"
                         onClick={() => handleCopy(currentChannelObj.account_number, 'acc_num')}
                         className="text-zinc-400 hover:text-white p-1"
-                        title="Copy account number"
+                        title={t('copy_btn', 'Copy account number')}
                       >
                         {copiedField === 'acc_num' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
@@ -335,7 +346,9 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                   </div>
 
                   <div className="p-2.5 rounded-lg bg-[#09090b] border border-zinc-800">
-                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Beneficiary Name</div>
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
+                      {t('account_name_label', 'Beneficiary Name')}
+                    </div>
                     <div className="font-semibold text-zinc-200 mt-1">{currentChannelObj.account_name}</div>
                   </div>
                 </div>
@@ -352,7 +365,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    Deposit Amount (ETB)
+                    {t('amount_label', 'Deposit Amount (ETB)')}
                   </label>
                   <div className="relative">
                     <input
@@ -385,7 +398,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    Transaction Reference Number *
+                    {t('txn_ref_label', 'Transaction Reference Number *')}
                   </label>
                   <input
                     type="text"
@@ -393,11 +406,11 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                     value={referenceCode}
                     onChange={e => setReferenceCode(e.target.value)}
                     required
-                    placeholder="e.g. FT2426458921 or TB99401"
+                    placeholder={t('txn_ref_placeholder', 'e.g. FT2426458921 or TB99401')}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-sm text-white font-mono focus:outline-none focus:border-[#E5B842]"
                   />
                   <span className="text-[10px] text-zinc-500 block mt-1">
-                    Found on your bank SMS or mobile banking receipt slip
+                    {language === 'am' ? 'በባንክ የSMS መልእክት ወይም በሞባይል ባንኪንግ ደረሰኝ ላይ የሚገኝ' : 'Found on your bank SMS or mobile banking receipt slip'}
                   </span>
                 </div>
               </div>
@@ -405,7 +418,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               {/* Strict <= 5MB Receipt File Upload */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                  Proof of Payment (Max 5.0 MB) *
+                  {language === 'am' ? 'የክፍያ ማረጋገጫ ደረሰኝ (ከ 5.0 MB ያልበለጠ) *' : 'Proof of Payment (Max 5.0 MB) *'}
                 </label>
                 <div
                   onDragOver={e => e.preventDefault()}
@@ -447,22 +460,30 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                       <div className="text-left">
                         <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Receipt Attached</span>
+                          <span>{language === 'am' ? 'ደረሰኝ ተያይዟል' : 'Receipt Attached'}</span>
                         </div>
                         <div className="text-[11px] text-zinc-300 max-w-[200px] truncate">{receiptFile?.name || 'Attached file'}</div>
                         <div className="text-[10px] text-zinc-500 font-mono">
-                          {receiptFile ? `${(receiptFile.size / (1024 * 1024)).toFixed(2)} MB (Within 5MB limit)` : ''}
+                          {receiptFile ? `${(receiptFile.size / (1024 * 1024)).toFixed(2)} MB (${language === 'am' ? 'ከ5MB ገደብ በታች' : 'Within 5MB limit'})` : ''}
                         </div>
-                        <span className="text-[10px] text-zinc-400 underline mt-1 block">Click to change file</span>
+                        <span className="text-[10px] text-zinc-400 underline mt-1 block">
+                          {language === 'am' ? 'ፋይል ለመቀየር እዚህ ይጫኑ' : 'Click to change file'}
+                        </span>
                       </div>
                     </div>
                   ) : (
                     <div className="py-2">
                       <Upload className="w-6 h-6 text-zinc-400 mx-auto mb-1.5" />
                       <div className="text-xs font-medium text-zinc-300">
-                        Drag and drop your bank receipt image or <span className="text-[#E5B842]">browse files</span>
+                        {language === 'am' ? (
+                          <>የባንክ ደረሰኙን ፎቶ እዚህ ይጎትቱ ወይም <span className="text-[#E5B842]">ፋይል ይምረጡ</span></>
+                        ) : (
+                          <>Drag and drop your bank receipt image or <span className="text-[#E5B842]">browse files</span></>
+                        )}
                       </div>
-                      <div className="text-[10px] text-zinc-500 mt-1">PNG, JPG, or PDF (Strictly ≤ 5MB)</div>
+                      <div className="text-[10px] text-zinc-500 mt-1">
+                        {language === 'am' ? 'PNG, JPG ወይም PDF (ከ 5MB ያልበለጠ)' : 'PNG, JPG, or PDF (Strictly ≤ 5MB)'}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -504,7 +525,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                   onClick={onClose}
                   className="order-2 sm:order-1 sm:flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer text-center"
                 >
-                  Cancel / Back
+                  {language === 'am' ? 'ይቅር / ተመለስ' : 'Cancel / Back'}
                 </button>
                 <button
                   type="submit"
@@ -512,7 +533,9 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                   disabled={isSubmitting}
                   className="order-1 sm:order-2 sm:flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#E5B842] via-[#d4af37] to-amber-600 text-black font-bold text-xs uppercase tracking-wider shadow-lg hover:brightness-110 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? 'Verifying & Submitting...' : 'Submit Deposit for Verification'}
+                  {isSubmitting
+                    ? language === 'am' ? 'በማረጋገጥ እና በማስገባት ላይ...' : 'Verifying & Submitting...'
+                    : language === 'am' ? 'ተቀማጭ ገንዘቡ እንዲረጋገጥ አስገባ' : 'Submit Deposit for Verification'}
                 </button>
               </div>
             </form>
@@ -521,11 +544,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
           /* Step 3: Status Tracker */
           <div>
             {isLoadingHistory ? (
-              <div className="py-12 text-center text-xs text-zinc-500">Loading deposit transactions...</div>
+              <div className="py-12 text-center text-xs text-zinc-500">
+                {language === 'am' ? 'የተቀማጭ ገንዘብ ዝርዝሮች በመጫን ላይ...' : 'Loading deposit transactions...'}
+              </div>
             ) : deposits.length === 0 ? (
               <div className="py-12 text-center text-xs text-zinc-500">
                 <CreditCard className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-                No deposit requests initiated yet.
+                {language === 'am' ? 'እስካሁን የተጠየቀ ተቀማጭ ገንዘብ የለም።' : 'No deposit requests initiated yet.'}
               </div>
             ) : (
               <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
@@ -540,49 +565,56 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                           <span className="font-bold text-white text-sm font-mono">
                             {d.amount.toLocaleString()} ETB
                           </span>
-                          <span className="text-zinc-400 text-[11px]">via {d.payment_channel}</span>
+                          <span className="text-zinc-400 text-[11px]">
+                            {language === 'am' ? 'በ' : 'via'} {d.payment_channel}
+                          </span>
                         </div>
 
                         {d.status === 'pending' && (
                           <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold flex items-center gap-1 text-[10px]">
-                            <Clock className="w-3 h-3 animate-spin" /> Pending Approval
+                            <Clock className="w-3 h-3 animate-spin" />
+                            <span>{language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending Approval'}</span>
                           </span>
                         )}
 
                         {d.status === 'approved' && (
                           <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold flex items-center gap-1 text-[10px]">
-                            <CheckCircle2 className="w-3 h-3" /> Approved & Credited
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>{language === 'am' ? 'ፀድቋል እና ገብቷል' : 'Approved & Credited'}</span>
                           </span>
                         )}
 
                         {d.status === 'rejected' && (
                           <span className="px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-semibold flex items-center gap-1 text-[10px]">
-                            <AlertTriangle className="w-3 h-3" /> Rejected
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>{language === 'am' ? 'ውድቅ ተደርጓል' : 'Rejected'}</span>
                           </span>
                         )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400 pt-1 border-t border-zinc-800">
                         <div>
-                          <span className="text-zinc-500">Reference:</span>{' '}
+                          <span className="text-zinc-500">{language === 'am' ? 'የትራንዛክሽን ቁጥር፦' : 'Reference:'}</span>{' '}
                           <span className="font-mono text-zinc-300">{d.reference_code}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-zinc-500">Date:</span>{' '}
+                          <span className="text-zinc-500">{language === 'am' ? 'ቀን፦' : 'Date:'}</span>{' '}
                           <span>{new Date(d.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
 
                       {d.status === 'rejected' && d.rejection_reason && (
                         <div className="p-2.5 rounded-lg bg-red-950/30 border border-red-900/40 text-[11px] text-red-300">
-                          <strong className="font-semibold text-red-400">Rejection Reason:</strong>{' '}
+                          <strong className="font-semibold text-red-400">
+                            {language === 'am' ? 'ውድቅ የተደረገበት ምክንያት፦' : 'Rejection Reason:'}
+                          </strong>{' '}
                           {d.rejection_reason}
                         </div>
                       )}
 
                       {d.status === 'approved' && d.reviewed_by && (
                         <div className="text-[10px] text-zinc-500 font-mono">
-                          Verified by operations agent: {d.reviewed_by} on{' '}
+                          {language === 'am' ? 'በኦፕሬሽን ሰራተኛ ተረጋግጧል፦' : 'Verified by operations agent:'} {d.reviewed_by} on{' '}
                           {d.reviewed_at ? new Date(d.reviewed_at).toLocaleDateString() : ''}
                         </div>
                       )}
@@ -601,7 +633,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5 text-[#E5B842]" />
-                <span>Return to Auctions</span>
+                <span>{language === 'am' ? 'ወደ ጨረታዎች ተመለስ' : 'Return to Auctions'}</span>
               </button>
             </div>
           </div>

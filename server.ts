@@ -289,7 +289,7 @@ app.put('/api/auth/update-profile', authenticate, (req: AuthenticatedRequest, re
 // ==========================================
 
 // Public Auctions List
-// CRITICAL SECURITY: Strips `internal_cost` unless caller is `superadmin`
+// CRITICAL SECURITY: Strips `internal_cost` and live tracking unless caller is `superadmin`
 app.get('/api/auctions', optionalAuthenticate, (req: AuthenticatedRequest, res: Response) => {
   db.checkAndConcludeAuctions();
   const allAuctions = db.getAuctions();
@@ -297,7 +297,27 @@ app.get('/api/auctions', optionalAuthenticate, (req: AuthenticatedRequest, res: 
 
   const sanitized = allAuctions.map(auc => {
     if (isSuperAdmin) {
-      return auc;
+      const evaluated = db.evaluateAuctionBids(auc.id);
+      const uniqueCount = evaluated.filter(b => b.status === 'unique_lowest' || b.status === 'unique_not_lowest').length;
+      const dupCount = evaluated.length - uniqueCount;
+      const winning = evaluated.find(b => b.status === 'unique_lowest');
+      const winnerUser = winning ? db.findUserById(winning.user_id) : null;
+      const gross = evaluated.reduce((sum, b) => sum + (b.fee_paid || auc.participation_fee), 0);
+
+      return {
+        ...auc,
+        superadmin_live_overview: {
+          currently_winning_bid_amount: winning ? winning.bid_amount : null,
+          currently_winning_username: winning ? winning.username : null,
+          currently_winning_phone: winnerUser ? winnerUser.phone : null,
+          total_bids: evaluated.length,
+          unique_bids_count: uniqueCount,
+          duplicate_bids_count: dupCount,
+          gross_fees: gross,
+          internal_cost: auc.internal_cost || 0,
+          projected_margin: gross - (auc.internal_cost || 0),
+        },
+      };
     }
     const { internal_cost: _confidential, ...publicAuc } = auc;
     return publicAuc;
@@ -379,28 +399,91 @@ app.get('/api/auctions/:id', optionalAuthenticate, (req: AuthenticatedRequest, r
         })
     : [];
 
-  // Super Admin can see each auction bid history even when active! (Requirement 3)
-  const superadminBids = isSuperAdmin
-    ? [...evaluatedBids]
-        .sort((a, b) => a.bid_amount - b.bid_amount)
-        .map((b, index) => {
-          const bidderUser = db.findUserById(b.user_id);
-          return {
-            id: b.id,
-            rank: index + 1,
-            bid_amount: b.bid_amount,
-            status: b.status,
-            username: b.username,
-            phone: bidderUser?.phone || '',
-            created_at: b.created_at,
-          };
-        })
-    : undefined;
+  // Super Admin Live Tracking & Unmasked Bid Ledger (Super Admin Only!)
+  let superadminBids: any[] | undefined = undefined;
+  let superadminLiveGame: any | undefined = undefined;
 
   // Count unique vs duplicate bids
   const totalBids = evaluatedBids.length;
   const uniqueBidsCount = evaluatedBids.filter(b => b.status === 'unique_lowest' || b.status === 'unique_not_lowest').length;
   const duplicateBidsCount = totalBids - uniqueBidsCount;
+
+  if (isSuperAdmin) {
+    const bidsWithDuplicates = evaluatedBids.map(b => {
+      const amt = Number(b.bid_amount.toFixed(2));
+      const duplicates = evaluatedBids.filter(other => Number(other.bid_amount.toFixed(2)) === amt);
+      const bidderUser = db.findUserById(b.user_id);
+      return {
+        id: b.id,
+        user_id: b.user_id,
+        username: b.username,
+        phone: bidderUser?.phone || '',
+        bid_amount: b.bid_amount,
+        fee_paid: b.fee_paid || auc.participation_fee,
+        status: b.status,
+        created_at: b.created_at,
+        duplicate_count: duplicates.length,
+        duplicate_bidders: duplicates.length > 1
+          ? duplicates.map(d => {
+              const u = db.findUserById(d.user_id);
+              return { username: d.username, phone: u?.phone || '', user_id: d.user_id, created_at: d.created_at };
+            })
+          : undefined,
+      };
+    });
+
+    superadminBids = [...bidsWithDuplicates]
+      .sort((a, b) => a.bid_amount - b.bid_amount)
+      .map((b, index) => ({
+        ...b,
+        rank: index + 1,
+      }));
+
+    const currentlyWinning = superadminBids.find(b => b.status === 'unique_lowest');
+    const winnerUser = currentlyWinning ? db.findUserById(currentlyWinning.user_id) : null;
+
+    const duplicateClusters = Object.entries(
+      evaluatedBids.reduce((acc: Record<string, any[]>, b) => {
+        const k = b.bid_amount.toFixed(2);
+        if (!acc[k]) acc[k] = [];
+        const u = db.findUserById(b.user_id);
+        acc[k].push({ username: b.username, phone: u?.phone || '', user_id: b.user_id, created_at: b.created_at });
+        return acc;
+      }, {})
+    )
+      .filter(([_, list]) => list.length > 1)
+      .map(([amount, bidders]) => ({
+        amount: parseFloat(amount),
+        count: bidders.length,
+        bidders,
+      }))
+      .sort((a, b) => a.amount - b.amount);
+
+    const grossFees = evaluatedBids.reduce((sum, b) => sum + (b.fee_paid || auc.participation_fee), 0);
+    const internalCost = auc.internal_cost || 0;
+
+    superadminLiveGame = {
+      auction_id: auc.id,
+      title: auc.title,
+      status: auc.status,
+      currently_winning_bid: currentlyWinning ? {
+        id: currentlyWinning.id,
+        bid_amount: currentlyWinning.bid_amount,
+        user_id: currentlyWinning.user_id,
+        username: currentlyWinning.username,
+        phone: currentlyWinning.phone || winnerUser?.phone || '',
+        created_at: currentlyWinning.created_at,
+        fee_paid: currentlyWinning.fee_paid,
+      } : null,
+      total_bids: totalBids,
+      unique_bids_count: uniqueBidsCount,
+      duplicate_bids_count: duplicateBidsCount,
+      gross_fees_collected: grossFees,
+      internal_cost: internalCost,
+      projected_net_margin: grossFees - internalCost,
+      duplicate_clusters: duplicateClusters,
+    };
+  }
 
   // Admins can't see game stats until auction ends! (Requirement 3)
   const hideStatsForAdmin = isAdmin && !isEnded;
@@ -416,6 +499,7 @@ app.get('/api/auctions/:id', optionalAuthenticate, (req: AuthenticatedRequest, r
     user_bids: userBids,
     concluded_bids: concludedBids,
     superadmin_bids: superadminBids,
+    superadmin_live_game: superadminLiveGame,
     stats: hideStatsForAdmin
       ? null
       : showDetailedStats
@@ -470,6 +554,110 @@ app.get('/api/auctions/:id/bid-history', optionalAuthenticate, (req: Authenticat
     status: auc.status,
     total_bids: sortedBids.length,
     bids: sortedBids,
+  });
+});
+
+// ==========================================
+// Super Admin Live Game Control & Bid Tracker (Super Admin Only!)
+// ==========================================
+app.get('/api/superadmin/live-game-monitor', authenticate, requireRole(['superadmin']), (_req: AuthenticatedRequest, res: Response) => {
+  db.checkAndConcludeAuctions();
+  const allAuctions = db.getAuctions();
+  const activeAuctions = allAuctions.filter(a => a.status === 'active');
+
+  const detailedAuctions = activeAuctions.map(auc => {
+    const evaluatedBids = db.evaluateAuctionBids(auc.id);
+    const uniqueCount = evaluatedBids.filter(b => b.status === 'unique_lowest' || b.status === 'unique_not_lowest').length;
+    const dupCount = evaluatedBids.length - uniqueCount;
+
+    const bidsWithDuplicates = evaluatedBids.map(b => {
+      const amt = Number(b.bid_amount.toFixed(2));
+      const duplicates = evaluatedBids.filter(other => Number(other.bid_amount.toFixed(2)) === amt);
+      const bidderUser = db.findUserById(b.user_id);
+      return {
+        id: b.id,
+        user_id: b.user_id,
+        username: b.username,
+        phone: bidderUser?.phone || '',
+        bid_amount: b.bid_amount,
+        fee_paid: b.fee_paid || auc.participation_fee,
+        status: b.status,
+        created_at: b.created_at,
+        duplicate_count: duplicates.length,
+        duplicate_bidders: duplicates.length > 1
+          ? duplicates.map(d => {
+              const u = db.findUserById(d.user_id);
+              return { username: d.username, phone: u?.phone || '', user_id: d.user_id, created_at: d.created_at };
+            })
+          : undefined,
+      };
+    });
+
+    const sortedBids = [...bidsWithDuplicates]
+      .sort((a, b) => a.bid_amount - b.bid_amount)
+      .map((b, index) => ({
+        ...b,
+        rank: index + 1,
+      }));
+
+    const currentlyWinning = sortedBids.find(b => b.status === 'unique_lowest');
+    const winnerUser = currentlyWinning ? db.findUserById(currentlyWinning.user_id) : null;
+
+    const duplicateClusters = Object.entries(
+      evaluatedBids.reduce((acc: Record<string, any[]>, b) => {
+        const k = b.bid_amount.toFixed(2);
+        if (!acc[k]) acc[k] = [];
+        const u = db.findUserById(b.user_id);
+        acc[k].push({ username: b.username, phone: u?.phone || '', user_id: b.user_id, created_at: b.created_at });
+        return acc;
+      }, {})
+    )
+      .filter(([_, list]) => list.length > 1)
+      .map(([amount, bidders]) => ({
+        amount: parseFloat(amount),
+        count: bidders.length,
+        bidders,
+      }))
+      .sort((a, b) => a.amount - b.amount);
+
+    const grossFees = evaluatedBids.reduce((sum, b) => sum + (b.fee_paid || auc.participation_fee), 0);
+    const internalCost = auc.internal_cost || 0;
+
+    return {
+      id: auc.id,
+      title: auc.title,
+      category: auc.category,
+      image_url: auc.image_url,
+      participation_fee: auc.participation_fee,
+      internal_cost: internalCost,
+      start_price: auc.start_price,
+      end_time: auc.end_time,
+      status: auc.status,
+      total_bids: evaluatedBids.length,
+      unique_bids_count: uniqueCount,
+      duplicate_bids_count: dupCount,
+      gross_fees_collected: grossFees,
+      projected_net_margin: grossFees - internalCost,
+      currently_winning_bid: currentlyWinning ? {
+        id: currentlyWinning.id,
+        bid_amount: currentlyWinning.bid_amount,
+        user_id: currentlyWinning.user_id,
+        username: currentlyWinning.username,
+        phone: currentlyWinning.phone || winnerUser?.phone || '',
+        created_at: currentlyWinning.created_at,
+        fee_paid: currentlyWinning.fee_paid,
+      } : null,
+      duplicate_clusters: duplicateClusters,
+      bids: sortedBids,
+    };
+  });
+
+  const totalActiveBids = detailedAuctions.reduce((sum, a) => sum + a.total_bids, 0);
+
+  res.json({
+    active_auctions_count: detailedAuctions.length,
+    total_active_bids: totalActiveBids,
+    auctions: detailedAuctions,
   });
 });
 

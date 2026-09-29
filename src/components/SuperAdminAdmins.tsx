@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
+import { useTranslation } from '../utils/i18n.js';
 import {
   ShieldCheck,
   UserPlus,
@@ -22,6 +23,7 @@ import { User, UserRole, AdminFloatRequest } from '../types.js';
 
 export const SuperAdminAdmins: React.FC = () => {
   const { token, user: currentUser, refreshUser } = useAuth();
+  const { language, t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'directory' | 'float_requests'>('directory');
   const [admins, setAdmins] = useState<User[]>([]);
   const [floatRequests, setFloatRequests] = useState<AdminFloatRequest[]>([]);
@@ -266,11 +268,15 @@ export const SuperAdminAdmins: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-purple-400 font-mono text-xs uppercase tracking-wider mb-1">
             <ShieldCheck className="w-4 h-4" />
-            <span>Super Admin Executive Desk</span>
+            <span>{language === 'am' ? 'የሱፐር አድሚን የስራ አስፈፃሚ ቢሮ' : 'Super Admin Executive Desk'}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-white">Administrators & Operational Floats</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-white">
+            {language === 'am' ? 'አስተዳዳሪዎች እና ኦፕሬሽናል ፈሳሽ ገንዘብ' : 'Administrators & Operational Floats'}
+          </h1>
           <p className="text-xs text-zinc-400 mt-1 max-w-xl leading-relaxed">
-            Provision staff with role-based access control. In accordance with platform governance, all admins start with 0.00 ETB. Super Admin deposits initial float when creating staff or approves periodic float requests to empower admins to approve user deposits.
+            {language === 'am'
+              ? 'አስተዳዳሪዎችን ይመድቡ እና ይቆጣጠሩ። ሁሉም አስተዳዳሪዎች በ0.00 ብር ይጀምራሉ። ሱፐር አድሚን ፈሳሽ ገንዘብ ሲመድብላቸው የተጠቃሚዎችን ተቀማጭ ማፅደቅ ይችላሉ።'
+              : 'Provision staff with role-based access control. All admins start with 0.00 ETB. Super Admin deposits initial float when creating staff or approves periodic float requests to empower admins to approve user deposits.'}
           </p>
         </div>
 
@@ -280,7 +286,7 @@ export const SuperAdminAdmins: React.FC = () => {
           className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs shadow-lg shadow-purple-600/20 transition-all cursor-pointer w-max"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Provision New Admin</span>
+          <span>{language === 'am' ? 'አዲስ አድሚን መድብ' : 'Provision New Admin'}</span>
         </button>
       </div>
 
@@ -294,7 +300,7 @@ export const SuperAdminAdmins: React.FC = () => {
               : 'bg-[#121215] text-zinc-400 hover:text-white border border-[#27272a]'
           }`}
         >
-          Staff Directory & Float Balances ({admins.length})
+          {language === 'am' ? 'የሰራተኞች ዝርዝር እና ቀሪ ሒሳብ' : 'Staff Directory & Float Balances'} ({admins.length})
         </button>
 
         <button
@@ -306,10 +312,10 @@ export const SuperAdminAdmins: React.FC = () => {
           }`}
         >
           <Coins className="w-4 h-4" />
-          <span>Admin Float Requests</span>
+          <span>{language === 'am' ? 'የፍሎት ጥያቄዎች' : 'Admin Float Requests'}</span>
           {pendingFloatCount > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-amber-400 text-black text-[10px] font-bold">
-              {pendingFloatCount} Pending
+              {pendingFloatCount} {language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending'}
             </span>
           )}
         </button>
@@ -325,19 +331,21 @@ export const SuperAdminAdmins: React.FC = () => {
       {activeTab === 'directory' ? (
         /* Staff Directory Table */
         isLoading ? (
-          <div className="py-20 text-center text-xs text-zinc-500">Loading administrators list...</div>
+          <div className="py-20 text-center text-xs text-zinc-500">
+            {language === 'am' ? 'የአስተዳዳሪዎች ዝርዝር በመጫን ላይ...' : 'Loading administrators list...'}
+          </div>
         ) : (
           <div className="bg-[#121215] border border-[#27272a] rounded-3xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-[#27272a] bg-[#18181c]/60 text-zinc-400 font-mono text-[11px] uppercase tracking-wider">
-                    <th className="p-4 pl-6">Staff Member</th>
-                    <th className="p-4">Assigned Role</th>
-                    <th className="p-4">Operational Float Balance</th>
-                    <th className="p-4">Contact Credentials</th>
-                    <th className="p-4">Account Status</th>
-                    <th className="p-4 pr-6 text-right">Liquidity & Controls</th>
+                    <th className="p-4 pl-6">{language === 'am' ? 'ሰራተኛ' : 'Staff Member'}</th>
+                    <th className="p-4">{language === 'am' ? 'የተሰጠው ሚና' : 'Assigned Role'}</th>
+                    <th className="p-4">{language === 'am' ? 'ኦፕሬሽናል ፈሳሽ ገንዘብ' : 'Operational Float Balance'}</th>
+                    <th className="p-4">{language === 'am' ? 'መገኛ አድራሻ' : 'Contact Credentials'}</th>
+                    <th className="p-4">{language === 'am' ? 'ሁኔታ' : 'Account Status'}</th>
+                    <th className="p-4 pr-6 text-right">{language === 'am' ? 'ፈሳሽ ገንዘብ እና ቁጥጥር' : 'Liquidity & Controls'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#27272a]/60">
@@ -358,7 +366,7 @@ export const SuperAdminAdmins: React.FC = () => {
                                 <span>@{staff.username}</span>
                                 {isCurrent && (
                                   <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono text-[9px]">
-                                    YOU
+                                    {language === 'am' ? 'እርስዎ' : 'YOU'}
                                   </span>
                                 )}
                               </div>
@@ -386,7 +394,9 @@ export const SuperAdminAdmins: React.FC = () => {
                             {balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
                           </div>
                           <div className="text-[10px] text-zinc-500 font-mono">
-                            {balance === 0 ? 'Zero float (Cannot disburse)' : 'Active disbursement buffer'}
+                            {balance === 0
+                              ? language === 'am' ? 'ምንም ፍሎት የለም (ማፅደቅ አይችልም)' : 'Zero float (Cannot disburse)'
+                              : language === 'am' ? 'ንቁ የማፅደቂያ ቀሪ ሒሳብ' : 'Active disbursement buffer'}
                           </div>
                         </td>
 
@@ -411,11 +421,11 @@ export const SuperAdminAdmins: React.FC = () => {
                           >
                             {isActive ? (
                               <>
-                                <CheckCircle2 className="w-3 h-3" /> ACTIVE
+                                <CheckCircle2 className="w-3 h-3" /> {language === 'am' ? 'ንቁ' : 'ACTIVE'}
                               </>
                             ) : (
                               <>
-                                <Ban className="w-3 h-3" /> SUSPENDED
+                                <Ban className="w-3 h-3" /> {language === 'am' ? 'የታገደ' : 'SUSPENDED'}
                               </>
                             )}
                           </span>
@@ -436,7 +446,7 @@ export const SuperAdminAdmins: React.FC = () => {
                               title="Deposit operational float to this Admin"
                             >
                               <Coins className="w-3 h-3" />
-                              <span>Deposit Float</span>
+                              <span>{language === 'am' ? 'ፍሎት ጨምር' : 'Deposit Float'}</span>
                             </button>
 
                             {!isCurrent && (

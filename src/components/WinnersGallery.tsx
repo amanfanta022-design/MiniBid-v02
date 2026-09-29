@@ -14,6 +14,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import { Auction } from '../types.js';
+import { useTranslation } from '../utils/i18n.js';
 
 /**
  * Mask 2 Digits of Phone Number: Exactly 2 digits are hidden with ** (e.g. +251 911 22 ** 44 or +25191122**44),
@@ -50,6 +51,7 @@ interface WinnersGalleryProps {
 }
 
 export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction }) => {
+  const { language, t } = useTranslation();
   const [winners, setWinners] = useState<Auction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>('All');
@@ -65,7 +67,41 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
       .finally(() => setIsLoading(false));
   }, []);
 
-  const categories = ['All', 'Tech', 'Luxury', 'Jewelry', 'Vehicles', 'Appliances'];
+  const categories = [
+    'All',
+    'Accessories',
+    'Kitchen',
+    'Electronics',
+    'Vehicles',
+    'Luxury',
+    'Tech',
+    'Smartphones',
+    'Gaming',
+    'Fashion',
+    'Jewelry',
+    'Appliances',
+    'Collectibles',
+  ];
+
+  const getCategoryLabel = (cat: string) => {
+    if (language !== 'am') return cat;
+    const amMap: Record<string, string> = {
+      All: 'ሁሉም',
+      Accessories: 'መለዋወጫዎች',
+      Kitchen: 'የወጥ ቤት ዕቃዎች',
+      Electronics: 'ኤሌክትሮኒክስ',
+      Vehicles: 'ተሽከርካሪዎች',
+      Luxury: 'የቅንጦት ዕቃዎች',
+      Tech: 'ቴክኖሎጂ',
+      Smartphones: 'ስማርት ስልኮች',
+      Gaming: 'ጌሚንግ',
+      Fashion: 'አልባሳት እና ፋሽን',
+      Jewelry: 'ወርቅና ጌጣጌጥ',
+      Appliances: 'የቤት መገልገያዎች',
+      Collectibles: 'ስብስቦች',
+    };
+    return amMap[cat] || cat;
+  };
 
   const filteredWinners = winners.filter(a => {
     if (activeCategory === 'All') return true;
@@ -80,28 +116,42 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
 
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5B842]/10 border border-[#E5B842]/30 text-[#E5B842] text-xs font-mono font-semibold tracking-wider uppercase">
-            <Trophy className="w-3.5 h-3.5" /> Verified Winners Ledger
+            <Trophy className="w-3.5 h-3.5" />
+            <span>{language === 'am' ? 'የተረጋገጠ የአሸናፊዎች መዝገብ' : 'Verified Winners Ledger'}</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold font-serif tracking-tight text-white leading-tight">
-            Hall of Fame — <span className="text-[#E5B842]">Lowest Unique Bid</span> Champions
+            {language === 'am' ? (
+              <>
+                የአሸናፊዎች አዳራሽ — <span className="text-[#E5B842]">ዝቅተኛ ያልተደገመ ጨረታ</span> ጀግኖች
+              </>
+            ) : (
+              <>
+                Hall of Fame — <span className="text-[#E5B842]">Lowest Unique Bid</span> Champions
+              </>
+            )}
           </h1>
 
           <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
-            Every concluded auction is publicly verified on-chain and in our audit ledger. Explore previous winners, their validated winning lowest unique bid, and verified contact verification details.
+            {language === 'am'
+              ? 'እያንዳንዱ የተጠናቀቀ ጨረታ በኦዲት መዝገብ እና በይፋዊ መረጃ የተረጋገጠ ነው። ያለፉ አሸናፊዎችን፣ ያሸነፉበትን ዝቅተኛ ያልተደገመ ዋጋ እና የተረጋገጠ የዕቃ ርክክብ ዝርዝር ይመልከቱ።'
+              : 'Every concluded auction is publicly verified in our audit ledger. Explore previous winners, their validated winning lowest unique bid, and verified contact verification details.'}
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-2 text-xs font-mono text-zinc-400">
             <span className="flex items-center gap-1.5 text-emerald-400">
-              <ShieldCheck className="w-4 h-4" /> 100% Cryptographically Verified
+              <ShieldCheck className="w-4 h-4" />
+              <span>{language === 'am' ? '100% በሒሳባዊ ኦዲት የተረጋገጠ' : '100% Cryptographically Verified'}</span>
             </span>
             <span className="text-zinc-600">•</span>
             <span className="flex items-center gap-1.5 text-amber-300">
-              <BadgeCheck className="w-4 h-4" /> 2-Digit Masked Phone Privacy
+              <BadgeCheck className="w-4 h-4" />
+              <span>{language === 'am' ? 'የ2-ዲጂት ስልክ ሚስጥራዊነት' : '2-Digit Masked Phone Privacy'}</span>
             </span>
             <span className="text-zinc-600">•</span>
             <span className="flex items-center gap-1.5 text-zinc-300">
-              <Mail className="w-3.5 h-3.5" /> 4-Char Masked Email
+              <Mail className="w-3.5 h-3.5" />
+              <span>{language === 'am' ? 'የተሸፈነ የመለያ አድራሻ' : 'Masked Identifier'}</span>
             </span>
           </div>
         </div>
@@ -113,13 +163,13 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
               activeCategory === cat
                 ? 'bg-[#E5B842] text-black font-semibold shadow-lg shadow-[#E5B842]/20'
                 : 'bg-[#121215] text-zinc-400 hover:text-white border border-[#27272a]'
             }`}
           >
-            {cat}
+            {getCategoryLabel(cat)}
           </button>
         ))}
       </div>
@@ -127,13 +177,23 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
       {isLoading ? (
         <div className="py-24 text-center space-y-3">
           <div className="w-8 h-8 border-2 border-[#E5B842] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-mono text-zinc-500">Loading verified winners records...</p>
+          <p className="text-xs font-mono text-zinc-500">
+            {language === 'am' ? 'የአሸናፊዎች መረጃ በመጫን ላይ...' : 'Loading verified winners records...'}
+          </p>
         </div>
       ) : filteredWinners.length === 0 ? (
         <div className="py-20 text-center text-zinc-500 text-xs bg-[#121215] rounded-3xl border border-[#27272a] p-8 space-y-2">
           <Trophy className="w-10 h-10 text-zinc-700 mx-auto" />
-          <p className="font-serif text-sm text-zinc-400 font-semibold">No Concluded Auctions in this Category Yet</p>
-          <p className="text-zinc-600 text-xs">Active auctions will appear here immediately once their countdown concludes.</p>
+          <p className="font-serif text-sm text-zinc-400 font-semibold">
+            {language === 'am'
+              ? 'በዚህ ምድብ እስካሁን የተጠናቀቀ ጨረታ የለም'
+              : 'No Concluded Auctions in this Category Yet'}
+          </p>
+          <p className="text-zinc-600 text-xs">
+            {language === 'am'
+              ? 'የአሁኑ ዙር ጨረታዎች ሲጠናቀቁ ወዲያውኑ እዚህ ይታያሉ።'
+              : 'Active auctions will appear here immediately once their countdown concludes.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -159,13 +219,14 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                   {/* Top Badges */}
                   <div className="absolute top-3 left-3 flex items-center gap-2">
                     <span className="px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-[#E5B842] border border-[#E5B842]/30 text-[10px] font-mono uppercase font-bold tracking-wider">
-                      {auc.category}
+                      {getCategoryLabel(auc.category)}
                     </span>
                   </div>
 
                   <div className="absolute top-3 right-3">
                     <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Winner Confirmed
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <span>{language === 'am' ? 'አሸናፊው ተረጋግጧል' : 'Winner Confirmed'}</span>
                     </span>
                   </div>
 
@@ -177,7 +238,7 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                     </span>
                     <span className="flex items-center gap-1 text-zinc-400">
                       <Layers className="w-3 h-3 text-zinc-500" />
-                      {auc.total_bids} bids evaluated
+                      {auc.total_bids} {language === 'am' ? 'የተገመገሙ ጨረታዎች' : 'bids evaluated'}
                     </span>
                   </div>
                 </div>
@@ -202,7 +263,7 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                         </div>
                         <div>
                           <div className="text-[10px] uppercase font-mono text-zinc-500 tracking-wider">
-                            Verified Winner
+                            {language === 'am' ? 'የተረጋገጠ አሸናፊ' : 'Verified Winner'}
                           </div>
                           <div className="font-serif font-bold text-white text-sm flex items-center gap-1">
                             <Sparkles className="w-3 h-3 text-[#E5B842]" />
@@ -213,7 +274,7 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
 
                       <div className="text-right">
                         <div className="text-[10px] uppercase font-mono text-zinc-500 tracking-wider">
-                          Winning Bid
+                          {language === 'am' ? 'ያሸነፈበት ዋጋ' : 'Winning Bid'}
                         </div>
                         <div className="font-mono font-extrabold text-emerald-400 text-base">
                           {winAmount} ETB
@@ -221,11 +282,12 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                       </div>
                     </div>
 
-                    {/* Masked Contact Details (Requirement 2) */}
+                    {/* Masked Contact Details */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                       <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 flex flex-col">
                         <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-[#E5B842]" /> 2-Digit Masked Phone
+                          <Phone className="w-3 h-3 text-[#E5B842]" />
+                          <span>{language === 'am' ? 'ስልክ (የተሸፈነ)' : 'Masked Phone'}</span>
                         </span>
                         <span className="text-xs font-mono font-bold text-zinc-200 mt-1 tracking-wider">
                           {maskedPhone}
@@ -234,7 +296,8 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
 
                       <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 flex flex-col">
                         <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1">
-                          <Mail className="w-3 h-3 text-cyan-400" /> 4-Char Masked Email
+                          <Mail className="w-3 h-3 text-cyan-400" />
+                          <span>{language === 'am' ? 'ኢሜይል (የተሸፈነ)' : 'Masked Email'}</span>
                         </span>
                         <span className="text-xs font-mono font-bold text-zinc-200 mt-1 tracking-wider truncate">
                           {maskedEmail}
@@ -243,7 +306,7 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 pt-1">
-                      <span className="text-zinc-500">Participation Fee:</span>
+                      <span className="text-zinc-500">{t('participation_fee', 'Participation Fee')}:</span>
                       <span className="text-zinc-300 font-semibold">{auc.participation_fee} ETB</span>
                     </div>
 
@@ -253,7 +316,11 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                       className="w-full mt-2 py-2.5 rounded-xl bg-zinc-800/90 hover:bg-[#E5B842] hover:text-black text-zinc-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-zinc-700/60 hover:border-[#E5B842] active:scale-[0.99]"
                     >
                       <Layers className="w-3.5 h-3.5" />
-                      <span>Inspect Full Bid History ({auc.total_bids} Bids)</span>
+                      <span>
+                        {language === 'am'
+                          ? `ሙሉ የጨረታ ታሪክን መርምር (${auc.total_bids} ጨረታዎች)`
+                          : `Inspect Full Bid History (${auc.total_bids} Bids)`}
+                      </span>
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -261,7 +328,8 @@ export const WinnersGallery: React.FC<WinnersGalleryProps> = ({ onSelectAuction 
                   {/* Trust Footer */}
                   <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1 border-t border-zinc-900">
                     <span className="flex items-center gap-1 text-emerald-400 font-mono text-[10px]">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Delivery Handover Complete
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>{language === 'am' ? 'የዕቃ ርክክብ ተጠናቋል' : 'Delivery Handover Complete'}</span>
                     </span>
                     <span className="text-zinc-600 font-mono text-[10px]">
                       ID: {auc.id.substring(0, 10)}

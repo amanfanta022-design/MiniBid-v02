@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
+import { useTranslation } from '../utils/i18n.js';
 import {
   BarChart3,
   TrendingUp,
@@ -34,6 +35,7 @@ import {
 
 export const SuperAdminFinancials: React.FC = () => {
   const { token } = useAuth();
+  const { language, t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'pnl' | 'deposits' | 'ledger' | 'blocked' | 'integrity_tests'>('deposits');
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [report, setReport] = useState<FinancialReport | null>(null);
@@ -231,13 +233,17 @@ export const SuperAdminFinancials: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-[#E5B842] font-mono text-xs uppercase tracking-wider mb-1">
             <Lock className="w-3.5 h-3.5" />
-            <span>Chief Executive & Financial Auditor Desk</span>
+            <span>
+              {language === 'am' ? 'የዋና ስራ አስፈፃሚ እና የፋይናንስ ኦዲተር ክፍል' : 'Chief Executive & Financial Auditor Desk'}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold font-serif text-white">
-            Financial Ledger & Concurrency Audit Center
+            {language === 'am' ? 'የፋይናንስ ሌጀር እና የኦዲት ቁጥጥር ማዕከል' : 'Financial Ledger & Concurrency Audit Center'}
           </h1>
           <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-            Cryptographic auditability with strict zero-double-deposit guarantees, atomic conditional database locks, and real-time financial ledger tracking.
+            {language === 'am'
+              ? 'የተረጋገጠ የክፍያ ኦዲት፣ ተደጋጋሚ ተቀማጭን 100% የመከላከል ዋስትና እና የቀጥታ የፋይናንስ ሌጀር መከታተያ።'
+              : 'Cryptographic auditability with strict zero-double-deposit guarantees, atomic conditional database locks, and real-time financial ledger tracking.'}
           </p>
         </div>
 
@@ -254,14 +260,20 @@ export const SuperAdminFinancials: React.FC = () => {
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                {d === 'all' ? 'All Time' : d === 'today' ? 'Today' : d === 'week' ? 'This Week' : 'This Month'}
+                {d === 'all'
+                  ? language === 'am' ? 'ሁሉም ጊዜ' : 'All Time'
+                  : d === 'today'
+                  ? language === 'am' ? 'ዛሬ' : 'Today'
+                  : d === 'week'
+                  ? language === 'am' ? 'ይህ ሳምንት' : 'This Week'
+                  : language === 'am' ? 'ይህ ወር' : 'This Month'}
               </button>
             ))}
           </div>
 
           <button
             onClick={fetchDepositsAndLedger}
-            title="Refresh Ledger and Deposit Requests"
+            title={language === 'am' ? 'የተቀማጭ ጥያቄዎችን አድስ' : 'Refresh Ledger and Deposit Requests'}
             className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -272,7 +284,7 @@ export const SuperAdminFinancials: React.FC = () => {
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-all cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
+            <span>{language === 'am' ? 'CSV አውርድ' : 'Export CSV'}</span>
           </button>
 
           <button
@@ -282,7 +294,11 @@ export const SuperAdminFinancials: React.FC = () => {
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 text-xs font-semibold transition-all cursor-pointer shadow-sm"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
-            <span>{isResetting ? 'Resetting...' : 'Reset 0.00 ETB'}</span>
+            <span>
+              {isResetting
+                ? language === 'am' ? 'በማስተካከል ላይ...' : 'Resetting...'
+                : language === 'am' ? 'ወደ 0.00 ብር መልስ' : 'Reset 0.00 ETB'}
+            </span>
           </button>
         </div>
       </div>
@@ -300,7 +316,7 @@ export const SuperAdminFinancials: React.FC = () => {
         <div className="p-5 rounded-2xl bg-[#121215] border border-emerald-500/30 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400">
-              Total Approved Deposits
+              {language === 'am' ? 'የፀደቀ ጠቅላላ ተቀማጭ' : 'Total Approved Deposits'}
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
@@ -309,7 +325,9 @@ export const SuperAdminFinancials: React.FC = () => {
             <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
-            <span>{approvedDepositsCount} deposits approved</span>
+            <span>
+              {approvedDepositsCount} {language === 'am' ? 'ተቀማጮች ፀድቀዋል' : 'deposits approved'}
+            </span>
             <span className="font-mono text-emerald-400 font-semibold">1:1 Ledger Credited</span>
           </div>
         </div>
@@ -318,7 +336,7 @@ export const SuperAdminFinancials: React.FC = () => {
         <div className="p-5 rounded-2xl bg-[#121215] border border-amber-500/30 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400">
-              Total Pending Deposits
+              {language === 'am' ? 'በመጠባበቅ ላይ ያለ ተቀማጭ' : 'Total Pending Deposits'}
             </span>
             <Clock className="w-4 h-4 text-amber-400" />
           </div>
@@ -327,8 +345,12 @@ export const SuperAdminFinancials: React.FC = () => {
             <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
-            <span>{pendingDepositsCount} pending review</span>
-            <span className="font-mono text-amber-400">Awaiting Admin Verification</span>
+            <span>
+              {pendingDepositsCount} {language === 'am' ? 'በማጣራት ላይ' : 'pending review'}
+            </span>
+            <span className="font-mono text-amber-400">
+              {language === 'am' ? 'የአድሚን ማረጋገጫ ይጠብቃል' : 'Awaiting Admin Verification'}
+            </span>
           </div>
         </div>
 
@@ -336,7 +358,7 @@ export const SuperAdminFinancials: React.FC = () => {
         <div className="p-5 rounded-2xl bg-[#121215] border border-red-500/30 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-[11px] font-mono uppercase tracking-wider text-red-400">
-              Total Rejected Deposits
+              {language === 'am' ? 'ውድቅ የተደረገ ተቀማጭ' : 'Total Rejected Deposits'}
             </span>
             <XCircle className="w-4 h-4 text-red-400" />
           </div>
@@ -345,7 +367,9 @@ export const SuperAdminFinancials: React.FC = () => {
             <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
-            <span>{rejectedDepositsCount} rejected / invalid</span>
+            <span>
+              {rejectedDepositsCount} {language === 'am' ? 'ውድቅ የተደረገ' : 'rejected / invalid'}
+            </span>
             <span className="font-mono text-red-400">0 ETB credited</span>
           </div>
         </div>
@@ -360,7 +384,7 @@ export const SuperAdminFinancials: React.FC = () => {
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-300">
-              Platform Net Profit / Loss
+              {language === 'am' ? 'የፕላትፎርም ትርፍና ኪሳራ (P&L)' : 'Platform Net Profit / Loss'}
             </span>
             {report && report.net_profit_loss >= 0 ? (
               <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -377,7 +401,11 @@ export const SuperAdminFinancials: React.FC = () => {
             {report ? report.net_profit_loss.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}{' '}
             <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
           </div>
-          <p className="text-[11px] text-zinc-400">Total Bidding Revenue − Item Wholesale Costs</p>
+          <p className="text-[11px] text-zinc-400">
+            {language === 'am'
+              ? 'ጠቅላላ የጨረታ ገቢ − የእቃዎች የግዢ ወጪ'
+              : 'Total Bidding Revenue − Item Wholesale Costs'}
+          </p>
         </div>
       </div>
 
@@ -392,7 +420,7 @@ export const SuperAdminFinancials: React.FC = () => {
           }`}
         >
           <Receipt className="w-4 h-4" />
-          <span>Deposit History & Audits</span>
+          <span>{language === 'am' ? 'የተቀማጭ ታሪክ እና ኦዲት' : 'Deposit History & Audits'}</span>
           <span className="px-2 py-0.5 rounded-full bg-black/20 text-xs font-mono">{deposits.length}</span>
         </button>
 
@@ -405,9 +433,9 @@ export const SuperAdminFinancials: React.FC = () => {
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
-          <span>Financial Ledger (1:1 Double-Deposit Proof)</span>
+          <span>{language === 'am' ? 'የፋይናንስ ሌጀር (1:1 ተቀማጭ)' : 'Financial Ledger (1:1 Double-Deposit Proof)'}</span>
           <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/50 text-[10px] font-mono">
-            {ledger.length} entries
+            {ledger.length} {language === 'am' ? 'መዝገቦች' : 'entries'}
           </span>
         </button>
 
@@ -420,7 +448,7 @@ export const SuperAdminFinancials: React.FC = () => {
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
-          <span>Blocked Concurrency Attempts</span>
+          <span>{language === 'am' ? 'የተከለከሉ ተደጋጋሚ ሙከራዎች' : 'Blocked Concurrency Attempts'}</span>
           {blockedAttempts.length > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-700/50 text-[10px] font-mono">
               {blockedAttempts.length}
@@ -437,7 +465,7 @@ export const SuperAdminFinancials: React.FC = () => {
           }`}
         >
           <BarChart3 className="w-4 h-4" />
-          <span>Auctions P&L Breakdown</span>
+          <span>{language === 'am' ? 'የጨረታዎች P&L ዝርዝር' : 'Auctions P&L Breakdown'}</span>
         </button>
 
         <button
@@ -449,7 +477,7 @@ export const SuperAdminFinancials: React.FC = () => {
           }`}
         >
           <Play className="w-4 h-4 text-purple-400" />
-          <span>Financial Integrity Test Suite (10/10)</span>
+          <span>{language === 'am' ? 'የደህንነት ፈተናዎች (Integrity Suite)' : 'Financial Integrity Test Suite (10/10)'}</span>
           {testReport && (
             <span className="px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 text-[10px] font-mono font-bold">
               {testReport.passedTests}/{testReport.totalTests} PASSED

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, ArrowRight, Volume2, VolumeX, Shield, Play, Upload, RotateCcw } from 'lucide-react';
 import { useBrandLogo } from '../utils/brandLogo.js';
 import { useAuth } from '../context/AuthContext.js';
+import { useTranslation } from '../utils/i18n.js';
 
 interface SunfyreLiveIntroProps {
   onComplete: () => void;
@@ -9,6 +10,7 @@ interface SunfyreLiveIntroProps {
 
 export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }) => {
   const { user } = useAuth();
+  const { language } = useTranslation();
   const isSuperAdmin = user?.role === 'superadmin';
   const { logoUrl, isCustom, uploadCustomLogo, resetToDefault } = useBrandLogo();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -311,7 +313,7 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
           onClick={handleEnter}
           className="px-3 sm:px-4 py-1.5 rounded-full bg-white/5 hover:bg-[#E5B842]/20 border border-white/10 hover:border-[#E5B842]/40 text-zinc-300 hover:text-white text-[11px] sm:text-xs font-mono tracking-wider uppercase transition-all backdrop-blur-md cursor-pointer flex items-center gap-1.5"
         >
-          <span>Skip</span>
+          <span>{language === 'am' ? 'እለፍ (Skip)' : 'Skip'}</span>
           <span className="hidden xs:inline text-[9px] text-zinc-500 bg-black/40 px-1.5 py-0.5 rounded font-mono">ESC</span>
         </button>
       </div>
@@ -394,7 +396,9 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
           </div>
 
           <p className="text-[11px] sm:text-xs text-zinc-400 font-sans tracking-wide max-w-md mx-auto pt-0.5 sm:pt-1 leading-relaxed">
-            Ethiopia's Premier Reverse Auction & Digital Liquidity Platform
+            {language === 'am'
+              ? 'የኢትዮጵያ ቀዳሚ ዝቅተኛ ያልተደገመ ጨረታ እና የዲጂታል ክፍያ ፕላትፎርም'
+              : "Ethiopia's Premier Reverse Auction & Digital Liquidity Platform"}
           </p>
         </div>
 
@@ -408,7 +412,7 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
             onClick={handleEnter}
             className="group relative inline-flex items-center gap-2.5 sm:gap-3 px-6 sm:px-8 py-3 sm:py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#D4AF37] hover:from-[#f0c451] hover:to-[#e0b73c] text-black font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_30px_rgba(229,184,66,0.45)] hover:shadow-[0_0_45px_rgba(229,184,66,0.7)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
           >
-            <span>Enter Platform</span>
+            <span>{language === 'am' ? 'ወደ ፕላትፎርም ግባ' : 'Enter Platform'}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
@@ -417,12 +421,17 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
       {/* Bottom Subtle Trust Badges */}
       <div className="relative mt-6 sm:mt-0 sm:absolute sm:bottom-6 flex items-center justify-center flex-wrap gap-2 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-zinc-500 z-30 px-3 text-center">
         <span className="flex items-center gap-1 sm:gap-1.5">
-          <Shield className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[#E5B842]" /> Zero Double-Spend Protected
+          <Shield className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[#E5B842]" />
+          <span>{language === 'am' ? '100% በኦዲት የተጠበቀ' : 'Zero Double-Spend Protected'}</span>
         </span>
         <span className="hidden md:inline">•</span>
-        <span className="hidden md:inline">Certified Reverse Auction Architecture</span>
+        <span className="hidden md:inline">
+          {language === 'am' ? 'የተረጋገጠ የጨረታ ሥርዓት' : 'Certified Reverse Auction Architecture'}
+        </span>
         <span>•</span>
-        <span className="text-zinc-600">Addis Ababa, Ethiopia</span>
+        <span className="text-zinc-600">
+          {language === 'am' ? 'አዲስ አበባ፣ ኢትዮጵያ' : 'Addis Ababa, Ethiopia'}
+        </span>
       </div>
     </div>
   );

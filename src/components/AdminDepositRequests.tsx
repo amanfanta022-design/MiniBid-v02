@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { DepositRequest, AdminFloatRequest } from '../types.js';
 import { playDepositApprovalChime } from '../utils/audio.js';
+import { useTranslation } from '../utils/i18n.js';
 
 interface AdminDepositRequestsProps {
   onBackToAuctions?: () => void;
@@ -30,6 +31,7 @@ interface AdminDepositRequestsProps {
 
 export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBackToAuctions }) => {
   const { token, user, refreshUser } = useAuth();
+  const { language, t } = useTranslation();
   const [activeSection, setActiveSection] = useState<'user_deposits' | 'float_requests'>('user_deposits');
   const [deposits, setDeposits] = useState<DepositRequest[]>([]);
   const [floatRequests, setFloatRequests] = useState<AdminFloatRequest[]>([]);
@@ -234,7 +236,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#18181b] border border-[#27272a] hover:border-[#E5B842]/50 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer shadow-sm"
           >
             <ArrowLeft className="w-4 h-4 text-[#E5B842]" />
-            <span>← Back to Live Auctions</span>
+            <span>{language === 'am' ? '← ወደ ቀጥታ ጨረታዎች ተመለስ' : '← Back to Live Auctions'}</span>
           </button>
         </div>
       )}
@@ -244,11 +246,15 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         <div>
           <div className="flex items-center gap-2 text-blue-400 font-mono text-xs uppercase tracking-wider mb-1">
             <Inbox className="w-4 h-4" />
-            <span>Admin Liquidity & Operations Desk</span>
+            <span>{language === 'am' ? 'የአስተዳደር ፈሳሽ ገንዘብ እና ኦፕሬሽን' : 'Admin Liquidity & Operations Desk'}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-white">Deposit Approvals & Float</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-white">
+            {language === 'am' ? 'የተቀማጭ ገንዘቦች ማረጋገጫ እና ቀሪ' : 'Deposit Approvals & Float'}
+          </h1>
           <p className="text-xs text-zinc-400 mt-1 max-w-xl leading-relaxed">
-            Verify Ethiopian bank payment slips and disburse participant balances. Each approval automatically deducts from your Admin operational float. When low on balance, request a float deposit from Super Admin.
+            {language === 'am'
+              ? 'የኢትዮጵያ ንግድ ባንክ እና የቴሌብር ክፍያዎችን ያረጋግጡ እና ለተጠቃሚዎች ገንዘቡን ይልቀቁ። እያንዳንዱ ማጽደቅ ከአስተዳዳሪ ቀሪ ሒሳብዎ ይቀነሳል። ቀሪ ሲያልቅ ከሱፐር አድሚን ፈሳሽ ገንዘብ ይጠይቁ።'
+              : 'Verify Ethiopian bank payment slips and disburse participant balances. Each approval automatically deducts from your Admin operational float. When low on balance, request a float deposit from Super Admin.'}
           </p>
         </div>
 
@@ -256,13 +262,16 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         <div className="flex flex-wrap items-center gap-3">
           <div className="p-4 rounded-2xl bg-[#18181c] border border-blue-500/30 text-right min-w-[200px]">
             <div className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex items-center justify-end gap-1">
-              <Wallet className="w-3.5 h-3.5 text-[#E5B842]" /> Your Operational Float
+              <Wallet className="w-3.5 h-3.5 text-[#E5B842]" />
+              <span>{language === 'am' ? 'የእርስዎ ኦፕሬሽናል ቀሪ' : 'Your Operational Float'}</span>
             </div>
             <div className={`text-2xl font-mono font-extrabold mt-0.5 ${adminBalance > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
               {adminBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
             </div>
             <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
-              {adminBalance === 0 ? '⚠️ Zero float. Request from Super Admin.' : 'Ready for customer disbursements'}
+              {adminBalance === 0
+                ? (language === 'am' ? '⚠️ ቀሪ አልቋል። ከሱፐር አድሚን ይጠይቁ።' : '⚠️ Zero float. Request from Super Admin.')
+                : (language === 'am' ? 'ለደንበኞች ተቀማጭ ዝግጁ ነው' : 'Ready for customer disbursements')}
             </div>
           </div>
 
@@ -271,7 +280,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
             className="px-4 py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] to-amber-500 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs font-mono tracking-wide flex items-center gap-2 transition-all shadow-lg shadow-[#E5B842]/20 cursor-pointer"
           >
             <Coins className="w-4 h-4" />
-            <span>Request Float from Super Admin</span>
+            <span>{language === 'am' ? 'ከሱፐር አድሚን ፈሳሽ ገንዘብ ጠይቅ' : 'Request Float from Super Admin'}</span>
           </button>
         </div>
       </div>
@@ -287,7 +296,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
           }`}
         >
           <ArrowDownLeft className="w-4 h-4" />
-          <span>Customer Deposit Requests</span>
+          <span>{language === 'am' ? 'የደንበኞች ተቀማጭ ጥያቄዎች' : 'Customer Deposit Requests'}</span>
           {pendingCount > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-amber-400 text-black text-[10px] font-bold">
               {pendingCount}
@@ -304,7 +313,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
           }`}
         >
           <ArrowUpRight className="w-4 h-4" />
-          <span>My Float Requests to Super Admin</span>
+          <span>{language === 'am' ? 'የፈሳሽ ገንዘብ ጥያቄዎች ወደ ሱፐር አድሚን' : 'My Float Requests to Super Admin'}</span>
           {floatRequests.filter(r => r.status === 'pending').length > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-blue-400 text-black text-[10px] font-bold">
               {floatRequests.filter(r => r.status === 'pending').length}
@@ -317,7 +326,9 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         <div className="p-4 rounded-2xl bg-red-950/40 border border-red-800 text-xs text-red-300 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 text-red-400 mt-0.5" />
           <div>
-            <div className="font-bold text-red-200">Action Blocked</div>
+            <div className="font-bold text-red-200">
+              {language === 'am' ? 'እርምጃው ተከልክሏል' : 'Action Blocked'}
+            </div>
             <div className="mt-0.5 leading-relaxed">{actionError}</div>
           </div>
         </div>
@@ -328,26 +339,38 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
           {/* Filter Tabs & Search */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-xl border border-[#27272a] text-xs">
-              {(['pending', 'approved', 'rejected', 'all'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setFilterStatus(tab)}
-                  className={`px-3 py-1.5 rounded-lg capitalize font-medium transition-all ${
-                    filterStatus === tab
-                      ? 'bg-blue-600 text-white font-semibold shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  {tab} {tab === 'pending' && pendingCount > 0 ? `(${pendingCount})` : ''}
-                </button>
-              ))}
+              {(['pending', 'approved', 'rejected', 'all'] as const).map(tab => {
+                const tabLabels: Record<string, string> = {
+                  pending: language === 'am' ? 'በመጠባበቅ ላይ' : 'pending',
+                  approved: language === 'am' ? 'የፀደቁ' : 'approved',
+                  rejected: language === 'am' ? 'ውድቅ የተደረጉ' : 'rejected',
+                  all: language === 'am' ? 'ሁሉም' : 'all',
+                };
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setFilterStatus(tab)}
+                    className={`px-3 py-1.5 rounded-lg capitalize font-medium transition-all ${
+                      filterStatus === tab
+                        ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {tabLabels[tab]} {tab === 'pending' && pendingCount > 0 ? `(${pendingCount})` : ''}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="relative min-w-[280px]">
               <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Search username, phone, or bank ref..."
+                placeholder={
+                  language === 'am'
+                    ? 'በተጠቃሚ ስም፣ ስልክ ወይም የባንክ መለያ ፈልግ...'
+                    : 'Search username, phone, or bank ref...'
+                }
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-[#121215] border border-[#27272a] text-xs text-zinc-200 focus:outline-none focus:border-blue-500"
@@ -357,10 +380,12 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
           {/* User Deposits Table */}
           {isLoading ? (
-            <div className="py-20 text-center text-xs text-zinc-500">Loading deposit requests...</div>
+            <div className="py-20 text-center text-xs text-zinc-500">
+              {language === 'am' ? 'የተቀማጭ ጥያቄዎች በመጫን ላይ...' : 'Loading deposit requests...'}
+            </div>
           ) : filteredDeposits.length === 0 ? (
             <div className="py-16 text-center text-xs text-zinc-500 bg-[#121215] rounded-3xl border border-[#27272a] p-8">
-              No deposit requests found matching the current filters.
+              {language === 'am' ? 'ምንም የሚመሳሰል የተቀማጭ ጥያቄ አልተገኘም።' : 'No deposit requests found matching the current filters.'}
             </div>
           ) : (
             <div className="bg-[#121215] border border-[#27272a] rounded-3xl overflow-hidden shadow-xl">
@@ -368,12 +393,12 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#18181c] text-zinc-400 font-mono text-[11px] border-b border-[#27272a]">
                     <tr>
-                      <th className="p-4">Customer & Account</th>
-                      <th className="p-4">Payment Channel</th>
-                      <th className="p-4">Deposit Amount</th>
-                      <th className="p-4">Bank Ref Code</th>
-                      <th className="p-4">Status & Reviewer</th>
-                      <th className="p-4 text-right">Actions</th>
+                      <th className="p-4">{language === 'am' ? 'ተጠቃሚ እና አካውንት' : 'Customer & Account'}</th>
+                      <th className="p-4">{language === 'am' ? 'የክፍያ ቻናል' : 'Payment Channel'}</th>
+                      <th className="p-4">{language === 'am' ? 'የተቀማጭ መጠን' : 'Deposit Amount'}</th>
+                      <th className="p-4">{language === 'am' ? 'የትራንዛክሽን ቁጥር' : 'Bank Ref Code'}</th>
+                      <th className="p-4">{language === 'am' ? 'ሁኔታ እና አረጋጋጭ' : 'Status & Reviewer'}</th>
+                      <th className="p-4 text-right">{language === 'am' ? 'እርምጃዎች' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60 font-sans">
@@ -396,7 +421,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                             </div>
                             {dep.status === 'pending' && !canAfford && (
                               <div className="text-[10px] text-red-400 font-mono flex items-center gap-1 mt-0.5">
-                                <AlertTriangle className="w-3 h-3" /> Exceeds float ({adminBalance} ETB)
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>{language === 'am' ? `ከቀሪ በላይ ነው (${adminBalance} ብር)` : `Exceeds float (${adminBalance} ETB)`}</span>
                               </div>
                             )}
                           </td>
@@ -407,17 +433,17 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                           <td className="p-4">
                             {dep.status === 'pending' && (
                               <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold">
-                                Pending Approval
+                                {language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending Approval'}
                               </span>
                             )}
                             {dep.status === 'approved' && (
                               <div>
                                 <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold">
-                                  Approved & Disbursed
+                                  {language === 'am' ? 'ፀድቋል እና ገብቷል' : 'Approved & Disbursed'}
                                 </span>
                                 {dep.reviewed_by && (
                                   <div className="text-[10px] text-zinc-500 font-mono mt-1">
-                                    by @{dep.reviewed_by}
+                                    {language === 'am' ? 'በ' : 'by'} @{dep.reviewed_by}
                                   </div>
                                 )}
                               </div>
@@ -425,7 +451,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                             {dep.status === 'rejected' && (
                               <div>
                                 <span className="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-300 font-mono text-[10px] font-bold">
-                                  Rejected
+                                  {language === 'am' ? 'ውድቅ ተደርጓል' : 'Rejected'}
                                 </span>
                                 {dep.rejection_reason && (
                                   <div className="text-[10px] text-red-400/80 mt-1 max-w-xs truncate" title={dep.rejection_reason}>
@@ -439,8 +465,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => setInspectDeposit(dep)}
-                                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all"
-                                title="Inspect Slip & Details"
+                                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                                title={language === 'am' ? 'ደረሰኙን እና ዝርዝሩን መርምር' : 'Inspect Slip & Details'}
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
@@ -454,10 +480,10 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                                         ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer'
                                         : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                                     }`}
-                                    title={canAfford ? 'Approve and deduct from your float' : 'Insufficient operational float'}
+                                    title={canAfford ? (language === 'am' ? 'አጽድቅ እና ከቀሪው ይቁረጥ' : 'Approve and deduct from your float') : (language === 'am' ? 'በቂ ኦፕሬሽናል ቀሪ የለም' : 'Insufficient operational float')}
                                   >
                                     <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Approve & Disburse</span>
+                                    <span>{language === 'am' ? 'አጽድቅ' : 'Approve & Disburse'}</span>
                                   </button>
 
                                   <button
@@ -465,7 +491,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                                       setRejectingDeposit(dep);
                                       setRejectReason('');
                                     }}
-                                    className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600 border border-red-600/40 text-red-300 hover:text-white font-semibold text-[11px] font-mono transition-all"
+                                    className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600 border border-red-600/40 text-red-300 hover:text-white font-semibold text-[11px] font-mono transition-all cursor-pointer"
+                                    title={language === 'am' ? 'ውድቅ አድርግ' : 'Reject'}
                                   >
                                     <XCircle className="w-3.5 h-3.5" />
                                   </button>
@@ -486,12 +513,15 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         /* Float Requests Section */
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-white font-serif">Your Operational Float Requests to Super Admin</h3>
+            <h3 className="text-base font-bold text-white font-serif">
+              {language === 'am' ? 'ወደ ሱፐር አድሚን የላኳቸው የፈሳሽ ገንዘብ ጥያቄዎች' : 'Your Operational Float Requests to Super Admin'}
+            </h3>
             <button
               onClick={() => setShowFloatModal(true)}
-              className="px-3 py-1.5 rounded-xl bg-[#E5B842] text-black font-semibold text-xs font-mono flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-[#E5B842] text-black font-semibold text-xs font-mono flex items-center gap-1.5 cursor-pointer"
             >
-              <Coins className="w-3.5 h-3.5" /> Submit New Request
+              <Coins className="w-3.5 h-3.5" />
+              <span>{language === 'am' ? 'አዲስ ጥያቄ አስገባ' : 'Submit New Request'}</span>
             </button>
           </div>
 
@@ -569,11 +599,15 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                   <Coins className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-white text-base">Request Float from Super Admin</h3>
-                  <p className="text-[10px] text-zinc-500 font-mono">Ask Executive Treasury to replenish your liquidity</p>
+                  <h3 className="font-serif font-bold text-white text-base">
+                    {language === 'am' ? 'ከሱፐር አድሚን ፈሳሽ ገንዘብ ጠይቅ' : 'Request Float from Super Admin'}
+                  </h3>
+                  <p className="text-[10px] text-zinc-500 font-mono">
+                    {language === 'am' ? 'የአስተዳዳሪ ኪስ ቦርሳዎን ለማሟላት ጥያቄ ያቅርቡ' : 'Ask Executive Treasury to replenish your liquidity'}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setShowFloatModal(false)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setShowFloatModal(false)} className="text-zinc-400 hover:text-white cursor-pointer">
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
@@ -591,7 +625,9 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
             <form onSubmit={handleSubmitFloatRequest} className="space-y-4 text-xs">
               <div>
-                <label className="block text-zinc-400 font-mono text-[11px] mb-1">Float Amount (ETB) *</label>
+                <label className="block text-zinc-400 font-mono text-[11px] mb-1">
+                  {language === 'am' ? 'የፈሳሽ ገንዘብ መጠን (በብር) *' : 'Float Amount (ETB) *'}
+                </label>
                 <div className="relative">
                   <input
                     type="number"
@@ -610,7 +646,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                       key={val}
                       type="button"
                       onClick={() => setFloatAmount(val.toString())}
-                      className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-[10px] font-mono"
+                      className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-[10px] font-mono cursor-pointer"
                     >
                       +{val.toLocaleString()}
                     </button>
@@ -619,19 +655,23 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
               </div>
 
               <div>
-                <label className="block text-zinc-400 font-mono text-[11px] mb-1">Operational Purpose / Notes *</label>
+                <label className="block text-zinc-400 font-mono text-[11px] mb-1">
+                  {language === 'am' ? 'የጥያቄው ምክንያት / ማስታወሻ *' : 'Operational Purpose / Notes *'}
+                </label>
                 <textarea
                   rows={2}
                   value={floatNotes}
                   onChange={e => setFloatNotes(e.target.value)}
                   required
-                  placeholder="e.g. Daily CBE and Telebirr user deposit approvals buffer"
+                  placeholder={language === 'am' ? 'ለምሳሌ፦ ለዕለቱ የደንበኞች ተቀማጭ ማጽደቂያ ፈሳሽ ገንዘብ' : 'e.g. Daily CBE and Telebirr user deposit approvals buffer'}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-[#27272a] text-white focus:border-[#E5B842] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-400 font-mono text-[11px] mb-1">Optional Bank Reference / Slip</label>
+                <label className="block text-zinc-400 font-mono text-[11px] mb-1">
+                  {language === 'am' ? 'የባንክ ትራንዛክሽን ቁጥር (አስፈላጊ ከሆነ)' : 'Optional Bank Reference / Slip'}
+                </label>
                 <input
                   type="text"
                   value={floatBankRef}
@@ -643,23 +683,29 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
                 <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Once approved by Super Admin, this balance will be instantly credited to your Admin wallet to allow user deposit disbursements.</span>
+                <span>
+                  {language === 'am'
+                    ? 'በሱፐር አድሚን ከፀደቀ በኋላ፣ ይህ ገንዘብ ወዲያውኑ ወደ አስተዳዳሪ ኪስ ቦርሳዎ ገቢ ይደረጋል።'
+                    : 'Once approved by Super Admin, this balance will be instantly credited to your Admin wallet to allow user deposit disbursements.'}
+                </span>
               </div>
 
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowFloatModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium"
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium cursor-pointer"
                 >
-                  Cancel
+                  {language === 'am' ? 'ይቅር' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={floatSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-[#E5B842] hover:bg-amber-400 text-black font-semibold font-mono flex items-center justify-center gap-1"
+                  className="flex-1 py-2.5 rounded-xl bg-[#E5B842] hover:bg-amber-400 text-black font-semibold font-mono flex items-center justify-center gap-1 cursor-pointer"
                 >
-                  {floatSubmitting ? 'Submitting...' : 'Submit to Super Admin'}
+                  {floatSubmitting
+                    ? language === 'am' ? 'በመላክ ላይ...' : 'Submitting...'
+                    : language === 'am' ? 'ለሱፐር አድሚን ላክ' : 'Submit to Super Admin'}
                 </button>
               </div>
             </form>
@@ -672,7 +718,9 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
           <div className="bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-lg w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <h3 className="font-serif font-bold text-white text-base">Deposit Receipt Slip & Audit</h3>
+              <h3 className="font-serif font-bold text-white text-base">
+                {language === 'am' ? 'የተቀማጭ ደረሰኝ እና የኦዲት መረጃ' : 'Deposit Receipt Slip & Audit'}
+              </h3>
               <button onClick={() => setInspectDeposit(null)} className="text-zinc-400 hover:text-white cursor-pointer">
                 <XCircle className="w-5 h-5" />
               </button>
@@ -681,26 +729,34 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800">
                 <div>
-                  <span className="text-zinc-500 text-[10px] font-mono uppercase">User</span>
+                  <span className="text-zinc-500 text-[10px] font-mono uppercase">
+                    {language === 'am' ? 'ተጠቃሚ' : 'User'}
+                  </span>
                   <div className="font-bold text-white">@{inspectDeposit.username}</div>
                   <div className="text-zinc-400 font-mono text-[11px]">{inspectDeposit.user_phone}</div>
                 </div>
                 <div>
-                  <span className="text-zinc-500 text-[10px] font-mono uppercase">Channel</span>
+                  <span className="text-zinc-500 text-[10px] font-mono uppercase">
+                    {language === 'am' ? 'ቻናል' : 'Channel'}
+                  </span>
                   <div className="font-bold text-white">{inspectDeposit.payment_channel}</div>
                   <div className="text-emerald-400 font-mono font-extrabold text-sm">{inspectDeposit.amount.toLocaleString()} ETB</div>
                 </div>
               </div>
 
               <div>
-                <span className="text-zinc-500 text-[10px] font-mono uppercase">Bank Reference Code</span>
+                <span className="text-zinc-500 text-[10px] font-mono uppercase">
+                  {language === 'am' ? 'የባንክ ትራንዛክሽን ቁጥር' : 'Bank Reference Code'}
+                </span>
                 <div className="font-mono font-bold text-white text-sm bg-zinc-900 p-2.5 rounded-xl border border-zinc-800 tracking-wider">
                   {inspectDeposit.reference_code}
                 </div>
               </div>
 
               <div>
-                <span className="text-zinc-500 text-[10px] font-mono uppercase">Uploaded Slip Attachment</span>
+                <span className="text-zinc-500 text-[10px] font-mono uppercase">
+                  {language === 'am' ? 'የተያያዘው የደረሰኝ ፎቶ' : 'Uploaded Slip Attachment'}
+                </span>
                 {inspectDeposit.receipt_url ? (
                   <div className="mt-1 rounded-2xl overflow-hidden border border-zinc-700 bg-black aspect-video flex items-center justify-center">
                     <img
@@ -711,7 +767,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                   </div>
                 ) : (
                   <div className="p-4 rounded-xl bg-zinc-900 text-zinc-500 text-center font-mono text-xs">
-                    No image slip attached (Reference verified via bank API)
+                    {language === 'am' ? 'የደረሰኝ ፎቶ አልተያያዘም' : 'No image slip attached'}
                   </div>
                 )}
               </div>
@@ -724,7 +780,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                     onClick={() => handleApprove(inspectDeposit.id)}
                     className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold font-mono flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Approve & Disburse
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{language === 'am' ? 'አጽድቅ እና ገንዘቡን ልቀቅ' : 'Approve & Disburse'}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -733,7 +790,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                     }}
                     className="py-2.5 px-4 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600 hover:text-white font-semibold font-mono cursor-pointer"
                   >
-                    Reject
+                    {language === 'am' ? 'ውድቅ አድርግ' : 'Reject'}
                   </button>
                 </>
               )}
@@ -741,7 +798,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                 onClick={() => setInspectDeposit(null)}
                 className="py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium cursor-pointer"
               >
-                Close
+                {language === 'am' ? 'ዝጋ' : 'Close'}
               </button>
             </div>
           </div>
@@ -752,9 +809,13 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
       {rejectingDeposit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
           <div className="bg-[#121215] border border-red-900/50 rounded-2xl sm:rounded-3xl p-5 sm:p-7 md:p-8 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
-            <h3 className="font-serif font-bold text-white text-base">Reject Customer Deposit</h3>
+            <h3 className="font-serif font-bold text-white text-base">
+              {language === 'am' ? 'የተጠቃሚ ተቀማጭ ጥያቄን ውድቅ አድርግ' : 'Reject Customer Deposit'}
+            </h3>
             <p className="text-xs text-zinc-400">
-              Please enter a clear audit reason. This will be transmitted to @{rejectingDeposit.username} and stored in the immutable platform log.
+              {language === 'am'
+                ? `እባክዎ ግልጽ የሆነ ምክንያት ይጻፉ። ይህ ምክንያት ለ @${rejectingDeposit.username} የሚላክ ሲሆን በኦዲት መዝገብ ላይ ይቀመጣል።`
+                : `Please enter a clear audit reason. This will be transmitted to @${rejectingDeposit.username} and stored in the immutable platform log.`}
             </p>
 
             <form onSubmit={handleRejectConfirm} className="space-y-4">
@@ -763,7 +824,11 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
                 required
-                placeholder="e.g. Reference code not found on CBE statement; invalid transfer screenshot"
+                placeholder={
+                  language === 'am'
+                    ? 'ለምሳሌ፦ የትራንዛክሽን ቁጥሩ በባንክ ስቴትመንት ላይ አልተገኘም፤ ወይም ደረሰኙ የተደገመ ነው'
+                    : 'e.g. Reference code not found on CBE statement; invalid transfer screenshot'
+                }
                 className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs focus:outline-none focus:border-red-500"
               />
 
@@ -771,15 +836,15 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                 <button
                   type="button"
                   onClick={() => setRejectingDeposit(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium"
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
                 >
-                  Cancel
+                  {language === 'am' ? 'ይቅር' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs font-mono"
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs font-mono cursor-pointer"
                 >
-                  Confirm Rejection
+                  {language === 'am' ? 'ውድቅ ማድረጉን አረጋግጥ' : 'Confirm Rejection'}
                 </button>
               </div>
             </form>

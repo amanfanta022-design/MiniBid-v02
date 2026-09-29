@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
-import { I18nProvider } from './utils/i18n.js';
+import { I18nProvider, useTranslation } from './utils/i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { Header } from './components/Header.js';
 import { AuctionsList } from './components/AuctionsList.js';
@@ -16,6 +16,7 @@ import { SuperAdminFinancials } from './components/SuperAdminFinancials.js';
 import { SuperAdminAdmins } from './components/SuperAdminAdmins.js';
 import { SuperAdminBalanceAdjuster } from './components/SuperAdminBalanceAdjuster.js';
 import { SuperAdminAuditLogs } from './components/SuperAdminAuditLogs.js';
+import { SuperAdminLiveGameDesk } from './components/SuperAdminLiveGameDesk.js';
 import { AuthModal } from './components/AuthModal.js';
 import { GoldenParticleBackground } from './components/GoldenParticleBackground.js';
 import { SunfyreLiveIntro } from './components/SunfyreLiveIntro.js';
@@ -24,6 +25,7 @@ import { ShieldCheck, Lock, Coins, Sparkles } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
+  const { language, t } = useTranslation();
 
   const [showIntro, setShowIntro] = useState<boolean>(() => {
     return !sessionStorage.getItem('sunfyre_intro_dismissed');
@@ -67,7 +69,7 @@ const MainAppContent: React.FC = () => {
           </div>
         </div>
         <div className="text-xs font-mono tracking-wider text-zinc-500">
-          Verifying cryptographic credentials...
+          {language === 'am' ? 'የደህንነት ማስረጃዎች በመረጋገጥ ላይ...' : 'Verifying cryptographic credentials...'}
         </div>
       </div>
     );
@@ -121,13 +123,15 @@ const MainAppContent: React.FC = () => {
               </div>
               <div>
                 <div className="font-serif font-bold text-white text-base sm:text-lg flex items-center gap-2">
-                  <span>Welcome to MiniBid Ethiopia</span>
+                  <span>{language === 'am' ? 'እንኳን ወደ ሚኒቢድ ኢትዮጵያ በደህና መጡ' : 'Welcome to MiniBid Ethiopia'}</span>
                   <span className="px-2 py-0.5 rounded-full bg-[#E5B842]/20 text-[#E5B842] text-[10px] font-mono font-bold uppercase tracking-wider">
-                    Official
+                    {language === 'am' ? 'ይፋዊ' : 'Official'}
                   </span>
                 </div>
                 <div className="text-xs text-zinc-300 mt-1 max-w-2xl leading-relaxed">
-                  Explore our live luxury auctions and previous winners below! Create your account or sign in to participate in lowest unique reverse bidding.
+                  {language === 'am'
+                    ? 'የቀጥታ የቅንጦት ጨረታዎቻችንን እና ያለፉ አሸናፊዎችን ከዚህ በታች ይመልከቱ! በዝቅተኛ ያልተደገመ ጨረታ ለመሳተፍ አካውንት ይክፈቱ ወይም ይግቡ።'
+                    : 'Explore our live luxury auctions and previous winners below! Create your account or sign in to participate in lowest unique reverse bidding.'}
                 </div>
               </div>
             </div>
@@ -136,13 +140,13 @@ const MainAppContent: React.FC = () => {
                 onClick={() => setIsAuthOpen(true)}
                 className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#E5B842] hover:bg-amber-400 text-black font-extrabold text-xs shadow-lg shadow-[#E5B842]/20 transition-all cursor-pointer"
               >
-                Sign In / Register
+                {language === 'am' ? 'ግባ / ተመዝገብ' : 'Sign In / Register'}
               </button>
               <button
                 onClick={() => setIsHowItWorksOpen(true)}
                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-all cursor-pointer border border-zinc-700"
               >
-                How It Works
+                {language === 'am' ? 'አሠራሩን እይ' : 'How It Works'}
               </button>
             </div>
           </div>
@@ -172,6 +176,10 @@ const MainAppContent: React.FC = () => {
           <AdminUsersTable
             onOpenBalanceAdjust={targetUser => setTargetUserForAdjust(targetUser)}
           />
+        )}
+
+        {currentTab === 'super-live-games' && isSuperAdmin && (
+          <SuperAdminLiveGameDesk onSelectAuction={id => setSelectedAuctionId(id)} />
         )}
 
         {currentTab === 'super-financials' && isSuperAdmin && <SuperAdminFinancials />}

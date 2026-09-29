@@ -195,7 +195,9 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
           <div className="text-[10px] text-zinc-500 font-mono uppercase">
             {language === 'am' ? 'ጠቅላላ ተጠቃሚዎች' : 'Total Registered'}
           </div>
-          <div className="text-xl font-bold font-mono text-white mt-0.5">{users.length} Users</div>
+          <div className="text-xl font-bold font-mono text-white mt-0.5">
+            {users.length} {language === 'am' ? 'ተጠቃሚዎች' : 'Users'}
+          </div>
         </div>
       </div>
 
@@ -338,7 +340,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
                             title={u.flag_reason || 'Flagged for attempting to reuse transaction reference'}
                           >
                             <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
-                            <span>Flagged ({u.duplicate_txn_attempts || 3}x)</span>
+                            <span>{language === 'am' ? 'የተጠረጠረ' : 'Flagged'} ({u.duplicate_txn_attempts || 3}x)</span>
                           </div>
                         )}
                       </td>
@@ -376,7 +378,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
                             className="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-all"
                             title="Reset attempt counter and clear fraud flag"
                           >
-                            <ShieldOff className="w-3 h-3" /> Clear Flag
+                            <ShieldOff className="w-3 h-3" /> {language === 'am' ? 'ማስጠንቀቂያ አንሳ' : 'Clear Flag'}
                           </button>
                         )}
 
@@ -388,7 +390,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
                             className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-[#E5B842] border border-[#E5B842]/30 text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-all"
                           >
                             <Coins className="w-3.5 h-3.5" />
-                            <span>Float</span>
+                            <span>{language === 'am' ? 'ፍሎት' : 'Float'}</span>
                           </button>
                         )}
 

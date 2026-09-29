@@ -31,6 +31,7 @@ import {
   Wallet,
   Languages,
   Settings,
+  Activity,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
 import { PlatformNotification } from '../types.js';
@@ -302,6 +303,21 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Super Admin Links */}
               {isSuperAdmin && (
                 <button
+                  id="nav-tab-super-live-radar"
+                  onClick={() => onSelectTab('super-live-games')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentTab === 'super-live-games'
+                      ? 'bg-rose-600 text-white shadow-md'
+                      : 'text-rose-400 hover:bg-rose-950/30 border border-rose-800/40'
+                  }`}
+                >
+                  <Activity className="w-3.5 h-3.5 animate-pulse" />
+                  <span>{language === 'am' ? 'የቀጥታ ጨረታዎች ቁጥጥር' : 'Live Game Radar'}</span>
+                </button>
+              )}
+
+              {isSuperAdmin && (
+                <button
                   id="nav-tab-super-financials"
                   onClick={() => onSelectTab('super-financials')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -311,7 +327,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  P&L Reports
+                  {language === 'am' ? 'የትርፍና ኪሳራ ሪፖርት' : 'P&L Reports'}
                 </button>
               )}
 
@@ -364,7 +380,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="audio-toggle-btn"
                 onClick={handleAudioToggle}
-                title={audioOn ? 'Mute sound effects' : 'Enable sound effects'}
+                title={audioOn ? (language === 'am' ? 'ድምፅ አጥፋ' : 'Mute sound effects') : (language === 'am' ? 'ድምፅ አብራ' : 'Enable sound effects')}
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[#27272a] bg-[#121214] text-zinc-400 hover:text-zinc-100 flex items-center justify-center transition-all cursor-pointer"
               >
                 {audioOn ? <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#E5B842]" /> : <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-600" />}
@@ -389,11 +405,17 @@ export const Header: React.FC<HeaderProps> = ({
                 {showNotifsDropdown && (
                   <div className="absolute right-0 mt-2 w-72 sm:w-96 bg-[#121214] border border-[#27272a] rounded-2xl shadow-2xl z-50 p-3 max-h-96 overflow-y-auto">
                     <div className="flex items-center justify-between pb-2 border-b border-[#27272a] mb-2">
-                      <span className="font-semibold text-xs text-zinc-200">Notifications</span>
-                      <span className="text-[11px] text-zinc-500">{notifications.length} total</span>
+                      <span className="font-semibold text-xs text-zinc-200">
+                        {language === 'am' ? 'ማሳወቂያዎች' : 'Notifications'}
+                      </span>
+                      <span className="text-[11px] text-zinc-500">
+                        {notifications.length} {language === 'am' ? 'ጠቅላላ' : 'total'}
+                      </span>
                     </div>
                     {notifications.length === 0 ? (
-                      <div className="py-6 text-center text-xs text-zinc-500">No notifications at this time.</div>
+                      <div className="py-6 text-center text-xs text-zinc-500">
+                        {language === 'am' ? 'በአሁኑ ጊዜ ምንም አዲስ ማሳወቂያ የለም።' : 'No notifications at this time.'}
+                      </div>
                     ) : (
                       <div className="space-y-2">
                         {notifications.map(n => {
@@ -435,8 +457,12 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-[#E5B842]" />
                       <div>
-                        <div className="text-[8px] text-purple-400 font-mono uppercase">Authority</div>
-                        <div className="text-[11px] font-bold font-serif text-[#E5B842]">Treasury</div>
+                        <div className="text-[8px] text-purple-400 font-mono uppercase">
+                          {language === 'am' ? 'ባለስልጣን' : 'Authority'}
+                        </div>
+                        <div className="text-[11px] font-bold font-serif text-[#E5B842]">
+                          {language === 'am' ? 'ግምጃ ቤት' : 'Treasury'}
+                        </div>
                       </div>
                     </div>
                   ) : user.role === 'admin' ? (
@@ -449,7 +475,9 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <Coins className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                         <div>
-                          <div className="text-[9px] text-blue-400 font-mono uppercase hidden xs:block">Float</div>
+                          <div className="text-[9px] text-blue-400 font-mono uppercase hidden xs:block">
+                            {language === 'am' ? 'ፈሳሽ' : 'Float'}
+                          </div>
                           <div className="text-[11px] font-bold font-mono text-blue-200">
                             {user.wallet_balance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}{' '}
                             <span className="text-[9px] text-blue-400">ETB</span>
@@ -464,7 +492,7 @@ export const Header: React.FC<HeaderProps> = ({
                         className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md active:scale-95 transition-all cursor-pointer"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Float</span>
+                        <span>{language === 'am' ? 'ፍሎት' : 'Float'}</span>
                       </button>
                     </div>
                   ) : (
@@ -477,7 +505,9 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <Coins className="w-3.5 h-3.5 text-[#E5B842] shrink-0" />
                         <div>
-                          <div className="text-[8px] text-zinc-400 font-mono uppercase hidden xs:block">Balance</div>
+                          <div className="text-[8px] text-zinc-400 font-mono uppercase hidden xs:block">
+                            {language === 'am' ? 'ቀሪ ሒሳብ' : 'Balance'}
+                          </div>
                           <div className="text-[11px] sm:text-xs font-bold font-mono text-[#E5B842]">
                             {user.wallet_balance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}{' '}
                             <span className="text-[9px] text-zinc-400">ETB</span>
@@ -491,7 +521,7 @@ export const Header: React.FC<HeaderProps> = ({
                         className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#E5B842] to-[#c99f30] text-black font-semibold text-xs shadow-[0_0_12px_rgba(229,184,66,0.3)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Deposit</span>
+                        <span>{t('deposit')}</span>
                       </button>
                     </div>
                   )}
@@ -504,7 +534,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-xs shadow-md border border-zinc-700 active:scale-95 transition-all cursor-pointer"
                     >
                       <PlusSquare className="w-3.5 h-3.5" />
-                      <span>New Auction</span>
+                      <span>{language === 'am' ? 'አዲስ ጨረታ' : 'New Auction'}</span>
                     </button>
                   )}
 
@@ -554,7 +584,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={onOpenAuth}
                   className="px-3 sm:px-4 py-1.5 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  Sign In
+                  {language === 'am' ? 'ግባ' : 'Sign In'}
                 </button>
               )}
 
@@ -785,7 +815,7 @@ export const Header: React.FC<HeaderProps> = ({
               {isAdmin && (
                 <div className="space-y-1 pt-2 border-t border-[#27272a]">
                   <div className="text-[10px] font-mono uppercase tracking-wider text-blue-400 px-2 pb-1">
-                    Administration
+                    {language === 'am' ? 'አስተዳደር' : 'Administration'}
                   </div>
 
                   <button
@@ -798,7 +828,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     <span className="flex items-center gap-2.5">
-                      <Inbox className="w-4 h-4" /> Deposit Requests
+                      <Inbox className="w-4 h-4" /> {language === 'am' ? 'የተቀማጭ ጥያቄዎች' : 'Deposit Requests'}
                     </span>
                     {pendingDepositsCount > 0 ? (
                       <span className="w-5 h-5 bg-amber-400 text-black font-bold text-[10px] rounded-full flex items-center justify-center">
@@ -819,7 +849,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     <span className="flex items-center gap-2.5">
-                      <Users className="w-4 h-4" /> Active Users Directory
+                      <Users className="w-4 h-4" /> {language === 'am' ? 'የተጠቃሚዎች ማውጫ' : 'Active Users Directory'}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   </button>
@@ -832,7 +862,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-emerald-400 hover:bg-emerald-950/30 transition-all"
                   >
                     <span className="flex items-center gap-2.5">
-                      <PlusSquare className="w-4 h-4" /> Create New Auction
+                      <PlusSquare className="w-4 h-4" /> {language === 'am' ? 'አዲስ ጨረታ ፍጠር' : 'Create New Auction'}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   </button>
@@ -843,8 +873,23 @@ export const Header: React.FC<HeaderProps> = ({
               {isSuperAdmin && (
                 <div className="space-y-1 pt-2 border-t border-[#27272a]">
                   <div className="text-[10px] font-mono uppercase tracking-wider text-[#E5B842] px-2 pb-1">
-                    Super Admin Controls
+                    {language === 'am' ? 'የሱፐር አድሚን ቁጥጥር' : 'Super Admin Controls'}
                   </div>
+
+                  <button
+                    onClick={() => {
+                      onSelectTab('super-live-games');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentTab === 'super-live-games' ? 'bg-rose-600 text-white' : 'text-rose-400 hover:bg-rose-950/30'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Activity className="w-4 h-4 animate-pulse" /> {language === 'am' ? 'የቀጥታ ጨረታዎች ቁጥጥር' : 'Live Game Radar & Bids'}
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </button>
 
                   <button
                     onClick={() => {
@@ -856,7 +901,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     <span className="flex items-center gap-2.5">
-                      <BarChart3 className="w-4 h-4" /> P&L Financial Ledger
+                      <BarChart3 className="w-4 h-4" /> {language === 'am' ? 'የትርፍና ኪሳራ ሌጀር' : 'P&L Financial Ledger'}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   </button>
@@ -871,7 +916,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     <span className="flex items-center gap-2.5">
-                      <ShieldCheck className="w-4 h-4" /> Staff Floats & Audit Logs
+                      <ShieldCheck className="w-4 h-4" /> {language === 'am' ? 'የሰራተኞች ፍሎት እና ኦዲት' : 'Staff Floats & Audit Logs'}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   </button>
@@ -890,7 +935,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[#E5B842]/40 bg-[#E5B842]/10 text-[#E5B842] text-xs font-semibold"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Replay 3D Intro</span>
+                  <span>{language === 'am' ? '3D ገለጻን በድጋሚ ይመልከቱ' : 'Replay 3D Intro'}</span>
                 </button>
               )}
 
@@ -903,7 +948,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/30 bg-red-950/20 text-red-400 hover:bg-red-950/40 text-xs font-semibold"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
+                  <span>{language === 'am' ? 'ውጣ' : 'Sign Out'}</span>
                 </button>
               )}
             </div>
@@ -920,7 +965,7 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           <Flame className={`w-5 h-5 mb-0.5 ${currentTab === 'auctions' ? 'text-[#E5B842]' : 'text-zinc-400'}`} />
-          <span>Auctions</span>
+          <span>{language === 'am' ? 'ጨረታዎች' : 'Auctions'}</span>
         </button>
 
         <button
@@ -930,7 +975,7 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           <Trophy className={`w-5 h-5 mb-0.5 ${currentTab === 'winners' ? 'text-[#E5B842]' : 'text-zinc-400'}`} />
-          <span>Winners</span>
+          <span>{language === 'am' ? 'አሸናፊዎች' : 'Winners'}</span>
         </button>
 
         {/* Center Primary Action: Deposit for Customer, Float for Admin */}
@@ -949,7 +994,11 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
           <span className="text-[#E5B842] font-bold mt-0.5">
-            {user?.role === 'admin' ? 'Float' : user?.role === 'superadmin' ? 'Treasury' : 'Deposit'}
+            {user?.role === 'admin'
+              ? language === 'am' ? 'ፍሎት' : 'Float'
+              : user?.role === 'superadmin'
+              ? language === 'am' ? 'ግምጃ ቤት' : 'Treasury'
+              : language === 'am' ? 'ተቀማጭ' : 'Deposit'}
           </span>
         </button>
 
@@ -958,7 +1007,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-mono text-zinc-400 hover:text-zinc-200"
         >
           <HelpCircle className="w-5 h-5 mb-0.5 text-zinc-400" />
-          <span>Guide</span>
+          <span>{language === 'am' ? 'መመሪያ' : 'Guide'}</span>
         </button>
 
         <button
@@ -968,7 +1017,7 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           <Menu className="w-5 h-5 mb-0.5 text-zinc-400" />
-          <span>Menu</span>
+          <span>{language === 'am' ? 'ሜኑ' : 'Menu'}</span>
           {pendingDepositsCount > 0 && isAdmin && (
             <span className="absolute top-2 right-4 w-2 h-2 bg-amber-400 rounded-full animate-ping" />
           )}
