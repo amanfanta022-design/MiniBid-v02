@@ -103,6 +103,19 @@ export const AdminCreateAuctionModal: React.FC<AdminCreateAuctionModalProps> = (
       return;
     }
 
+    const startDate = startTime ? new Date(startTime) : new Date();
+    const endDate = endTime ? new Date(endTime) : new Date(Date.now() + 2 * 3600 * 1000);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      setFormError(language === 'am' ? 'እባክዎ ትክክለኛ የመነሻና ማብቂያ ቀን እና ሰዓት ይምረጡ።' : 'Please provide valid start and end dates/times.');
+      return;
+    }
+
+    if (endDate.getTime() <= startDate.getTime()) {
+      setFormError(language === 'am' ? 'የጨረታው ማብቂያ ሰዓት ከመነሻ ሰዓቱ በኋላ መሆን አለበት።' : 'Auction end date/time must be after the start date/time.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/admin/auctions', {
@@ -119,12 +132,20 @@ export const AdminCreateAuctionModal: React.FC<AdminCreateAuctionModalProps> = (
           start_price: 1.0,
           internal_cost: numInternalCost,
           participation_fee: parseFloat(participationFee) || 30,
-          start_time: new Date(startTime).toISOString(),
-          end_time: new Date(endTime).toISOString(),
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString(),
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server returned ${res.status} (${res.statusText || 'Error'}): ${text.slice(0, 120)}`);
+      }
+
       if (!res.ok) {
         setFormError(data.error || (language === 'am' ? 'ጨረታውን መመዝገብ አልተቻለም' : 'Failed to create auction'));
       } else {

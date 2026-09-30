@@ -1240,8 +1240,9 @@ const handleCreateAuction = (req: AuthenticatedRequest, res: Response) => {
   res.status(201).json({ message: 'Auction created successfully and published live!', auction });
 };
 
-// Create New Auction (Registered on both REST paths for Admin and Super Admin)
+// Create New Auction (Registered on all REST paths for Admin and Super Admin)
 app.post('/api/auctions', authenticate, requireRole(['admin', 'superadmin']), handleCreateAuction);
+app.post('/api/admin/auctions', authenticate, requireRole(['admin', 'superadmin']), handleCreateAuction);
 app.post('/api/admin/auctions/create', authenticate, requireRole(['admin', 'superadmin']), handleCreateAuction);
 
 // Concluded Auctions Winners Ledger
