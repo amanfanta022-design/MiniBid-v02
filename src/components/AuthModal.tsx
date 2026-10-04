@@ -43,7 +43,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setErrorMessage('');
     setIsLoading(true);
 
-    const res = await login(loginIdentifier.trim(), loginPassword);
+    const res = await login(loginIdentifier.trim(), loginPassword, 'player');
     setIsLoading(false);
     if (!res.success) {
       setErrorMessage(res.error || (language === 'am' ? 'መግባት አልተቻለም። እባክዎ መረጃዎን ያረጋግጡ።' : 'Failed to sign in. Please verify credentials.'));

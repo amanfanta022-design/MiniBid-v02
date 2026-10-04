@@ -179,7 +179,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 
 // Login
 app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { identifier, password } = req.body;
+  const { identifier, password, portal } = req.body;
   if (!identifier || !password) {
     return res.status(400).json({ error: 'Please provide your username or phone and password.' });
   }
@@ -198,6 +198,35 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
   if (!rawUser) {
     return res.status(401).json({ error: 'User account not found. Please verify your username or phone number.' });
+  }
+
+  // --- Strict Portal Isolation Enforcement (Wall 3) ---
+  const isAdministrativeUser = rawUser.role === 'admin' || rawUser.role === 'superadmin';
+  const host = (req.hostname || '').toLowerCase();
+  const portalHeader = req.headers['x-portal'] as string | undefined;
+  const referer = (req.headers['referer'] || '').toLowerCase();
+  const isExplicitAdminPortal =
+    portal === 'admin' ||
+    portalHeader === 'admin' ||
+    host.startsWith('admin.') ||
+    host.startsWith('admin-') ||
+    referer.includes('/admin') ||
+    referer.includes('portal=admin');
+
+  // Block administrative accounts from signing in through the public player site
+  if (isAdministrativeUser && !isExplicitAdminPortal) {
+    return res.status(403).json({
+      error: 'Access Denied: Administrative accounts cannot sign in through the public gaming site. Please access the private executive gateway at admin.minibid.et.',
+      code: 'ADMIN_PORTAL_REQUIRED',
+    });
+  }
+
+  // Block customer accounts from signing into the executive workstation terminal
+  if (!isAdministrativeUser && isExplicitAdminPortal) {
+    return res.status(403).json({
+      error: 'Access Restricted: This terminal is strictly reserved for Staff and Superadmin personnel. Customer accounts must sign in via the gaming site.',
+      code: 'STAFF_ROLE_REQUIRED',
+    });
   }
 
   if (rawUser.status === 'suspended') {

@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types.js';
+import { detectPortal } from '../utils/portal.js';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (identifier: string, password: string, portalOverride?: 'admin' | 'player') => Promise<{ success: boolean; error?: string }>;
   register: (data: { username: string; email?: string; phone: string; password: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -51,12 +52,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [token]);
 
-  const login = async (identifier: string, password: string) => {
+  const login = async (identifier: string, password: string, portalOverride?: 'admin' | 'player') => {
     try {
+      const activePortal = portalOverride || detectPortal();
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Portal': activePortal,
+        },
+        body: JSON.stringify({ identifier, password, portal: activePortal }),
       });
       const data = await res.json();
       if (!res.ok) {
