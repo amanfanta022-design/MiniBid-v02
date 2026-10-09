@@ -77,7 +77,7 @@ const MainAppContent: React.FC = () => {
               {isSuperAdmin ? 'Super Admin Mode' : 'Staff Admin Mode'}:
             </span>
             <span className="hidden sm:inline text-zinc-400">
-              You are currently viewing the customer gaming site (play.minibid.et).
+              You are currently viewing the customer gaming site.
             </span>
           </div>
           <button
@@ -85,7 +85,7 @@ const MainAppContent: React.FC = () => {
             className="px-3 py-1 rounded-lg bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-[11px] font-mono flex items-center gap-1.5 transition-all cursor-pointer shadow"
           >
             <Shield className="w-3 h-3 text-white" />
-            <span>Open Executive Workstation (admin.minibid.et)</span>
+            <span>Open Executive Workstation</span>
             <ChevronRight className="w-3 h-3 text-white" />
           </button>
         </div>
@@ -289,7 +289,7 @@ const MainAppContent: React.FC = () => {
                     className="text-left text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1 pt-2 font-mono text-[10px]"
                   >
                     <Lock className="w-3 h-3 text-zinc-600" />
-                    <span>Admin Workstation (admin.minibid.et)</span>
+                    <span>Admin Workstation</span>
                   </button>
                 </div>
               </div>

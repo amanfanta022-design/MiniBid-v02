@@ -310,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
                   id="header-admin-workstation-btn"
                   onClick={() => switchPortal('admin')}
                   className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600/30 via-rose-600/35 to-amber-600/30 border border-red-500/50 hover:border-red-400 text-rose-200 hover:text-white text-xs font-bold transition-all shadow-md cursor-pointer animate-fadeIn"
-                  title={language === 'am' ? 'የተለየ የአስተዳዳሪ ጣቢያ (admin.minibid.et)' : 'Open Dedicated Admin Workstation (admin.minibid.et)'}
+                  title={language === 'am' ? 'የተለየ የአስተዳዳሪ ጣቢያ' : 'Open Dedicated Admin Workstation'}
                 >
                   <Shield className="w-3.5 h-3.5 text-red-400 shrink-0" />
                   <span className="hidden md:inline font-mono">

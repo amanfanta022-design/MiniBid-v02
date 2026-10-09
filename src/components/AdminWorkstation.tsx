@@ -14,6 +14,7 @@ import { SuperAdminActivityController } from './SuperAdminActivityController.js'
 import { SuperAdminDeviceSecurity } from './SuperAdminDeviceSecurity.js';
 import { AuctionsList } from './AuctionsList.js';
 import { AuctionDetailModal } from './AuctionDetailModal.js';
+import { AdminSmsGateway } from './AdminSmsGateway.js';
 import { GoldenParticleBackground } from './GoldenParticleBackground.js';
 import { User, PlatformNotification } from '../types.js';
 import {
@@ -22,6 +23,7 @@ import {
   Lock,
   Activity,
   Laptop,
+  Smartphone,
   BarChart3,
   Inbox,
   Users,
@@ -234,7 +236,7 @@ export const AdminWorkstation: React.FC = () => {
                   required
                   value={loginIdentifier}
                   onChange={e => setLoginIdentifier(e.target.value)}
-                  placeholder="e.g. superadmin, alex, or email"
+                  placeholder="Administrative Username or ID"
                   className="w-full bg-[#16161c] border border-zinc-700 focus:border-red-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 transition-all font-mono"
                 />
               </div>
@@ -572,6 +574,20 @@ export const AdminWorkstation: React.FC = () => {
                 </button>
               )}
 
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setCurrentTab('sms-gateway')}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                    currentTab === 'sms-gateway'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50 font-bold'
+                      : 'text-blue-300 hover:bg-blue-950/30 border border-blue-900/40'
+                  }`}
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span>Telecom SMS Gateway</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setCurrentTab('auctions-inspector')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
@@ -598,6 +614,8 @@ export const AdminWorkstation: React.FC = () => {
           {currentTab === 'super-activity' && isSuperAdmin && <SuperAdminActivityController />}
 
           {currentTab === 'super-devices' && isSuperAdmin && <SuperAdminDeviceSecurity />}
+
+          {currentTab === 'sms-gateway' && isSuperAdmin && <AdminSmsGateway />}
 
           {currentTab === 'admin-deposits' && (
             <AdminDepositRequests onBackToAuctions={() => setCurrentTab('super-live-games')} />

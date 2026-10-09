@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { useTranslation } from '../utils/i18n.js';
-import { usePortal } from '../utils/portal.js';
 import {
   X,
   Lock,
@@ -29,7 +28,6 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const { login, loginWithOtp, sendOtp, register } = useAuth();
   const { language, setLanguage } = useTranslation();
-  const { switchPortal } = usePortal();
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
@@ -57,6 +55,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [errorCode, setErrorCode] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
+
+  // Telecom Gateway Sandbox helper state
+  const [sandboxInfo, setSandboxInfo] = useState<{ phone: string; code: string; notice: string; is_live: boolean } | null>(null);
+  const [isFetchingSandbox, setIsFetchingSandbox] = useState(false);
+
+  const fetchSandboxOtp = async (phoneToFetch: string) => {
+    setIsFetchingSandbox(true);
+    setErrorMessage('');
+    try {
+      const cleanPhone = phoneToFetch.trim().replace(/\s+/g, '');
+      const res = await fetch(`/api/auth/otp/sandbox-preview?phone=${encodeURIComponent(cleanPhone)}`);
+      const data = await res.json();
+      if (res.ok && data.code) {
+        setSandboxInfo({
+          phone: data.phone,
+          code: data.code,
+          notice: data.notice,
+          is_live: data.is_cellular_live,
+        });
+      } else {
+        setErrorMessage(data.error || 'No recent OTP dispatch recorded for this number');
+      }
+    } catch {
+      setErrorMessage('Failed to connect to Telecom gateway status');
+    } finally {
+      setIsFetchingSandbox(false);
+    }
+  };
 
   // Cooldown timers
   useEffect(() => {
@@ -103,8 +129,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setOtpCooldown(60);
     setSuccessNotice(
       language === 'am'
-        ? `የማረጋገጫ 6-ዲጂት ኮድ በኤስኤምኤስ (SMS) ወደ ${cleanPhone} ተልኳል። እባክዎ በስልክዎ የደረሰዎትን ኮድ ያስገቡ።`
-        : `A 6-digit verification code has been sent via SMS to ${cleanPhone}. Please enter the code received on your phone.`
+        ? `የማረጋገጫ 6-ዲጂት ኮድ በኤስኤምኤስ (SMS) በቀጥታ ወደ ስልክዎ ተልኳል። እባክዎ በስልክዎ የደረሰዎትን ኮድ ያስገቡ።`
+        : `A 6-digit verification code has been sent directly to your phone via SMS. Please check your messages and enter the code below.`
     );
   };
 
@@ -180,8 +206,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setRegOtpCooldown(60);
     setSuccessNotice(
       language === 'am'
-        ? `የማረጋገጫ ኮድ ወደ ${cleanPhone} ተልኳል። እባክዎ በስልክዎ የደረሰዎትን ኮድ ያስገቡ።`
-        : `A verification code has been sent via SMS to ${cleanPhone}. Please enter the code received on your phone.`
+        ? `የማረጋገጫ ኮድ በኤስኤምኤስ (SMS) በቀጥታ ወደ ስልክዎ ተልኳል። እባክዎ በስልክዎ የደረሰዎትን ኮድ ያስገቡ።`
+        : `A verification code has been sent directly to your phone via SMS. Please check your messages and enter the code below.`
     );
   };
 
@@ -365,7 +391,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       <input
                         type="text"
                         required
-                        placeholder="+251911223344 or 0911223344"
+                        placeholder="+251 9... / 09..."
                         value={otpPhone}
                         onChange={e => setOtpPhone(e.target.value)}
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
@@ -393,49 +419,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       type="text"
                       maxLength={6}
                       required
-                      placeholder="e.g. 482915"
+                      placeholder="------"
                       value={otpCode}
                       onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-emerald-500/70 text-center text-lg font-mono font-bold tracking-widest text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
+
+                    {/* Telecom Gateway Sandbox helper if physical SMS not received */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchSandboxOtp(otpPhone)}
+                        disabled={isFetchingSandbox}
+                        className="text-[11px] text-zinc-400 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{language === 'am' ? 'በስልክዎ ኤስኤምኤስ አልደረሰዎትም? (የቴሌኮም ሁኔታን ይመልከቱ)' : "Didn't receive SMS on physical phone? (Telecom Status)"}</span>
+                      </button>
+
+                      {sandboxInfo && (
+                        <div className="mt-2 p-3 rounded-xl bg-amber-950/40 border border-amber-800/80 text-xs text-amber-200 space-y-1.5 animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[11px] uppercase tracking-wider text-amber-300">
+                              {sandboxInfo.is_live ? 'Live Telecom Carrier' : 'Telecom Gateway: Sandbox Mode'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setOtpCode(sandboxInfo.code)}
+                              className="px-2 py-0.5 rounded bg-[#E5B842] hover:bg-amber-400 text-black font-mono font-bold text-[10px] cursor-pointer shadow"
+                            >
+                              {language === 'am' ? 'ኮዱን አስገባ' : 'Auto-Fill Code'}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-zinc-300 leading-relaxed">
+                            {sandboxInfo.notice}
+                          </p>
+                          <div className="text-center font-mono text-base font-black text-amber-400 py-1 bg-black/50 rounded-lg border border-amber-700/50 tracking-widest">
+                            {sandboxInfo.code}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
                 {errorMessage && (
                   errorCode === 'ADMIN_PORTAL_REQUIRED' ? (
-                    /* Strict Staff Blocking Alert */
-                    <div className="p-4 rounded-2xl bg-gradient-to-b from-red-950/95 to-zinc-950 border border-red-500/80 text-xs text-red-200 space-y-2 shadow-2xl animate-fadeIn">
-                      <div className="flex items-start gap-2.5">
-                        <ShieldAlert className="w-5 h-5 shrink-0 text-red-400 mt-0.5 animate-pulse" />
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold uppercase tracking-wider text-rose-300 font-mono text-[11px]">
-                              {language === 'am' ? 'የአስተዳዳሪ መግቢያ እዚህ ተከልክሏል' : 'Staff Access Prohibited on Player Site'}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-900 text-white font-mono font-bold tracking-wider">
-                              PORTAL ISOLATED
-                            </span>
-                          </div>
-                          <p className="text-[11px] leading-relaxed text-zinc-300">
-                            {language === 'am'
-                              ? 'የአስተዳዳሪ አካውንቶች (Admin እና Super Admin) በተጫዋቾች ገጽ ላይ መግባት በጥብቅ የተከለከሉ ናቸው። እባክዎ በልዩ የአስተዳዳሪ ፖርታል (admin.minibid.et) በኩል ይግቡ።'
-                              : 'Staff and Super Admin accounts cannot log into the public customer gaming portal. Administrative personnel must authenticate strictly via the isolated Executive Terminal (admin.minibid.et).'}
-                          </p>
-                          <div className="pt-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onClose();
-                                switchPortal('admin');
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-mono text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow"
-                            >
-                              <Shield className="w-3.5 h-3.5" />
-                              <span>Go to Staff Executive Terminal →</span>
-                            </button>
-                          </div>
-                        </div>
+                    <div className="p-3.5 rounded-xl bg-red-950/50 border border-red-800 text-xs text-red-200 space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                        <span className="font-bold uppercase tracking-wider text-rose-300 font-mono text-[11px]">
+                          {language === 'am' ? 'የተጠቃሚ መግቢያ የተከለከለ ነው' : 'Player Account Required'}
+                        </span>
                       </div>
+                      <p className="text-[11px] leading-relaxed text-zinc-300">
+                        {language === 'am'
+                          ? 'ይህ የመግቢያ ገጽ ለተጫዋቾች ብቻ ነው። የአስተዳዳሪ አካውንቶች እዚህ መግባት አይችሉም።'
+                          : 'This sign-in screen is strictly for player accounts. Administrative accounts cannot sign in here.'}
+                      </p>
                     </div>
                   ) : (
                     <div className="p-3 rounded-xl bg-red-950/40 border border-red-800 text-xs text-red-300 flex items-center gap-2">
@@ -478,7 +518,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     <input
                       type="text"
                       required
-                      placeholder={language === 'am' ? 'ምሳሌ፦ amanuel_f ወይም 0911223344' : 'e.g. amanuel_f or +251911223344'}
+                      placeholder={language === 'am' ? 'የተጠቃሚ ስም ወይም ስልክ ቁጥር' : 'Username or phone number'}
                       value={loginIdentifier}
                       onChange={e => setLoginIdentifier(e.target.value)}
                       className="w-full pl-3.5 pr-4 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
@@ -511,39 +551,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
                 {errorMessage && (
                   errorCode === 'ADMIN_PORTAL_REQUIRED' ? (
-                    /* Strict Staff Blocking Alert */
-                    <div className="p-4 rounded-2xl bg-gradient-to-b from-red-950/95 to-zinc-950 border border-red-500/80 text-xs text-red-200 space-y-2 shadow-2xl animate-fadeIn">
-                      <div className="flex items-start gap-2.5">
-                        <ShieldAlert className="w-5 h-5 shrink-0 text-red-400 mt-0.5 animate-pulse" />
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold uppercase tracking-wider text-rose-300 font-mono text-[11px]">
-                              {language === 'am' ? 'የአስተዳዳሪ መግቢያ እዚህ ተከልክሏል' : 'Staff Access Prohibited on Player Site'}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-900 text-white font-mono font-bold tracking-wider">
-                              PORTAL ISOLATED
-                            </span>
-                          </div>
-                          <p className="text-[11px] leading-relaxed text-zinc-300">
-                            {language === 'am'
-                              ? 'የአስተዳዳሪ አካውንቶች (Admin እና Super Admin) በተጫዋቾች ገጽ ላይ መግባት በጥብቅ የተከለከሉ ናቸው። እባክዎ በልዩ የአስተዳዳሪ ፖርታል (admin.minibid.et) በኩል ይግቡ።'
-                              : 'Staff and Super Admin accounts cannot log into the public customer gaming portal. Administrative personnel must authenticate strictly via the isolated Executive Terminal (admin.minibid.et).'}
-                          </p>
-                          <div className="pt-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onClose();
-                                switchPortal('admin');
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-mono text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow"
-                            >
-                              <Shield className="w-3.5 h-3.5" />
-                              <span>Go to Staff Executive Terminal →</span>
-                            </button>
-                          </div>
-                        </div>
+                    <div className="p-3.5 rounded-xl bg-red-950/50 border border-red-800 text-xs text-red-200 space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                        <span className="font-bold uppercase tracking-wider text-rose-300 font-mono text-[11px]">
+                          {language === 'am' ? 'የተጠቃሚ መግቢያ የተከለከለ ነው' : 'Player Account Required'}
+                        </span>
                       </div>
+                      <p className="text-[11px] leading-relaxed text-zinc-300">
+                        {language === 'am'
+                          ? 'ይህ የመግቢያ ገጽ ለተጫዋቾች ብቻ ነው። የአስተዳዳሪ አካውንቶች እዚህ መግባት አይችሉም።'
+                          : 'This sign-in screen is strictly for player accounts. Administrative accounts cannot sign in here.'}
+                      </p>
                     </div>
                   ) : (
                     <div className="p-3 rounded-xl bg-red-950/40 border border-red-800 text-xs text-red-300 flex items-center gap-2">
@@ -564,26 +583,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </button>
               </form>
             )}
-
-            {/* Clear Staff Portal Isolation Notice */}
-            <div className="pt-3 border-t border-zinc-800/80 p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800 flex items-center justify-between text-[11px]">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Shield className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span>
-                  {language === 'am' ? 'የአስተዳዳሪ (Staff) አካውንት አለዎት?' : 'Are you Staff or Super Admin?'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  switchPortal('admin');
-                }}
-                className="text-rose-400 hover:text-rose-300 font-mono font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <span>admin.minibid.et →</span>
-              </button>
-            </div>
           </div>
         ) : (
           /* Register Form with Real-Time Phone OTP Verification */
@@ -597,7 +596,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   required
-                  placeholder={language === 'am' ? 'ምሳሌ፦ dawit_bidder (ከ5 ቁምፊ በላይ)' : 'e.g. dawit_bidder (min 6 chars)'}
+                  placeholder={language === 'am' ? 'የተጠቃሚ ስም (ቢያንስ 6 ቁምፊዎች)' : 'Username (min 6 characters)'}
                   value={regUsername}
                   onChange={e => setRegUsername(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
@@ -615,7 +614,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <input
                     type="text"
                     required
-                    placeholder="+251911223344 or 0911223344"
+                    placeholder="+251 9... / 09..."
                     value={regPhone}
                     onChange={e => setRegPhone(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white font-mono focus:outline-none focus:border-[#E5B842]"
@@ -641,7 +640,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   maxLength={6}
-                  placeholder="6-digit OTP code"
+                  placeholder="------"
                   value={regOtpCode}
                   onChange={e => setRegOtpCode(e.target.value.replace(/\D/g, ''))}
                   className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white font-mono text-center text-sm tracking-widest focus:border-emerald-500 focus:outline-none"

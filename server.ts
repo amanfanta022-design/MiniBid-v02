@@ -14,6 +14,7 @@ import {
   InvalidReceiptError,
 } from './server/db.js';
 import { runFinancialIntegrityTests } from './server/integrityTests.js';
+import { smsGateway } from './server/smsService.js';
 import { UserRole } from './src/types.js';
 
 const app = express();
@@ -223,7 +224,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 // --- Real-time Phone Number OTP Authentication Routes ---
 
 // Send 6-digit OTP code to Ethiopian phone number
-app.post('/api/auth/otp/send', (req: Request, res: Response) => {
+app.post('/api/auth/otp/send', async (req: Request, res: Response) => {
   const { phone, purpose } = req.body;
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required.' });
@@ -234,6 +235,9 @@ app.post('/api/auth/otp/send', (req: Request, res: Response) => {
     return res.status(400).json({ error: result.error });
   }
 
+  // Dispatch via configured SMS Telecom Gateway
+  const dispatchResult = await smsGateway.dispatchOtp(result.phone, result.code, purpose || 'login');
+
   // Log movement
   db.logSystemMovement({
     category: 'SECURITY_AUTH',
@@ -241,17 +245,46 @@ app.post('/api/auth/otp/send', (req: Request, res: Response) => {
     actor_id: 'sys_sms_gateway',
     actor_username: 'sms_telecom_gateway',
     actor_role: 'customer',
-    details: `SMS verification OTP dispatched to customer phone ${result.phone} (Purpose: ${purpose || 'login'}).`,
+    details: `SMS verification OTP dispatched to customer phone ${result.phone} via ${dispatchResult.provider} (${dispatchResult.status}).`,
     ip_address: (req.ip as string) || '127.0.0.1',
   });
 
-  console.log(`[TELECOM SMS GATEWAY] Secure OTP code dispatched directly to ${result.phone} (Code: ${result.code})`);
-
   res.json({
     success: true,
-    message: `Verification SMS code sent directly to ${result.phone}. Please check your phone messages.`,
+    message: dispatchResult.status === 'DELIVERED_CELLULAR'
+      ? `Verification SMS code sent directly to ${result.phone}. Please check your phone messages.`
+      : `Verification SMS code queued for ${result.phone}. (Telecom Gateway in Sandbox Mode).`,
     phone: result.phone,
     expires_in_seconds: result.expires_in_seconds,
+    gateway_status: dispatchResult.status,
+    is_live_cellular: dispatchResult.status === 'DELIVERED_CELLULAR',
+  });
+});
+
+// Retrieve sandbox OTP preview for developers & testers when external cellular gateway is not connected
+app.get('/api/auth/otp/sandbox-preview', (req: Request, res: Response) => {
+  const phone = (req.query.phone as string) || '';
+  if (!phone) {
+    return res.status(400).json({ error: 'Phone parameter required' });
+  }
+
+  const normalized = db.normalizePhone(phone);
+  const latestDispatch = smsGateway.getLatestDispatchForPhone(normalized);
+  const cfg = smsGateway.getConfig();
+
+  if (!latestDispatch) {
+    return res.status(404).json({ error: 'No recent OTP dispatch found for this number' });
+  }
+
+  res.json({
+    phone: normalized,
+    code: latestDispatch.code,
+    status: latestDispatch.status,
+    provider: latestDispatch.provider,
+    is_cellular_live: cfg.is_live,
+    notice: cfg.is_live
+      ? 'Live cellular SMS carrier is active.'
+      : 'Telecom Gateway is running in Sandbox Mode. In production, configure Ethio Telecom, Africa\'s Talking, or Twilio in Admin Settings to send physical cellular SMS.',
   });
 });
 
@@ -295,7 +328,7 @@ app.post('/api/auth/otp/login', (req: Request, res: Response) => {
     const requestedPortal = (portal || (req.headers['x-portal'] as string) || 'player').toLowerCase();
     if (requestedPortal === 'player' && (user.role === 'admin' || user.role === 'superadmin')) {
       return res.status(403).json({
-        error: 'Access Denied: Staff accounts cannot sign in through the customer gaming portal. Staff must authenticate via admin.minibid.et.',
+        error: 'Access Denied: Staff accounts cannot sign in through the customer gaming portal. Access is restricted to player accounts only.',
         code: 'ADMIN_PORTAL_REQUIRED',
       });
     }
@@ -379,12 +412,12 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       actor_username: rawUser.username,
       actor_role: rawUser.role,
       action: 'SECURITY_ALERT_STAFF_CUSTOMER_PORTAL_BLOCKED',
-      details: `Staff member '${rawUser.username}' (${rawUser.role}) sign-in blocked on customer portal. Staff accounts must log in via admin.minibid.et.`,
+      details: `Staff member '${rawUser.username}' (${rawUser.role}) sign-in blocked on customer portal. Access restricted to player accounts.`,
       ip_reference: (req.ip as string) || '197.156.103.1',
     });
 
     return res.status(403).json({
-      error: 'Access Denied: Administrative accounts cannot sign in through the customer gaming portal. Staff must authenticate via the dedicated Executive Terminal (admin.minibid.et).',
+      error: 'Access Denied: Administrative accounts cannot sign in through the customer gaming portal. Access is restricted to player accounts only.',
       code: 'ADMIN_PORTAL_REQUIRED',
     });
   }
@@ -2135,6 +2168,50 @@ app.post('/api/superadmin/devices/revoke-all-others', authenticate, requireRole(
   });
 
   res.json({ success: true, message: `Terminated ${count} active sessions.`, count });
+});
+
+// ==========================================
+// 5.9 TELECOM SMS GATEWAY MANAGEMENT
+// ==========================================
+app.get('/api/admin/sms/gateway', authenticate, requireRole(['admin', 'superadmin']), (_req: Request, res: Response) => {
+  res.json({
+    config: smsGateway.getConfig(),
+    logs: smsGateway.getDispatchLogs(),
+  });
+});
+
+app.post('/api/admin/sms/gateway', authenticate, requireRole(['superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const updated = smsGateway.updateConfig(req.body);
+  db.logSystemMovement({
+    category: 'SYSTEM_SETTINGS',
+    action: 'SMS_GATEWAY_CONFIGURED',
+    actor_id: req.user!.id,
+    actor_username: req.user!.username,
+    actor_role: 'superadmin',
+    details: `Superadmin updated Telecom SMS Gateway configuration (Provider: ${updated.provider}, Sender ID: ${updated.sender_id}).`,
+    ip_address: (req.ip as string) || '127.0.0.1',
+  });
+  res.json({ success: true, message: 'SMS Gateway configuration updated successfully.', config: updated });
+});
+
+app.post('/api/admin/sms/topup', authenticate, requireRole(['superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const { amount_etb } = req.body;
+  const numAmount = parseFloat(amount_etb);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({ error: 'Valid positive ETB amount is required.' });
+  }
+
+  const newBalance = smsGateway.addPrepaidCredits(numAmount);
+  db.logSystemMovement({
+    category: 'FINANCIAL_RESERVE',
+    action: 'SMS_CREDITS_TOPUP',
+    actor_id: req.user!.id,
+    actor_username: req.user!.username,
+    actor_role: 'superadmin',
+    details: `Superadmin recharged Telecom SMS Gateway reserve by ${numAmount.toFixed(2)} ETB (New Balance: ${newBalance.toFixed(2)} ETB).`,
+    ip_address: (req.ip as string) || '127.0.0.1',
+  });
+  res.json({ success: true, message: `Recharged ${numAmount.toFixed(2)} ETB into SMS Gateway reserve.`, balance_etb: newBalance });
 });
 
 // ==========================================

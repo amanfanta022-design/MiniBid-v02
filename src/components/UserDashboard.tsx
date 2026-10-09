@@ -775,7 +775,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     {language === 'am' ? 'የአስተዳዳሪ ፖርታል መለያየት' : 'Staff Portal Separation'}
                   </div>
                   <div className="text-[11px] text-zinc-400 mt-0.5">
-                    Isolated on admin.minibid.et
+                    {language === 'am' ? 'የአስተዳዳሪ ፖርታል በጥብቅ ተለይቷል' : 'Strict Administrative Isolation Active'}
                   </div>
                 </div>
                 <span className="px-2 py-1 rounded-lg bg-blue-950/80 border border-blue-500/50 text-blue-300 font-mono text-[10px] font-bold">
