@@ -52,6 +52,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<string>('');
   const [submitError, setSubmitError] = useState<string>('');
+  const [lastSubmittedDeposit, setLastSubmittedDeposit] = useState<DepositRequest | null>(null);
 
   // Deposit history
   const [deposits, setDeposits] = useState<DepositRequest[]>([]);
@@ -176,7 +177,8 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
           refreshUser();
         }
       } else {
-        setSubmitSuccess('Deposit request submitted! Operations team will verify your receipt shortly.');
+        setSubmitSuccess(data.message || 'Deposit request submitted! Operations team will verify your receipt shortly.');
+        setLastSubmittedDeposit(data.deposit || null);
         playDepositApprovalChime();
         setReferenceCode('');
         setReceiptFile(null);
@@ -511,9 +513,33 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               )}
 
               {submitSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-700/60 text-xs text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{submitSuccess}</span>
+                <div className="p-4 rounded-2xl bg-emerald-950/50 border border-emerald-500/50 text-xs text-emerald-200 space-y-2.5 shadow-xl animate-fadeIn">
+                  <div className="flex items-center gap-2 font-bold text-emerald-300">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <span>{submitSuccess}</span>
+                  </div>
+                  {lastSubmittedDeposit?.deposit_code && (
+                    <div className="p-3 rounded-xl bg-black/60 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-400">Assigned Routing Code:</span>
+                        <span className="px-2.5 py-1 rounded-lg bg-[#E5B842]/20 text-[#E5B842] border border-[#E5B842]/40 font-bold text-sm tracking-wider">
+                          D.Code: {lastSubmittedDeposit.deposit_code}
+                        </span>
+                      </div>
+                      {lastSubmittedDeposit.assigned_admin_username && (
+                        <div className="text-zinc-300 text-[11px]">
+                          <span>Verification Desk: </span>
+                          <strong className="text-white font-bold">@{lastSubmittedDeposit.assigned_admin_username}</strong>
+                          <span className="text-zinc-500 ml-1">({lastSubmittedDeposit.assigned_admin_prefix || 'ad'})</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-emerald-400/80 font-mono">
+                    {language === 'am'
+                      ? 'ይህንን የ D.Code መለያ ቁጥር ለክፍያ ማረጋገጫ ወይም ለደንበኞች አገልግሎት ይጠቀሙበት።'
+                      : 'Please quote your D.Code when contacting customer support or referencing this transaction.'}
+                  </p>
                 </div>
               )}
 
@@ -592,14 +618,32 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400 pt-1 border-t border-zinc-800">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-800 text-[11px] font-mono">
+                        <div className="flex items-center gap-2">
+                          {d.deposit_code && (
+                            <span className="px-2 py-0.5 rounded bg-[#E5B842]/15 text-[#E5B842] border border-[#E5B842]/30 font-bold text-[10px]">
+                              D.Code: {d.deposit_code}
+                            </span>
+                          )}
+                          {d.assigned_admin_username && (
+                            <span className="text-[10px] text-zinc-400">
+                              Desk: @{d.assigned_admin_username}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-zinc-500 text-[10px]">
+                          <span>{new Date(d.created_at).toLocaleDateString()} {new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400">
                         <div>
                           <span className="text-zinc-500">{language === 'am' ? 'የትራንዛክሽን ቁጥር፦' : 'Reference:'}</span>{' '}
                           <span className="font-mono text-zinc-300">{d.reference_code}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-zinc-500">{language === 'am' ? 'ቀን፦' : 'Date:'}</span>{' '}
-                          <span>{new Date(d.created_at).toLocaleDateString()}</span>
+                          <span className="text-zinc-500">{language === 'am' ? 'ቻናል፦' : 'Channel:'}</span>{' '}
+                          <span className="text-zinc-300">{d.payment_channel}</span>
                         </div>
                       </div>
 

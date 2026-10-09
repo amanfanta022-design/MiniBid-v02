@@ -258,6 +258,25 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               <button
+                id="nav-tab-dashboard"
+                onClick={() => {
+                  if (!user) onOpenAuth();
+                  else onSelectTab('dashboard');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  currentTab === 'dashboard'
+                    ? 'bg-[#E5B842] text-black shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1c1c20]'
+                }`}
+              >
+                <div className="relative flex items-center justify-center w-3 h-3">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]" />
+                  <span className="absolute w-3 h-3 rounded-full bg-emerald-400/30 animate-ping" />
+                </div>
+                <span>{language === 'am' ? 'ዳሽቦርድ' : 'Dashboard'}</span>
+              </button>
+
+              <button
                 id="nav-tab-how-it-works"
                 onClick={onOpenHowItWorks}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-[#1c1c20] transition-all"
@@ -721,6 +740,25 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <button
                   onClick={() => {
+                    if (!user) onOpenAuth();
+                    else onSelectTab('dashboard');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    currentTab === 'dashboard' ? 'bg-[#E5B842] text-black' : 'text-zinc-300 hover:bg-[#18181c]'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="relative flex items-center justify-center w-3 h-3">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]" />
+                    </span>
+                    <span>{language === 'am' ? 'ዳሽቦርድ (የቀጥታ ሞተር)' : 'My Dashboard (Live Engine)'}</span>
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => {
                     setIsMobileMenuOpen(false);
                     onOpenHowItWorks();
                   }}
@@ -854,11 +892,19 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <button
-          onClick={onOpenHowItWorks}
-          className="flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-mono text-zinc-400 hover:text-zinc-200"
+          onClick={() => {
+            if (!user) onOpenAuth();
+            else onSelectTab('dashboard');
+          }}
+          className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-mono relative transition-colors ${
+            currentTab === 'dashboard' ? 'text-[#E5B842] font-bold' : 'text-zinc-400 hover:text-zinc-200'
+          }`}
         >
-          <HelpCircle className="w-5 h-5 mb-0.5 text-zinc-400" />
-          <span>{language === 'am' ? 'መመሪያ' : 'Guide'}</span>
+          <div className="relative mb-0.5">
+            <Activity className={`w-5 h-5 ${currentTab === 'dashboard' ? 'text-[#E5B842]' : 'text-zinc-400'}`} />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]" />
+          </div>
+          <span>{language === 'am' ? 'ዳሽቦርድ' : 'Dashboard'}</span>
         </button>
 
         <button

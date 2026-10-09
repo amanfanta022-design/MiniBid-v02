@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   ArrowLeft,
   X,
+  Lock,
+  UserCheck,
 } from 'lucide-react';
 import { DepositRequest, AdminFloatRequest } from '../types.js';
 import { playDepositApprovalChime } from '../utils/audio.js';
@@ -33,6 +35,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
   const { token, user, refreshUser } = useAuth();
   const { language, t } = useTranslation();
   const [activeSection, setActiveSection] = useState<'user_deposits' | 'float_requests'>('user_deposits');
+  const isSuperAdmin = user?.role === 'superadmin';
+  const [queueScope, setQueueScope] = useState<'my_queue' | 'all'>(isSuperAdmin ? 'all' : 'my_queue');
   const [deposits, setDeposits] = useState<DepositRequest[]>([]);
   const [floatRequests, setFloatRequests] = useState<AdminFloatRequest[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
@@ -100,7 +104,21 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
   const handleApprove = async (depId: string) => {
     setActionError('');
+    if (isSuperAdmin) {
+      setActionError(
+        'Super Admins are executive authorities and cannot approve customer deposit requests. Customer deposit verification and disbursement is exclusively handled by assigned Operations Administrators.'
+      );
+      return;
+    }
+
     const target = deposits.find(d => d.id === depId);
+    if (target?.assigned_admin_id && target.assigned_admin_id !== user?.id) {
+      setActionError(
+        `Routing Restriction: Deposit #${target.deposit_code || target.id} is assigned to Admin @${target.assigned_admin_username}. Only the assigned administrator can approve it.`
+      );
+      return;
+    }
+
     if (user?.role === 'admin' && target && (user.wallet_balance || 0) < target.amount) {
       setActionError(
         `Insufficient Admin operational balance! Your balance is ${(user.wallet_balance || 0).toFixed(2)} ETB, but approving this customer deposit requires ${target.amount.toFixed(2)} ETB. Please submit a Float Request to Super Admin first.`
@@ -139,6 +157,20 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
   const handleRejectConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectingDeposit || !rejectReason.trim()) return;
+
+    if (isSuperAdmin) {
+      setActionError(
+        'Super Admins cannot reject customer deposit requests. Customer deposit verification is exclusively handled by assigned Operations Administrators.'
+      );
+      return;
+    }
+
+    if (rejectingDeposit.assigned_admin_id && rejectingDeposit.assigned_admin_id !== user?.id) {
+      setActionError(
+        `Routing Restriction: Deposit #${rejectingDeposit.deposit_code || rejectingDeposit.id} is assigned to Admin @${rejectingDeposit.assigned_admin_username}. Only the assigned administrator can reject it.`
+      );
+      return;
+    }
 
     setActionError('');
     try {
@@ -211,17 +243,41 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
     }
   };
 
+  const isDepositAssignedToMe = (d: DepositRequest) => {
+    if (!user || user.role === 'superadmin') return false;
+    if (d.assigned_admin_id && d.assigned_admin_id === user.id) return true;
+    if (d.assigned_admin_username && d.assigned_admin_username.toLowerCase() === user.username.toLowerCase()) return true;
+    if (user.admin_code_prefix && d.deposit_code?.toLowerCase().startsWith(user.admin_code_prefix.toLowerCase())) return true;
+    return false;
+  };
+
   const filteredDeposits = deposits.filter(d => {
-    const matchesFilter = filterStatus === 'all' || d.status === filterStatus;
+    // 1. Queue scope filter: if my_queue, only show deposits assigned to the logged-in admin
+    if (queueScope === 'my_queue' && !isSuperAdmin) {
+      if (!isDepositAssignedToMe(d)) return false;
+    }
+
+    // 2. Status filter
+    const matchesFilter = filterStatus === 'all' || d.status.toLowerCase() === filterStatus.toLowerCase();
+
+    // 3. Search query
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      d.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.reference_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.payment_channel.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.user_phone.includes(searchQuery);
+      !q ||
+      d.username.toLowerCase().includes(q) ||
+      d.reference_code.toLowerCase().includes(q) ||
+      (d.deposit_code && d.deposit_code.toLowerCase().includes(q)) ||
+      (d.assigned_admin_username && d.assigned_admin_username.toLowerCase().includes(q)) ||
+      (d.assigned_admin_prefix && d.assigned_admin_prefix.toLowerCase().includes(q)) ||
+      d.payment_channel.toLowerCase().includes(q) ||
+      d.amount.toString().includes(q) ||
+      d.user_phone.includes(q);
+
     return matchesFilter && matchesSearch;
   });
 
   const pendingCount = deposits.filter(d => d.status === 'pending').length;
+  const myPendingCount = deposits.filter(d => d.status === 'pending' && isDepositAssignedToMe(d)).length;
   const adminBalance = user?.wallet_balance || 0;
 
   return (
@@ -246,42 +302,69 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
         <div>
           <div className="flex items-center gap-2 text-blue-400 font-mono text-xs uppercase tracking-wider mb-1">
             <Inbox className="w-4 h-4" />
-            <span>{language === 'am' ? 'የአስተዳደር ፈሳሽ ገንዘብ እና ኦፕሬሽን' : 'Admin Liquidity & Operations Desk'}</span>
+            <span>
+              {isSuperAdmin
+                ? (language === 'am' ? 'የሱፐር አድሚን የበላይ የቁጥጥር ቢሮ' : 'Super Admin Supervisory Audit Desk')
+                : (language === 'am' ? 'የአስተዳደር ፈሳሽ ገንዘብ እና ኦፕሬሽን' : 'Admin Liquidity & Operations Desk')}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold font-serif text-white">
-            {language === 'am' ? 'የተቀማጭ ገንዘቦች ማረጋገጫ እና ቀሪ' : 'Deposit Approvals & Float'}
+            {isSuperAdmin
+              ? (language === 'am' ? 'የተቀማጭ ገንዘቦች የበላይ ቁጥጥር' : 'Deposit Oversight & Audit')
+              : (language === 'am' ? 'የተቀማጭ ገንዘቦች ማረጋገጫ እና ቀሪ' : 'Deposit Approvals & Float')}
           </h1>
           <p className="text-xs text-zinc-400 mt-1 max-w-xl leading-relaxed">
-            {language === 'am'
-              ? 'የኢትዮጵያ ንግድ ባንክ እና የቴሌብር ክፍያዎችን ያረጋግጡ እና ለተጠቃሚዎች ገንዘቡን ይልቀቁ። እያንዳንዱ ማጽደቅ ከአስተዳዳሪ ቀሪ ሒሳብዎ ይቀነሳል። ቀሪ ሲያልቅ ከሱፐር አድሚን ፈሳሽ ገንዘብ ይጠይቁ።'
-              : 'Verify Ethiopian bank payment slips and disburse participant balances. Each approval automatically deducts from your Admin operational float. When low on balance, request a float deposit from Super Admin.'}
+            {isSuperAdmin
+              ? (language === 'am'
+                  ? 'የተጠቃሚዎች ተቀማጭ ክፍያዎች የሚረጋገጡት እና የሚለቀቁት በተመደቡ ኦፕሬሽናል አስተዳዳሪዎች ብቻ ነው። ሱፐር አድሚን የበላይ ኦዲት እና የሰራተኞችን ፈሳሽ ገንዘብ ይቆጣጠራል።'
+                  : 'Customer deposit slips and balance disbursements are strictly handled by assigned Operations Administrators. Super Admin oversees audit transparency, fraud detection, and staff float allocations.')
+              : (language === 'am'
+                  ? 'የኢትዮጵያ ንግድ ባንክ እና የቴሌብር ክፍያዎችን ያረጋግጡ እና ለተጠቃሚዎች ገንዘቡን ይልቀቁ። እያንዳንዱ ማጽደቅ ከአስተዳዳሪ ቀሪ ሒሳብዎ ይቀነሳል። ቀሪ ሲያልቅ ከሱፐር አድሚን ፈሳሽ ገንዘብ ይጠይቁ።'
+                  : 'Verify Ethiopian bank payment slips and disburse participant balances. Each approval automatically deducts from your Admin operational float. When low on balance, request a float deposit from Super Admin.')}
           </p>
         </div>
 
-        {/* Admin Operational Float Card */}
+        {/* Admin Operational Float or Super Admin Supervisory Card */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="p-4 rounded-2xl bg-[#18181c] border border-blue-500/30 text-right min-w-[200px]">
-            <div className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex items-center justify-end gap-1">
-              <Wallet className="w-3.5 h-3.5 text-[#E5B842]" />
-              <span>{language === 'am' ? 'የእርስዎ ኦፕሬሽናል ቀሪ' : 'Your Operational Float'}</span>
-            </div>
-            <div className={`text-2xl font-mono font-extrabold mt-0.5 ${adminBalance > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {adminBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
-            </div>
-            <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
-              {adminBalance === 0
-                ? (language === 'am' ? '⚠️ ቀሪ አልቋል። ከሱፐር አድሚን ይጠይቁ።' : '⚠️ Zero float. Request from Super Admin.')
-                : (language === 'am' ? 'ለደንበኞች ተቀማጭ ዝግጁ ነው' : 'Ready for customer disbursements')}
-            </div>
-          </div>
+          {!isSuperAdmin ? (
+            <>
+              <div className="p-4 rounded-2xl bg-[#18181c] border border-blue-500/30 text-right min-w-[200px]">
+                <div className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex items-center justify-end gap-1">
+                  <Wallet className="w-3.5 h-3.5 text-[#E5B842]" />
+                  <span>{language === 'am' ? 'የእርስዎ ኦፕሬሽናል ቀሪ' : 'Your Operational Float'}</span>
+                </div>
+                <div className={`text-2xl font-mono font-extrabold mt-0.5 ${adminBalance > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {adminBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-sans text-zinc-400 font-normal">ETB</span>
+                </div>
+                <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
+                  {adminBalance === 0
+                    ? (language === 'am' ? '⚠️ ቀሪ አልቋል። ከሱፐር አድሚን ይጠይቁ።' : '⚠️ Zero float. Request from Super Admin.')
+                    : (language === 'am' ? 'ለደንበኞች ተቀማጭ ዝግጁ ነው' : 'Ready for customer disbursements')}
+                </div>
+              </div>
 
-          <button
-            onClick={() => setShowFloatModal(true)}
-            className="px-4 py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] to-amber-500 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs font-mono tracking-wide flex items-center gap-2 transition-all shadow-lg shadow-[#E5B842]/20 cursor-pointer"
-          >
-            <Coins className="w-4 h-4" />
-            <span>{language === 'am' ? 'ከሱፐር አድሚን ፈሳሽ ገንዘብ ጠይቅ' : 'Request Float from Super Admin'}</span>
-          </button>
+              <button
+                onClick={() => setShowFloatModal(true)}
+                className="px-4 py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] to-amber-500 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs font-mono tracking-wide flex items-center gap-2 transition-all shadow-lg shadow-[#E5B842]/20 cursor-pointer"
+              >
+                <Coins className="w-4 h-4" />
+                <span>{language === 'am' ? 'ከሱፐር አድሚን ፈሳሽ ገንዘብ ጠይቅ' : 'Request Float from Super Admin'}</span>
+              </button>
+            </>
+          ) : (
+            <div className="p-4 rounded-2xl bg-[#18181c] border border-purple-500/30 text-right min-w-[220px]">
+              <div className="text-[10px] text-purple-300 font-mono uppercase tracking-wider flex items-center justify-end gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#E5B842]" />
+                <span>Super Admin</span>
+              </div>
+              <div className="text-sm font-mono font-bold text-white mt-1">
+                Supreme Liquidity Authority
+              </div>
+              <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                Auditing All Team Queues
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -336,6 +419,61 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
       {activeSection === 'user_deposits' ? (
         <>
+          {/* Queue Scope Switcher: My Assigned Queue vs All Team Requests */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-[#18181c] border border-[#27272a]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-mono uppercase text-zinc-400 font-bold flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#E5B842]" />
+                {language === 'am' ? 'የተቀማጭ ወረፋ መምረጫ፦' : 'Queue Assignment:'}
+              </span>
+              <div className="inline-flex items-center gap-1 bg-[#121215] p-1 rounded-xl border border-zinc-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setQueueScope('my_queue')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    queueScope === 'my_queue'
+                      ? 'bg-[#E5B842] text-black font-bold shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>{language === 'am' ? 'የእኔ የተመደቡ ጥያቄዎች' : 'My Assigned Queue'}</span>
+                  {myPendingCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-black text-[#E5B842] text-[10px] font-extrabold">
+                      {myPendingCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQueueScope('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    queueScope === 'all'
+                      ? 'bg-blue-600 text-white font-bold shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Inbox className="w-3.5 h-3.5" />
+                  <span>{language === 'am' ? 'ሁሉም የቡድን ጥያቄዎች' : 'All Requests'}</span>
+                  <span className="text-[10px] opacity-75 font-normal">({deposits.length})</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="text-[11px] font-mono text-zinc-400">
+              {queueScope === 'my_queue' ? (
+                <span className="text-amber-300">
+                  ⚡ {language === 'am' ? `ለእርስዎ (@${user?.username}) በ D.Code የተመደቡ ብቻ በማሳየት ላይ` : `Showing requests assigned to you (@${user?.username}) via D.Code`}
+                </span>
+              ) : (
+                <span className="text-zinc-400">
+                  👥 {language === 'am' ? 'ሙሉ የቡድን የተቀማጭ ጥያቄዎች' : 'Showing all requests across all operational admins'}
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Filter Tabs & Search */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-xl border border-[#27272a] text-xs">
@@ -368,8 +506,8 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                 type="text"
                 placeholder={
                   language === 'am'
-                    ? 'በተጠቃሚ ስም፣ ስልክ ወይም የባንክ መለያ ፈልግ...'
-                    : 'Search username, phone, or bank ref...'
+                    ? 'በ D.Code፣ ተጠቃሚ ስም፣ ስልክ ወይም የባንክ መለያ ፈልግ...'
+                    : 'Search D.Code, username, phone, or bank ref...'
                 }
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
@@ -393,6 +531,7 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#18181c] text-zinc-400 font-mono text-[11px] border-b border-[#27272a]">
                     <tr>
+                      <th className="p-4">{language === 'am' ? 'D.Code / የተመደበ አድሚን' : 'D.Code / Routing Desk'}</th>
                       <th className="p-4">{language === 'am' ? 'ተጠቃሚ እና አካውንት' : 'Customer & Account'}</th>
                       <th className="p-4">{language === 'am' ? 'የክፍያ ቻናል' : 'Payment Channel'}</th>
                       <th className="p-4">{language === 'am' ? 'የተቀማጭ መጠን' : 'Deposit Amount'}</th>
@@ -404,8 +543,29 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                   <tbody className="divide-y divide-zinc-800/60 font-sans">
                     {filteredDeposits.map(dep => {
                       const canAfford = adminBalance >= dep.amount;
+                      const isMine = isDepositAssignedToMe(dep);
                       return (
                         <tr key={dep.id} className="hover:bg-zinc-900/40 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2.5 py-1 rounded-lg bg-[#E5B842]/15 text-[#E5B842] border border-[#E5B842]/40 font-mono font-extrabold text-xs tracking-wider">
+                                D.Code: {dep.deposit_code || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="mt-1 font-mono text-[10px]">
+                              {isMine ? (
+                                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold inline-flex items-center gap-1">
+                                  ✓ {language === 'am' ? 'የእርስዎ ወረፋ' : 'Your Desk'}
+                                </span>
+                              ) : dep.assigned_admin_username ? (
+                                <span className="text-zinc-400">
+                                  👤 @<strong className="text-zinc-200">{dep.assigned_admin_username}</strong> <span className="text-zinc-500">({dep.assigned_admin_prefix || 'ad'})</span>
+                                </span>
+                              ) : (
+                                <span className="text-zinc-500">General Pool</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-4">
                             <div className="font-bold text-white">@{dep.username}</div>
                             <div className="text-[11px] font-mono text-zinc-500">{dep.user_phone}</div>
@@ -473,29 +633,49 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
                               {dep.status === 'pending' && (
                                 <>
-                                  <button
-                                    onClick={() => handleApprove(dep.id)}
-                                    className={`px-3 py-1.5 rounded-lg font-semibold text-[11px] font-mono transition-all flex items-center gap-1 ${
-                                      canAfford
-                                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer'
-                                        : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                                    }`}
-                                    title={canAfford ? (language === 'am' ? 'አጽድቅ እና ከቀሪው ይቁረጥ' : 'Approve and deduct from your float') : (language === 'am' ? 'በቂ ኦፕሬሽናል ቀሪ የለም' : 'Insufficient operational float')}
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>{language === 'am' ? 'አጽድቅ' : 'Approve & Disburse'}</span>
-                                  </button>
+                                  {isSuperAdmin ? (
+                                    <span
+                                      className="px-2.5 py-1.5 rounded-lg bg-purple-950/40 border border-purple-800/40 text-purple-300 font-mono text-[10px] flex items-center gap-1.5"
+                                      title={language === 'am' ? 'የሱፐር አድሚን ቁጥጥር ብቻ፦ ተቀማጭን ማፅደቅ የአስተዳዳሪዎች ስራ ነው' : 'Super Admin Supervisory Mode: Verification is handled by assigned Operations Administrator'}
+                                    >
+                                      <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                                      <span>Desk: @{dep.assigned_admin_username || 'operations'}</span>
+                                    </span>
+                                  ) : !isMine ? (
+                                    <span
+                                      className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[10px] flex items-center gap-1"
+                                      title={`Assigned to Admin @${dep.assigned_admin_username}`}
+                                    >
+                                      <Lock className="w-3 h-3 text-amber-500/80" />
+                                      <span>@{dep.assigned_admin_username || 'other'}</span>
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleApprove(dep.id)}
+                                        className={`px-3 py-1.5 rounded-lg font-semibold text-[11px] font-mono transition-all flex items-center gap-1 ${
+                                          canAfford
+                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer'
+                                            : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                                        }`}
+                                        title={canAfford ? (language === 'am' ? 'አጽድቅ እና ከቀሪው ይቁረጥ' : 'Approve and deduct from your float') : (language === 'am' ? 'በቂ ኦፕሬሽናል ቀሪ የለም' : 'Insufficient operational float')}
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        <span>{language === 'am' ? 'አጽድቅ' : 'Approve & Disburse'}</span>
+                                      </button>
 
-                                  <button
-                                    onClick={() => {
-                                      setRejectingDeposit(dep);
-                                      setRejectReason('');
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600 border border-red-600/40 text-red-300 hover:text-white font-semibold text-[11px] font-mono transition-all cursor-pointer"
-                                    title={language === 'am' ? 'ውድቅ አድርግ' : 'Reject'}
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                  </button>
+                                      <button
+                                        onClick={() => {
+                                          setRejectingDeposit(dep);
+                                          setRejectReason('');
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600 border border-red-600/40 text-red-300 hover:text-white font-semibold text-[11px] font-mono transition-all cursor-pointer"
+                                        title={language === 'am' ? 'ውድቅ አድርግ' : 'Reject'}
+                                      >
+                                        <XCircle className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -775,24 +955,44 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
             <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-zinc-800">
               {inspectDeposit.status === 'pending' && (
-                <>
-                  <button
-                    onClick={() => handleApprove(inspectDeposit.id)}
-                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold font-mono flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{language === 'am' ? 'አጽድቅ እና ገንዘቡን ልቀቅ' : 'Approve & Disburse'}</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRejectingDeposit(inspectDeposit);
-                      setRejectReason('');
-                    }}
-                    className="py-2.5 px-4 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600 hover:text-white font-semibold font-mono cursor-pointer"
-                  >
-                    {language === 'am' ? 'ውድቅ አድርግ' : 'Reject'}
-                  </button>
-                </>
+                isSuperAdmin ? (
+                  <div className="flex-1 py-2.5 px-3 rounded-xl bg-purple-950/40 border border-purple-800/60 text-purple-300 font-mono text-center text-xs flex items-center justify-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>
+                      {language === 'am'
+                        ? `የሱፐር አድሚን ቁጥጥር፦ ይህ ተቀማጭ በአስተዳዳሪ @${inspectDeposit.assigned_admin_username || 'operations'} የሚረጋገጥ ነው`
+                        : `Super Admin Supervisory Mode: Assigned to Operations Admin @${inspectDeposit.assigned_admin_username || 'operations'}`}
+                    </span>
+                  </div>
+                ) : !isDepositAssignedToMe(inspectDeposit) ? (
+                  <div className="flex-1 py-2.5 px-3 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-center text-xs flex items-center justify-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>
+                      {language === 'am'
+                        ? `ይህ ተቀማጭ ለ @${inspectDeposit.assigned_admin_username} የተመደበ ነው`
+                        : `Assigned to Operations Desk @${inspectDeposit.assigned_admin_username}`}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleApprove(inspectDeposit.id)}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold font-mono flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{language === 'am' ? 'አጽድቅ እና ገንዘቡን ልቀቅ' : 'Approve & Disburse'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRejectingDeposit(inspectDeposit);
+                        setRejectReason('');
+                      }}
+                      className="py-2.5 px-4 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600 hover:text-white font-semibold font-mono cursor-pointer"
+                    >
+                      {language === 'am' ? 'ውድቅ አድርግ' : 'Reject'}
+                    </button>
+                  </>
+                )
               )}
               <button
                 onClick={() => setInspectDeposit(null)}

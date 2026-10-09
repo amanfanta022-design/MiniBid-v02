@@ -11,11 +11,13 @@ export interface User {
   wallet_balance: number;
   status: UserStatus;
   email_verified?: boolean;
+  phone_verified?: boolean;
   created_at: string;
   is_flagged?: boolean;
   flag_reason?: string;
   flagged_at?: string;
   duplicate_txn_attempts?: number;
+  admin_code_prefix?: string; // 2-letter routing prefix e.g. "ax" for Alex, "op" for Ops
 }
 
 export type AuctionStatus = 'active' | 'paused' | 'ended' | 'cancelled';
@@ -127,6 +129,7 @@ export interface Bid {
   fee_paid: number;
   created_at: string;
   status?: BidUniquenessStatus;
+  is_showcase?: boolean;
 }
 
 export type DepositStatus = 'pending' | 'approved' | 'rejected' | 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -155,6 +158,11 @@ export interface DepositRequest {
   approved_by?: string; // alias
   idempotency_key?: string;
   attempt_number?: number;
+  is_showcase?: boolean;
+  deposit_code?: string; // e.g. "ax2347"
+  assigned_admin_id?: string;
+  assigned_admin_username?: string;
+  assigned_admin_prefix?: string;
 }
 
 export interface FinancialLedgerEntry {
@@ -253,6 +261,56 @@ export interface AuditLog {
   details: string;
   ip_reference: string;
   created_at: string;
+}
+
+export type MovementCategory =
+  | 'USER_LIFECYCLE'
+  | 'DEPOSIT_LIFECYCLE'
+  | 'AUCTIONS_ITEMS'
+  | 'SECURITY_AUTH'
+  | 'STAFF_NOTIFICATIONS'
+  | 'SUPERADMIN_ACTION';
+
+export interface SystemMovement {
+  id: string;
+  category: MovementCategory;
+  action: string;
+  actor_id: string;
+  actor_username: string;
+  actor_role: UserRole | 'system';
+  target_id?: string;
+  target_username?: string;
+  target_type?: string;
+  details: string;
+  ip_address: string;
+  user_agent?: string;
+  created_at: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AdminDeviceSession {
+  id: string;
+  user_id: string;
+  username: string;
+  token_id: string;
+  device_type: 'desktop' | 'mobile' | 'tablet';
+  browser: string;
+  os: string;
+  ip_address: string;
+  is_online: boolean;
+  login_at: string;
+  last_active_at: string;
+}
+
+export interface AdminDeviceOverview {
+  user_id: string;
+  username: string;
+  admin_code_prefix?: string;
+  role: UserRole;
+  is_online: boolean;
+  device_count: number;
+  has_multi_device_alert: boolean;
+  sessions: AdminDeviceSession[];
 }
 
 export interface AuctionPnL {

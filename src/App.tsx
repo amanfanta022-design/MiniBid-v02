@@ -12,6 +12,7 @@ import { AuthModal } from './components/AuthModal.js';
 import { GoldenParticleBackground } from './components/GoldenParticleBackground.js';
 import { SunfyreLiveIntro } from './components/SunfyreLiveIntro.js';
 import { AdminWorkstation } from './components/AdminWorkstation.js';
+import { UserDashboard } from './components/UserDashboard.js';
 import { usePortal } from './utils/portal.js';
 import { ShieldCheck, Lock, Sparkles, Shield, ChevronRight } from 'lucide-react';
 
@@ -163,6 +164,15 @@ const MainAppContent: React.FC = () => {
 
           {currentTab === 'winners' && (
             <WinnersGallery onSelectAuction={id => setSelectedAuctionId(id)} />
+          )}
+
+          {currentTab === 'dashboard' && (
+            <UserDashboard
+              onOpenDeposit={() => setIsDepositOpen(true)}
+              onOpenLedger={() => setIsLedgerOpen(true)}
+              onSelectAuction={id => setSelectedAuctionId(id)}
+              onViewAllAuctions={() => setCurrentTab('auctions')}
+            />
           )}
         </main>
 

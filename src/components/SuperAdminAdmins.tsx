@@ -37,6 +37,7 @@ export const SuperAdminAdmins: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('admin');
+  const [adminPrefix, setAdminPrefix] = useState('');
   const [initialDeposit, setInitialDeposit] = useState('0');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -123,6 +124,7 @@ export const SuperAdminAdmins: React.FC = () => {
           email: email.trim(),
           password,
           role,
+          admin_code_prefix: adminPrefix.trim().toLowerCase() || undefined,
           initial_deposit: initDep,
         }),
       });
@@ -136,6 +138,7 @@ export const SuperAdminAdmins: React.FC = () => {
         setPhone('');
         setEmail('');
         setPassword('');
+        setAdminPrefix('');
         setInitialDeposit('0');
         fetchAdmins();
         setTimeout(() => {
@@ -376,16 +379,23 @@ export const SuperAdminAdmins: React.FC = () => {
                         </td>
 
                         <td className="p-4">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
-                              staff.role === 'superadmin'
-                                ? 'bg-[#E5B842]/10 text-[#E5B842] border border-[#E5B842]/30'
-                                : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
-                            }`}
-                          >
-                            <Shield className="w-3 h-3" />
-                            {staff.role}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
+                                staff.role === 'superadmin'
+                                  ? 'bg-[#E5B842]/10 text-[#E5B842] border border-[#E5B842]/30'
+                                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                              }`}
+                            >
+                              <Shield className="w-3 h-3" />
+                              {staff.role}
+                            </span>
+                            {staff.admin_code_prefix && (
+                              <span className="px-2 py-0.5 rounded-md bg-[#E5B842]/15 text-[#E5B842] border border-[#E5B842]/30 font-mono font-bold text-[10px] tracking-wider" title="Deposit routing prefix">
+                                D.Code: {staff.admin_code_prefix}****
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Operational Float Balance */}
@@ -790,15 +800,39 @@ export const SuperAdminAdmins: React.FC = () => {
 
               <div>
                 <label className="block text-zinc-400 font-mono text-[11px] mb-1">Assigned Role</label>
-                <select
-                  value={role}
-                  onChange={e => setRole(e.target.value as UserRole)}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-[#27272a] text-white font-mono focus:border-purple-500 focus:outline-none"
-                >
-                  <option value="admin">Operations Admin</option>
-                  <option value="superadmin">Super Admin (Full Platform Control)</option>
-                </select>
+                <div className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-[#27272a] text-white font-mono flex items-center justify-between text-xs">
+                  <span className="font-semibold text-emerald-400">Operations Administrator</span>
+                  <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Locked</span>
+                </div>
+                <p className="text-[10px] text-zinc-400 font-mono mt-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#E5B842] shrink-0" />
+                  <span>Single Superadmin Policy: Only one Superadmin root account is permitted in the platform.</span>
+                </p>
               </div>
+
+              {role === 'admin' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-zinc-400 font-mono text-[11px]">
+                      Desk Routing Prefix (2 letters) — <span className="text-zinc-500">Optional</span>
+                    </label>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      Auto-generated if left blank
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={adminPrefix}
+                    onChange={e => setAdminPrefix(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                    placeholder={username ? username.slice(0, 2).toLowerCase() : 'e.g. ax, op, dw, sm'}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-[#27272a] text-white font-mono uppercase focus:border-purple-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-zinc-500 font-mono mt-1">
+                    Customer deposit requests will receive routing codes like <strong className="text-[#E5B842]">{adminPrefix ? adminPrefix.toUpperCase() : (username ? username.slice(0, 2).toUpperCase() : 'AX')}2347</strong>.
+                  </p>
+                </div>
+              )}
 
               {/* Requirement 3: Super Admin Can Deposite for Admins initaly when Adding Admins */}
               <div>

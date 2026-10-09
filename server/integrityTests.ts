@@ -155,7 +155,7 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
       id: adminA.id,
       username: adminA.username,
       role: 'superadmin', // use superadmin role so float balance isn't a bottleneck during test suite
-    });
+    }, { bypassSuperadminBlock: true });
 
     const balanceAfter = getCustomerBalance();
     const diff = Number((balanceAfter - balanceBefore).toFixed(2));
@@ -195,7 +195,7 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
         id: adminA.id,
         username: adminA.username,
         role: 'superadmin',
-      });
+      }, { bypassSuperadminBlock: true });
     } catch (e: any) {
       caughtConflict = true;
       errMessage = e.message;
@@ -238,8 +238,8 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
 
     // Fire both concurrent requests simultaneously using Promise.all
     const [resA, resB] = await Promise.allSettled([
-      db.approveDeposit(concurrentDepositId, { id: 'usr_admin_A', username: 'admin_alpha', role: 'superadmin' }),
-      db.approveDeposit(concurrentDepositId, { id: 'usr_admin_B', username: 'admin_beta', role: 'superadmin' }),
+      db.approveDeposit(concurrentDepositId, { id: 'usr_admin_A', username: 'admin_alpha', role: 'superadmin' }, { bypassSuperadminBlock: true }),
+      db.approveDeposit(concurrentDepositId, { id: 'usr_admin_B', username: 'admin_beta', role: 'superadmin' }, { bypassSuperadminBlock: true }),
     ]);
 
     const balanceAfter = getCustomerBalance();
@@ -295,8 +295,8 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
 
     // Simulate same admin clicking in Tab 1 and Tab 2 simultaneously
     const results = await Promise.allSettled([
-      db.approveDeposit(twoTabsDepositId, { id: adminA.id, username: adminA.username, role: 'superadmin' }),
-      db.approveDeposit(twoTabsDepositId, { id: adminA.id, username: adminA.username, role: 'superadmin' }),
+      db.approveDeposit(twoTabsDepositId, { id: adminA.id, username: adminA.username, role: 'superadmin' }, { bypassSuperadminBlock: true }),
+      db.approveDeposit(twoTabsDepositId, { id: adminA.id, username: adminA.username, role: 'superadmin' }, { bypassSuperadminBlock: true }),
     ]);
 
     const balanceAfter = getCustomerBalance();
@@ -344,14 +344,14 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
     const res1 = await db.approveDeposit(
       idempDepositId,
       { id: adminA.id, username: adminA.username, role: 'superadmin' },
-      { idempotencyKey }
+      { idempotencyKey, bypassSuperadminBlock: true }
     );
 
     // Call 2 with identical idempotency key (e.g. network retry)
     const res2 = await db.approveDeposit(
       idempDepositId,
       { id: adminA.id, username: adminA.username, role: 'superadmin' },
-      { idempotencyKey }
+      { idempotencyKey, bypassSuperadminBlock: true }
     );
 
     const balanceAfter = getCustomerBalance();
@@ -397,7 +397,7 @@ export async function runFinancialIntegrityTests(actorUser?: { id: string; usern
       await db.approveDeposit(
         rollbackDepositId,
         { id: adminA.id, username: adminA.username, role: 'superadmin' },
-        { simulateFailure: true }
+        { simulateFailure: true, bypassSuperadminBlock: true }
       );
     } catch {
       threwError = true;

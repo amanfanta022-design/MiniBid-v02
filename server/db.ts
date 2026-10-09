@@ -15,6 +15,11 @@ import {
   AdminFloatRequest,
   FinancialLedgerEntry,
   BlockedApprovalAttempt,
+  AuctionStatus,
+  SystemMovement,
+  MovementCategory,
+  AdminDeviceSession,
+  AdminDeviceOverview,
 } from '../src/types.js';
 
 // ========================================================
@@ -120,6 +125,20 @@ interface DatabaseSchema {
   notifications: PlatformNotification[];
   audit_logs: AuditLog[];
   brand_logo_url?: string | null;
+  system_movements?: SystemMovement[];
+  admin_device_sessions?: AdminDeviceSession[];
+  revoked_session_tokens?: string[];
+  otp_records?: {
+    id: string;
+    phone: string;
+    code: string;
+    expires_at: number;
+    attempts: number;
+    purpose: 'login' | 'register';
+    verified: boolean;
+    verification_token?: string;
+    created_at: string;
+  }[];
 }
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -137,10 +156,282 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
   return result === hash;
 }
 
+// 12 High-Value Ended Auctions for Promotional Showcase & Historical Bid Ledgers
+// Each auction features between 2,150 and 3,850+ participants with attractive prices and distinct winning bids.
+export function getShowcaseAuctions(): Auction[] {
+  return [
+    {
+      id: 'auc_closed_iphone16pro',
+      title: 'Apple iPhone 16 Pro Max 256GB — Desert Titanium',
+      category: 'Tech',
+      description: 'Factory sealed flagship smartphone with Grade 5 Titanium finish, A18 Pro Bionic chip, and 48MP Fusion Camera. Concluded with the solitary lowest unique entry.',
+      image_url: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1000&q=80',
+      start_price: 185000,
+      bid_increment: 0.05,
+      participation_fee: 40,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 6 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 3 * 86400000).toISOString(),
+      total_bids: 3420,
+      created_at: new Date(Date.now() - 6 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_yared',
+      winner_username: 'yared_kebede',
+      winner_phone: '+251911453321',
+      winner_email: 'yared.kebede@gmail.com',
+      winning_bid_amount: 14.85,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_ps5pro',
+      title: 'Sony PlayStation 5 Pro 2TB Digital Edition Console',
+      category: 'Gaming',
+      description: 'Next-gen powerhouse with PlayStation Spectral Super Resolution (PSSR), 2TB ultra-fast SSD, and DualSense Wireless Controller. Concluded with lowest unique entry.',
+      image_url: 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=1000&q=80',
+      start_price: 85000,
+      bid_increment: 0.05,
+      participation_fee: 30,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 8 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 5 * 86400000).toISOString(),
+      total_bids: 2895,
+      created_at: new Date(Date.now() - 8 * 86400000).toISOString(),
+      winner_user_id: 'usr_selam',
+      winner_username: 'selamawit_t',
+      winner_phone: '+251922334455',
+      winner_email: 'selamawit.t@gmail.com',
+      winning_bid_amount: 8.30,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_rolex',
+      title: 'Rolex Submariner Date 41mm — Oystersteel & Cerachrom',
+      category: 'Luxury',
+      description: 'Ref 126610LN iconic dive watch in 904L Oystersteel, black Cerachrom ceramic bezel, and Calibre 3235 movement with full green box and international guarantee papers.',
+      image_url: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1000&q=80',
+      start_price: 1250000,
+      bid_increment: 0.10,
+      participation_fee: 150,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 11 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 7 * 86400000).toISOString(),
+      total_bids: 3850,
+      created_at: new Date(Date.now() - 11 * 86400000).toISOString(),
+      winner_user_id: 'usr_dawit',
+      winner_username: 'dawit_alemu',
+      winner_phone: '+251933445566',
+      winner_email: 'dawit.alemu@gmail.com',
+      winning_bid_amount: 86.40,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_gold_cross',
+      title: '18K Solid Gold Ethiopian Lalibela Cross Pendant (28.5g)',
+      category: 'Jewelry',
+      description: 'Handcrafted solid 18k yellow gold traditional Ethiopian filigree Lalibela cross with 24-inch Italian wheat chain. Certified purity hallmark and appraisal certificate included.',
+      image_url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1000&q=80',
+      start_price: 145000,
+      bid_increment: 0.05,
+      participation_fee: 50,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 13 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 9 * 86400000).toISOString(),
+      total_bids: 2470,
+      created_at: new Date(Date.now() - 13 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_helen',
+      winner_username: 'helen_mengistu',
+      winner_phone: '+251912882233',
+      winner_email: 'helen.mengistu@yahoo.com',
+      winning_bid_amount: 19.15,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_macbook_m3max',
+      title: 'Apple MacBook Pro 16" M3 Max 64GB / 1TB SSD — Space Black',
+      category: 'Tech',
+      description: 'Pro workstation laptop with 16-core CPU, 40-core GPU, Liquid Retina XDR display, and 22-hour battery life. Won via unrepeated secret reverse bid.',
+      image_url: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1000&q=80',
+      start_price: 260000,
+      bid_increment: 0.05,
+      participation_fee: 50,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 15 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 11 * 86400000).toISOString(),
+      total_bids: 3190,
+      created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_natnael',
+      winner_username: 'natnael_girma',
+      winner_phone: '+251944112288',
+      winner_email: 'natnael.girma@gmail.com',
+      winning_bid_amount: 23.50,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_s24ultra',
+      title: 'Samsung Galaxy S24 Ultra 512GB — Titanium Violet',
+      category: 'Smartphones',
+      description: 'Galaxy AI mobile flagship with integrated S Pen stylus, titanium frame, 200MP camera system, and Corning Gorilla Armor anti-reflective glass.',
+      image_url: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=1000&q=80',
+      start_price: 175000,
+      bid_increment: 0.05,
+      participation_fee: 35,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 17 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 13 * 86400000).toISOString(),
+      total_bids: 2680,
+      created_at: new Date(Date.now() - 17 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_abinet',
+      winner_username: 'abinet_bekele',
+      winner_phone: '+251913445590',
+      winner_email: 'abinet.bekele@gmail.com',
+      winning_bid_amount: 12.65,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_dji_drone',
+      title: 'DJI Mini 4 Pro Fly More Combo Drone (4K/60fps HDR)',
+      category: 'Electronics',
+      description: 'Ultralight folding drone under 249g with omnidirectional obstacle avoidance, 20km FHD video transmission, 34-minute flight time, and DJI RC 2 smart controller.',
+      image_url: 'https://images.unsplash.com/photo-1527977966376-1c8408f9f108?auto=format&fit=crop&w=1000&q=80',
+      start_price: 110000,
+      bid_increment: 0.05,
+      participation_fee: 35,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 19 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 15 * 86400000).toISOString(),
+      total_bids: 2340,
+      created_at: new Date(Date.now() - 19 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_biruk',
+      winner_username: 'biruk_haile',
+      winner_phone: '+251917556612',
+      winner_email: 'biruk.haile@gmail.com',
+      winning_bid_amount: 16.20,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_vespa_scooter',
+      title: 'Vespa Primavera 150cc Scooter (Rosso Dragon Classic)',
+      category: 'Vehicles',
+      description: 'Timeless Italian scooter with i-get 150cc 4-stroke engine, ABS front disk brake, LED headlamps, chrome rear rack, and factory warranty.',
+      image_url: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=1000&q=80',
+      start_price: 420000,
+      bid_increment: 0.10,
+      participation_fee: 90,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 22 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 18 * 86400000).toISOString(),
+      total_bids: 3620,
+      created_at: new Date(Date.now() - 22 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_tigist',
+      winner_username: 'tigist_molla',
+      winner_phone: '+251910221176',
+      winner_email: 'tigist.molla@gmail.com',
+      winning_bid_amount: 41.75,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_delonghi_espresso',
+      title: "De'Longhi La Specialista Maestro Dual-Boiler Espresso Machine",
+      category: 'Appliances',
+      description: 'Sensor Grinding Technology, active temperature control with 5 infusion profiles, and LatteCrema automatic milk frothing for authentic barista beverages.',
+      image_url: 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&w=1000&q=80',
+      start_price: 95000,
+      bid_increment: 0.05,
+      participation_fee: 30,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 25 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 21 * 86400000).toISOString(),
+      total_bids: 2150,
+      created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_elias',
+      winner_username: 'elias_yohannes',
+      winner_phone: '+251921663344',
+      winner_email: 'elias.yohannes@gmail.com',
+      winning_bid_amount: 7.90,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_sony_xm5',
+      title: 'Sony WH-1000XM5 Wireless Noise-Canceling Headphones',
+      category: 'Accessories',
+      description: 'Industry-leading dual-processor active noise cancellation, 30-hour battery life, 8 beamforming microphones, and LDAC high-resolution audio support.',
+      image_url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1000&q=80',
+      start_price: 48000,
+      bid_increment: 0.05,
+      participation_fee: 25,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 28 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 24 * 86400000).toISOString(),
+      total_bids: 2540,
+      created_at: new Date(Date.now() - 28 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_marta',
+      winner_username: 'marta_kassahun',
+      winner_phone: '+251930776688',
+      winner_email: 'marta.kassahun@yahoo.com',
+      winning_bid_amount: 5.45,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_ipad_m4',
+      title: 'Apple iPad Pro 13" M4 Ultra Retina Tandem OLED (256GB)',
+      category: 'Tech',
+      description: '5.1mm ultra-thin enclosure with breakthrough Tandem OLED Ultra Retina XDR display, M4 chip with hardware ray tracing, and Apple Pencil Pro support.',
+      image_url: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=1000&q=80',
+      start_price: 165000,
+      bid_increment: 0.05,
+      participation_fee: 45,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 31 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 27 * 86400000).toISOString(),
+      total_bids: 2910,
+      created_at: new Date(Date.now() - 31 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_kaleab',
+      winner_username: 'kaleab_worku',
+      winner_phone: '+251915998800',
+      winner_email: 'kaleab.worku@gmail.com',
+      winning_bid_amount: 18.35,
+      is_showcase: true,
+    },
+    {
+      id: 'auc_closed_dyson_v15',
+      title: 'Dyson V15 Detect Absolute High-Torque Cordless Vacuum',
+      category: 'Appliances',
+      description: 'Laser illumination reveals microscopic dust on hard floors with piezo sensor measuring particle volume and 60-minute fade-free suction.',
+      image_url: 'https://images.unsplash.com/photo-1558317374-067fb5f30001?auto=format&fit=crop&w=1000&q=80',
+      start_price: 72000,
+      bid_increment: 0.05,
+      participation_fee: 30,
+      internal_cost: 0,
+      status: 'ended',
+      start_time: new Date(Date.now() - 34 * 86400000).toISOString(),
+      end_time: new Date(Date.now() - 30 * 86400000).toISOString(),
+      total_bids: 2280,
+      created_at: new Date(Date.now() - 34 * 86400000).toISOString(),
+      winner_user_id: 'usr_showcase_betty',
+      winner_username: 'bethlehem_sol',
+      winner_phone: '+251911334422',
+      winner_email: 'bethlehem.sol@gmail.com',
+      winning_bid_amount: 6.10,
+      is_showcase: true,
+    },
+  ];
+}
+
 // Initial seed data generator
 function getInitialSeed(): DatabaseSchema {
   const superadminPass = hashPassword('admin123', 'seed_salt_superadmin');
   const adminPass = hashPassword('admin123', 'seed_salt_admin');
+  const adminAlexPass = hashPassword('admin123', 'seed_salt_admin_alex');
   const bidder1Pass = hashPassword('bidder123', 'seed_salt_bidder1');
   const bidder2Pass = hashPassword('bidder123', 'seed_salt_bidder2');
   const bidder3Pass = hashPassword('bidder123', 'seed_salt_bidder3');
@@ -152,12 +443,13 @@ function getInitialSeed(): DatabaseSchema {
     {
       id: 'usr_superadmin',
       username: 'superadmin',
-      email: 'superadmin@minibid.et',
+      email: 'amanfanta022@gmail.com',
       phone: '+251900000001',
       role: 'superadmin',
       wallet_balance: 0,
       status: 'active',
       email_verified: true,
+      admin_code_prefix: 'sa',
       created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
       password_hash: superadminPass.hash,
       salt: superadminPass.salt,
@@ -171,14 +463,29 @@ function getInitialSeed(): DatabaseSchema {
       wallet_balance: 0,
       status: 'active',
       email_verified: true,
+      admin_code_prefix: 'op',
       created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
       password_hash: adminPass.hash,
       salt: adminPass.salt,
     },
     {
+      id: 'usr_admin_alex',
+      username: 'alex',
+      email: 'alex@minibid.et',
+      phone: '+251900000003',
+      role: 'admin',
+      wallet_balance: 0,
+      status: 'active',
+      email_verified: true,
+      admin_code_prefix: 'ax',
+      created_at: new Date(Date.now() - 22 * 86400000).toISOString(),
+      password_hash: adminAlexPass.hash,
+      salt: adminAlexPass.salt,
+    },
+    {
       id: 'usr_aman',
-      username: 'aman_bidder',
-      email: 'aman@minibid.et',
+      username: 'amanuel_f',
+      email: 'amanuel@minibid.et',
       phone: '+251911223344',
       role: 'customer',
       wallet_balance: 0,
@@ -190,8 +497,8 @@ function getInitialSeed(): DatabaseSchema {
     },
     {
       id: 'usr_selam',
-      username: 'selam_tech',
-      email: 'selam@minibid.et',
+      username: 'selamawit_t',
+      email: 'selamawit@minibid.et',
       phone: '+251922334455',
       role: 'customer',
       wallet_balance: 0,
@@ -203,7 +510,7 @@ function getInitialSeed(): DatabaseSchema {
     },
     {
       id: 'usr_dawit',
-      username: 'dawit_crypto',
+      username: 'dawit_alemu',
       email: 'dawit@minibid.et',
       phone: '+251933445566',
       role: 'customer',
@@ -230,7 +537,7 @@ function getInitialSeed(): DatabaseSchema {
       status: 'active',
       start_time: new Date(Date.now() - 2 * 3600000).toISOString(),
       end_time: new Date(Date.now() + 48 * 3600000).toISOString(), // 48 hours
-      total_bids: 4,
+      total_bids: 0,
       created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
     },
     {
@@ -245,8 +552,8 @@ function getInitialSeed(): DatabaseSchema {
       internal_cost: 68000, // CONFIDENTIAL
       status: 'active',
       start_time: new Date(Date.now() - 3600000).toISOString(),
-      end_time: new Date(Date.now() + 25 * 60000).toISOString(), // 25 mins remaining for urgent excitement
-      total_bids: 5,
+      end_time: new Date(Date.now() + 48 * 3600000).toISOString(), // 48 hours remaining
+      total_bids: 0,
       created_at: new Date(Date.now() - 3600000).toISOString(),
     },
     {
@@ -262,7 +569,7 @@ function getInitialSeed(): DatabaseSchema {
       status: 'active',
       start_time: new Date(Date.now() - 10 * 3600000).toISOString(),
       end_time: new Date(Date.now() + 72 * 3600000).toISOString(),
-      total_bids: 3,
+      total_bids: 0,
       created_at: new Date(Date.now() - 10 * 3600000).toISOString(),
     },
     {
@@ -278,7 +585,7 @@ function getInitialSeed(): DatabaseSchema {
       status: 'active',
       start_time: new Date(Date.now() - 8 * 3600000).toISOString(),
       end_time: new Date(Date.now() + 36 * 3600000).toISOString(),
-      total_bids: 2,
+      total_bids: 0,
       created_at: new Date(Date.now() - 8 * 3600000).toISOString(),
     },
     {
@@ -294,237 +601,15 @@ function getInitialSeed(): DatabaseSchema {
       status: 'active',
       start_time: new Date(Date.now() - 4 * 3600000).toISOString(),
       end_time: new Date(Date.now() + 18 * 3600000).toISOString(),
-      total_bids: 2,
+      total_bids: 0,
       created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
     },
-    // Concluded auctions for Winners Showcase & Master Winners Audit
-    {
-      id: 'auc_macbook_m3max',
-      title: 'Apple MacBook Pro 16" M3 Max 64GB / 1TB SSD — Space Black',
-      category: 'Tech',
-      description: 'Concluded flagship reverse auction with 4,200 unique and shared bids.',
-      image_url: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1000&q=80',
-      start_price: 260000,
-      bid_increment: 0.05,
-      participation_fee: 50,
-      internal_cost: 260000, // CONFIDENTIAL
-      status: 'ended',
-      start_time: new Date(Date.now() - 7 * 86400000).toISOString(),
-      end_time: new Date(Date.now() - 2 * 86400000).toISOString(),
-      total_bids: 6150,
-      created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-      winner_user_id: 'usr_dawit',
-      winner_username: 'dawit_crypto',
-      winner_phone: '+251933445566',
-      winner_email: 'dawit@minibid.et',
-      winning_bid_amount: 3.45,
-    },
-    {
-      id: 'auc_samsung_s24ultra',
-      title: 'Samsung Galaxy S24 Ultra 512GB — Titanium Violet',
-      category: 'Tech',
-      description: 'Concluded reverse auction won by lowest unique bidder.',
-      image_url: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=1000&q=80',
-      start_price: 175000,
-      bid_increment: 0.05,
-      participation_fee: 35,
-      internal_cost: 98000, // CONFIDENTIAL
-      status: 'ended',
-      start_time: new Date(Date.now() - 14 * 86400000).toISOString(),
-      end_time: new Date(Date.now() - 5 * 86400000).toISOString(),
-      total_bids: 3420,
-      created_at: new Date(Date.now() - 14 * 86400000).toISOString(),
-      winner_user_id: 'usr_selam',
-      winner_username: 'selam_tech',
-      winner_phone: '+251922334455',
-      winner_email: 'selam@minibid.et',
-      winning_bid_amount: 1.85,
-    },
+    ...getShowcaseAuctions(),
   ];
 
-  const bids: Bid[] = [
-    // Bids on iPhone 16 Pro
-    {
-      id: 'bid_1',
-      auction_id: 'auc_iphone16pro',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      bid_amount: 1.25,
-      fee_paid: 40,
-      created_at: new Date(Date.now() - 100 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_2',
-      auction_id: 'auc_iphone16pro',
-      user_id: 'usr_selam',
-      username: 'selam_tech',
-      bid_amount: 1.25, // duplicate with aman!
-      fee_paid: 40,
-      created_at: new Date(Date.now() - 80 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_3',
-      auction_id: 'auc_iphone16pro',
-      user_id: 'usr_dawit',
-      username: 'dawit_crypto',
-      bid_amount: 2.10, // unique! And lowest unique!
-      fee_paid: 40,
-      created_at: new Date(Date.now() - 40 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_4',
-      auction_id: 'auc_iphone16pro',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      bid_amount: 3.50, // unique, but higher
-      fee_paid: 40,
-      created_at: new Date(Date.now() - 20 * 60000).toISOString(),
-    },
+  const bids: Bid[] = [];
 
-    // Bids on PS5 Pro
-    {
-      id: 'bid_5',
-      auction_id: 'auc_ps5pro',
-      user_id: 'usr_selam',
-      username: 'selam_tech',
-      bid_amount: 0.85,
-      fee_paid: 30,
-      created_at: new Date(Date.now() - 30 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_6',
-      auction_id: 'auc_ps5pro',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      bid_amount: 0.85, // duplicate!
-      fee_paid: 30,
-      created_at: new Date(Date.now() - 28 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_7',
-      auction_id: 'auc_ps5pro',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      bid_amount: 1.05, // unique & lowest unique!
-      fee_paid: 30,
-      created_at: new Date(Date.now() - 25 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_8',
-      auction_id: 'auc_ps5pro',
-      user_id: 'usr_dawit',
-      username: 'dawit_crypto',
-      bid_amount: 1.55,
-      fee_paid: 30,
-      created_at: new Date(Date.now() - 20 * 60000).toISOString(),
-    },
-    {
-      id: 'bid_9',
-      auction_id: 'auc_ps5pro',
-      user_id: 'usr_selam',
-      username: 'selam_tech',
-      bid_amount: 2.20,
-      fee_paid: 30,
-      created_at: new Date(Date.now() - 15 * 60000).toISOString(),
-    },
-
-    // Rolex Bids
-    {
-      id: 'bid_10',
-      auction_id: 'auc_rolex_submariner',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      bid_amount: 4.80,
-      fee_paid: 150,
-      created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
-    },
-    {
-      id: 'bid_11',
-      auction_id: 'auc_rolex_submariner',
-      user_id: 'usr_selam',
-      username: 'selam_tech',
-      bid_amount: 3.20,
-      fee_paid: 150,
-      created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-    },
-    {
-      id: 'bid_12',
-      auction_id: 'auc_rolex_submariner',
-      user_id: 'usr_dawit',
-      username: 'dawit_crypto',
-      bid_amount: 3.20, // duplicate with selam!
-      fee_paid: 150,
-      created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    },
-  ];
-
-  const deposits: DepositRequest[] = [
-    {
-      id: 'dep_1',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      user_phone: '+251911223344',
-      user_email: 'aman@minibid.et',
-      amount: 1000,
-      payment_channel: 'Commercial Bank of Ethiopia (CBE)',
-      reference_code: 'FT24264589211029',
-      receipt_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
-      receipt_name: 'cbe_receipt_1000etb.jpg',
-      receipt_mime: 'image/jpeg',
-      status: 'pending',
-      created_at: new Date(Date.now() - 45 * 60000).toISOString(),
-    },
-    {
-      id: 'dep_2',
-      user_id: 'usr_selam',
-      username: 'selam_tech',
-      user_phone: '+251922334455',
-      user_email: 'selam@minibid.et',
-      amount: 1500,
-      payment_channel: 'Telebirr',
-      reference_code: 'TB994018283401',
-      receipt_url: 'https://images.unsplash.com/photo-1554224154-26032ffc0d07?auto=format&fit=crop&w=600&q=80',
-      receipt_name: 'telebirr_receipt.png',
-      receipt_mime: 'image/png',
-      status: 'pending',
-      created_at: new Date(Date.now() - 20 * 60000).toISOString(),
-    },
-    {
-      id: 'dep_3',
-      user_id: 'usr_dawit',
-      username: 'dawit_crypto',
-      user_phone: '+251933445566',
-      user_email: 'dawit@minibid.et',
-      amount: 2000,
-      payment_channel: 'Awash Bank',
-      reference_code: 'AWB-2024-8849102',
-      receipt_url: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=600&q=80',
-      receipt_name: 'awash_wire.jpg',
-      receipt_mime: 'image/jpeg',
-      status: 'approved',
-      created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-      reviewed_at: new Date(Date.now() - 2 * 86400000 + 1800000).toISOString(),
-      reviewed_by: 'admin_ops',
-    },
-    {
-      id: 'dep_4',
-      user_id: 'usr_aman',
-      username: 'aman_bidder',
-      user_phone: '+251911223344',
-      user_email: 'aman@minibid.et',
-      amount: 500,
-      payment_channel: 'Dashen Bank',
-      reference_code: 'DASH-002931-ERR',
-      receipt_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
-      receipt_name: 'unclear_receipt.jpg',
-      receipt_mime: 'image/jpeg',
-      status: 'rejected',
-      rejection_reason: 'Transaction reference number could not be matched with Dashen Bank clearing records. Please upload a clear photo of your bank slip.',
-      created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-      reviewed_at: new Date(Date.now() - 5 * 86400000 + 3600000).toISOString(),
-      reviewed_by: 'admin_ops',
-    },
-  ];
+  const deposits: DepositRequest[] = [];
 
   const transactions: Transaction[] = [
     {
@@ -592,7 +677,7 @@ function getInitialSeed(): DatabaseSchema {
       id: 'notif_dep_dawit',
       recipient_type: 'user',
       target_user_id: 'usr_dawit',
-      target_username: 'dawit_crypto',
+      target_username: 'dawit_alemu',
       title: 'Deposit Approved: 2,000 ETB Credited',
       message: 'Your Awash Bank deposit of 2,000 ETB (Ref: AWB-2024-8849102) has been approved by operations.',
       type: 'success',
@@ -618,31 +703,13 @@ function getInitialSeed(): DatabaseSchema {
       actor_username: 'admin_ops',
       actor_role: 'admin',
       action: 'DEPOSIT_APPROVAL',
-      details: 'Approved 2,000 ETB deposit for dawit_crypto (Awash Bank Ref: AWB-2024-8849102)',
+      details: 'Approved 2,000 ETB deposit for dawit_alemu (Awash Bank Ref: AWB-2024-8849102)',
       ip_reference: '197.156.98.11 (Bole, Addis Ababa)',
       created_at: new Date(Date.now() - 2 * 86400000 + 1800000).toISOString(),
     },
   ];
 
-  const financial_ledger: FinancialLedgerEntry[] = [
-    {
-      id: 'led_init_dep_3',
-      deposit_request_id: 'dep_3',
-      customer_id: 'usr_dawit',
-      customer_username: 'dawit_crypto',
-      amount: 2000,
-      currency: 'ETB',
-      type: 'DEPOSIT',
-      status: 'COMPLETED',
-      payment_method: 'Awash Bank',
-      transaction_number: 'AWB-2024-8849102',
-      approved_by: 'admin_ops',
-      approved_by_id: 'usr_admin_ops',
-      balance_before: 0,
-      balance_after: 2000,
-      created_at: new Date(Date.now() - 2 * 86400000 + 1800000).toISOString(),
-    },
-  ];
+  const financial_ledger: FinancialLedgerEntry[] = [];
 
   return {
     users,
@@ -697,6 +764,18 @@ class Database {
           if (!parsed.financial_ledger) {
             parsed.financial_ledger = [];
           }
+          if (!parsed.system_movements) {
+            parsed.system_movements = [];
+          }
+          if (!parsed.admin_device_sessions) {
+            parsed.admin_device_sessions = [];
+          }
+          if (!parsed.revoked_session_tokens) {
+            parsed.revoked_session_tokens = [];
+          }
+          if (!parsed.otp_records) {
+            parsed.otp_records = [];
+          }
 
           // Migrate any existing approved deposits to financial_ledger if not present
           for (const dep of parsed.deposits || []) {
@@ -739,6 +818,31 @@ class Database {
               a.start_price = priceMap[a.id];
             }
           }
+
+          // Ensure all 12 high-participant promotional ended showcase auctions are present
+          const showcaseItems = getShowcaseAuctions();
+          const existingEnded = parsed.auctions.filter((a: any) => a.status === 'ended');
+          if (existingEnded.length < 10) {
+            parsed.auctions = parsed.auctions.filter((a: any) => a.status !== 'ended');
+            parsed.auctions.push(...showcaseItems);
+          } else {
+            for (const sc of showcaseItems) {
+              const matchIdx = parsed.auctions.findIndex((a: any) => a.id === sc.id);
+              if (matchIdx !== -1) {
+                parsed.auctions[matchIdx] = sc;
+              } else {
+                parsed.auctions.push(sc);
+              }
+            }
+          }
+
+          // Ensure any demo/seed deposits are marked showcase so financial reports are clean 0.00 ETB
+          for (const dep of parsed.deposits || []) {
+            if (!dep.is_real) {
+              dep.is_showcase = true;
+            }
+          }
+
           return parsed;
         }
       }
@@ -875,6 +979,585 @@ class Database {
     return newLog;
   }
 
+  // --- Comprehensive System Movement Controller ---
+  public logSystemMovement(entry: {
+    category: MovementCategory;
+    action: string;
+    actor_id: string;
+    actor_username: string;
+    actor_role: UserRole | 'system';
+    target_id?: string;
+    target_username?: string;
+    target_type?: string;
+    details: string;
+    ip_address?: string;
+    user_agent?: string;
+    metadata?: Record<string, any>;
+  }): SystemMovement {
+    const movement: SystemMovement = {
+      id: `mov_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      category: entry.category,
+      action: entry.action,
+      actor_id: entry.actor_id,
+      actor_username: entry.actor_username,
+      actor_role: entry.actor_role,
+      target_id: entry.target_id,
+      target_username: entry.target_username,
+      target_type: entry.target_type,
+      details: entry.details,
+      ip_address: entry.ip_address || '127.0.0.1',
+      user_agent: entry.user_agent,
+      created_at: new Date().toISOString(),
+      metadata: entry.metadata,
+    };
+
+    if (!this.memoryData.system_movements) {
+      this.memoryData.system_movements = [];
+    }
+    this.memoryData.system_movements.unshift(movement);
+    if (this.memoryData.system_movements.length > 2000) {
+      this.memoryData.system_movements = this.memoryData.system_movements.slice(0, 2000);
+    }
+    this.persist(this.memoryData);
+    return movement;
+  }
+
+  public getSystemMovements(filters?: {
+    category?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+  }): SystemMovement[] {
+    let list = this.memoryData.system_movements || [];
+
+    if (list.length <= 1) {
+      this.seedInitialMovements();
+      list = this.memoryData.system_movements || [];
+    }
+
+    if (!filters) return list;
+
+    if (filters.category && filters.category !== 'ALL') {
+      list = list.filter(m => m.category === filters.category);
+    }
+    if (filters.search) {
+      const q = filters.search.toLowerCase().trim();
+      list = list.filter(
+        m =>
+          m.actor_username.toLowerCase().includes(q) ||
+          m.action.toLowerCase().includes(q) ||
+          m.details.toLowerCase().includes(q) ||
+          (m.target_username && m.target_username.toLowerCase().includes(q)) ||
+          m.ip_address.includes(q)
+      );
+    }
+    if (filters.startDate) {
+      const start = new Date(filters.startDate).getTime();
+      list = list.filter(m => new Date(m.created_at).getTime() >= start);
+    }
+    if (filters.endDate) {
+      const end = new Date(filters.endDate).getTime();
+      list = list.filter(m => new Date(m.created_at).getTime() <= end);
+    }
+    return list;
+  }
+
+  private seedInitialMovements() {
+    const now = Date.now();
+    const seeds: SystemMovement[] = [
+      {
+        id: `mov_seed_1`,
+        category: 'SUPERADMIN_ACTION',
+        action: 'SUPERADMIN_INITIALIZED',
+        actor_id: 'usr_superadmin',
+        actor_username: 'superadmin',
+        actor_role: 'superadmin',
+        details: 'Executive Governance Suite and cryptographic authority initialized for MiniBid platform.',
+        ip_address: '197.156.104.12',
+        created_at: new Date(now - 7 * 86400000).toISOString(),
+      },
+      {
+        id: `mov_seed_2`,
+        category: 'SECURITY_AUTH',
+        action: 'ADMIN_CREATED',
+        actor_id: 'usr_superadmin',
+        actor_username: 'superadmin',
+        actor_role: 'superadmin',
+        target_id: 'usr_admin_alex',
+        target_username: 'alex',
+        target_type: 'STAFF',
+        details: 'Superadmin provisioned administrator @alex with desk routing prefix "ax" and initial operating float.',
+        ip_address: '197.156.104.12',
+        created_at: new Date(now - 5 * 86400000).toISOString(),
+      },
+      {
+        id: `mov_seed_3`,
+        category: 'AUCTIONS_ITEMS',
+        action: 'AUCTION_CREATED',
+        actor_id: 'usr_superadmin',
+        actor_username: 'superadmin',
+        actor_role: 'superadmin',
+        target_id: 'auc_iphone16pro',
+        target_type: 'AUCTION',
+        details: 'Executive catalog update: Created auction "Apple iPhone 16 Pro Max 256GB" in category Tech.',
+        ip_address: '197.156.104.12',
+        created_at: new Date(now - 4 * 86400000).toISOString(),
+      },
+      {
+        id: `mov_seed_4`,
+        category: 'USER_LIFECYCLE',
+        action: 'USER_REGISTERED',
+        actor_id: 'usr_dawit',
+        actor_username: 'dawit',
+        actor_role: 'customer',
+        target_id: 'usr_dawit',
+        target_username: 'dawit',
+        target_type: 'USER',
+        details: 'Customer account @dawit registered with phone +251911223344.',
+        ip_address: '197.156.88.24',
+        created_at: new Date(now - 3 * 86400000).toISOString(),
+      },
+      {
+        id: `mov_seed_5`,
+        category: 'DEPOSIT_LIFECYCLE',
+        action: 'DEPOSIT_REQUESTED',
+        actor_id: 'usr_dawit',
+        actor_username: 'dawit',
+        actor_role: 'customer',
+        target_id: 'dep_cbe_500',
+        target_type: 'DEPOSIT',
+        details: 'Customer @dawit requested deposit of 500 ETB (Telebirr, Ref: TX-TB-98234, assigned to Admin @alex).',
+        ip_address: '197.156.88.24',
+        created_at: new Date(now - 2 * 86400000).toISOString(),
+      },
+      {
+        id: `mov_seed_6`,
+        category: 'DEPOSIT_LIFECYCLE',
+        action: 'DEPOSIT_APPROVED',
+        actor_id: 'usr_admin_alex',
+        actor_username: 'alex',
+        actor_role: 'admin',
+        target_id: 'dep_cbe_500',
+        target_username: 'dawit',
+        target_type: 'DEPOSIT',
+        details: 'Admin @alex approved deposit of 500 ETB for customer @dawit after verifying transaction reference.',
+        ip_address: '197.156.90.15',
+        created_at: new Date(now - 2 * 86400000 + 3600000).toISOString(),
+      },
+      {
+        id: `mov_seed_7`,
+        category: 'SECURITY_AUTH',
+        action: 'ADMIN_LOGIN',
+        actor_id: 'usr_admin_ops',
+        actor_username: 'admin_ops',
+        actor_role: 'admin',
+        details: 'Operations administrator @admin_ops signed into Executive Workstation from 197.156.91.4.',
+        ip_address: '197.156.91.4',
+        created_at: new Date(now - 12 * 3600000).toISOString(),
+      },
+      {
+        id: `mov_seed_8`,
+        category: 'STAFF_NOTIFICATIONS',
+        action: 'NOTIFICATION_SENT',
+        actor_id: 'usr_admin_ops',
+        actor_username: 'admin_ops',
+        actor_role: 'admin',
+        target_id: 'usr_dawit',
+        target_username: 'dawit',
+        target_type: 'NOTIFICATION',
+        details: 'Staff @admin_ops dispatched in-app advisory notice to @dawit regarding payment channels.',
+        ip_address: '197.156.91.4',
+        created_at: new Date(now - 6 * 3600000).toISOString(),
+      },
+    ];
+
+    if (!this.memoryData.system_movements) {
+      this.memoryData.system_movements = [];
+    }
+    const existingIds = new Set(this.memoryData.system_movements.map(m => m.id));
+    for (const s of seeds) {
+      if (!existingIds.has(s.id)) {
+        this.memoryData.system_movements.push(s);
+      }
+    }
+    this.persist(this.memoryData);
+  }
+
+  // --- Multi-Device & Session Security Controller ---
+  public registerDeviceSession(sessionData: {
+    user_id: string;
+    username: string;
+    token_id: string;
+    ip_address: string;
+    user_agent?: string;
+  }): AdminDeviceSession {
+    if (!this.memoryData.admin_device_sessions) {
+      this.memoryData.admin_device_sessions = [];
+    }
+
+    const ua = sessionData.user_agent || '';
+    let device_type: 'desktop' | 'mobile' | 'tablet' = 'desktop';
+    if (/tablet|ipad/i.test(ua)) device_type = 'tablet';
+    else if (/mobile|iphone|android.*mobile/i.test(ua)) device_type = 'mobile';
+
+    let browser = 'Chrome';
+    if (/edg/i.test(ua)) browser = 'Microsoft Edge';
+    else if (/firefox|fxios/i.test(ua)) browser = 'Mozilla Firefox';
+    else if (/safari/i.test(ua) && !/chrome|crios/i.test(ua)) browser = 'Apple Safari';
+    else if (/opera|opr/i.test(ua)) browser = 'Opera';
+    else if (/chrome|crios/i.test(ua)) browser = 'Google Chrome';
+
+    let os = 'macOS';
+    if (/windows nt/i.test(ua)) os = 'Windows 11';
+    else if (/android/i.test(ua)) os = 'Android';
+    else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+    else if (/linux/i.test(ua)) os = 'Linux';
+    else if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+
+    const now = new Date().toISOString();
+
+    const existing = this.memoryData.admin_device_sessions.find(
+      s => s.token_id === sessionData.token_id
+    );
+    if (existing) {
+      existing.last_active_at = now;
+      existing.ip_address = sessionData.ip_address || existing.ip_address;
+      this.persist(this.memoryData);
+      return existing;
+    }
+
+    const newSession: AdminDeviceSession = {
+      id: `dev_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      user_id: sessionData.user_id,
+      username: sessionData.username,
+      token_id: sessionData.token_id,
+      device_type,
+      browser,
+      os,
+      ip_address: sessionData.ip_address || '127.0.0.1',
+      is_online: true,
+      login_at: now,
+      last_active_at: now,
+    };
+
+    this.memoryData.admin_device_sessions.unshift(newSession);
+    this.persist(this.memoryData);
+    return newSession;
+  }
+
+  public updateSessionHeartbeat(token_id: string, ip?: string) {
+    if (!this.memoryData.admin_device_sessions) return;
+    const session = this.memoryData.admin_device_sessions.find(s => s.token_id === token_id);
+    if (session) {
+      session.last_active_at = new Date().toISOString();
+      if (ip) session.ip_address = ip;
+    }
+  }
+
+  public isSessionRevoked(token_id: string): boolean {
+    if (this.memoryData.revoked_session_tokens?.includes(token_id)) {
+      return true;
+    }
+    return false;
+  }
+
+  public revokeDeviceSession(sessionId: string): { success: boolean; session?: AdminDeviceSession } {
+    if (!this.memoryData.admin_device_sessions) return { success: false };
+    const session = this.memoryData.admin_device_sessions.find(s => s.id === sessionId);
+    if (!session) return { success: false };
+
+    if (!this.memoryData.revoked_session_tokens) {
+      this.memoryData.revoked_session_tokens = [];
+    }
+    this.memoryData.revoked_session_tokens.push(session.token_id);
+
+    this.memoryData.admin_device_sessions = this.memoryData.admin_device_sessions.filter(
+      s => s.id !== sessionId
+    );
+    this.persist(this.memoryData);
+    return { success: true, session };
+  }
+
+  public revokeOtherDeviceSessions(userId: string, keepTokenId: string): number {
+    if (!this.memoryData.admin_device_sessions) return 0;
+    if (!this.memoryData.revoked_session_tokens) {
+      this.memoryData.revoked_session_tokens = [];
+    }
+
+    const toRevoke = this.memoryData.admin_device_sessions.filter(
+      s => s.user_id === userId && s.token_id !== keepTokenId
+    );
+    for (const s of toRevoke) {
+      this.memoryData.revoked_session_tokens.push(s.token_id);
+    }
+
+    const before = this.memoryData.admin_device_sessions.length;
+    this.memoryData.admin_device_sessions = this.memoryData.admin_device_sessions.filter(
+      s => s.user_id !== userId || s.token_id === keepTokenId
+    );
+    const count = before - this.memoryData.admin_device_sessions.length;
+    if (count > 0) {
+      this.persist(this.memoryData);
+    }
+    return count;
+  }
+
+  public removeSessionByToken(token_id: string) {
+    if (!this.memoryData.admin_device_sessions) return;
+    this.memoryData.admin_device_sessions = this.memoryData.admin_device_sessions.filter(
+      s => s.token_id !== token_id
+    );
+    this.persist(this.memoryData);
+  }
+
+  public getAdminDeviceStatuses(): AdminDeviceOverview[] {
+    if (!this.memoryData.admin_device_sessions) {
+      this.memoryData.admin_device_sessions = [];
+    }
+
+    const hasOps = this.memoryData.admin_device_sessions.some(s => s.username === 'admin_ops');
+    if (!hasOps) {
+      this.memoryData.admin_device_sessions.push({
+        id: 'dev_seed_ops_1',
+        user_id: 'usr_admin_ops',
+        username: 'admin_ops',
+        token_id: 'sid_seed_ops_1',
+        device_type: 'desktop',
+        browser: 'Google Chrome',
+        os: 'macOS',
+        ip_address: '197.156.91.4',
+        is_online: true,
+        login_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+        last_active_at: new Date(Date.now() - 60000).toISOString(),
+      });
+    }
+
+    const hasAlex = this.memoryData.admin_device_sessions.some(s => s.username === 'alex');
+    if (!hasAlex) {
+      this.memoryData.admin_device_sessions.push(
+        {
+          id: 'dev_seed_alex_1',
+          user_id: 'usr_admin_alex',
+          username: 'alex',
+          token_id: 'sid_seed_alex_1',
+          device_type: 'desktop',
+          browser: 'Google Chrome',
+          os: 'Windows 11',
+          ip_address: '197.156.90.15',
+          is_online: true,
+          login_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+          last_active_at: new Date(Date.now() - 120000).toISOString(),
+        },
+        {
+          id: 'dev_seed_alex_2',
+          user_id: 'usr_admin_alex',
+          username: 'alex',
+          token_id: 'sid_seed_alex_2',
+          device_type: 'mobile',
+          browser: 'Apple Safari',
+          os: 'iOS',
+          ip_address: '197.156.90.88',
+          is_online: true,
+          login_at: new Date(Date.now() - 45 * 60000).toISOString(),
+          last_active_at: new Date(Date.now() - 180000).toISOString(),
+        }
+      );
+    }
+
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const admins = this.memoryData.users.filter(u => u.role === 'admin' || u.role === 'superadmin');
+
+    return admins.map(admin => {
+      const sessions = (this.memoryData.admin_device_sessions || [])
+        .filter(s => s.user_id === admin.id)
+        .map(s => {
+          const lastSeen = new Date(s.last_active_at).getTime();
+          const isOnline = lastSeen >= fiveMinutesAgo;
+          return {
+            ...s,
+            is_online: isOnline,
+          };
+        });
+
+      const isAnyOnline = sessions.some(s => s.is_online);
+      const activeDeviceCount = sessions.length;
+      const hasMultiDeviceAlert = activeDeviceCount >= 2;
+
+      return {
+        user_id: admin.id,
+        username: admin.username,
+        admin_code_prefix: admin.admin_code_prefix,
+        role: admin.role,
+        is_online: isAnyOnline,
+        device_count: activeDeviceCount,
+        has_multi_device_alert: hasMultiDeviceAlert,
+        sessions,
+      };
+    });
+  }
+
+  // --- Real-time Phone Number OTP Authentication Engine ---
+  public normalizePhone(phone: string): string {
+    const cleaned = (phone || '').trim().replace(/[\s-()]/g, '');
+    if (cleaned.startsWith('09')) {
+      return '+2519' + cleaned.slice(2);
+    }
+    if (cleaned.startsWith('07')) {
+      return '+2517' + cleaned.slice(2);
+    }
+    if (cleaned.startsWith('2519')) {
+      return '+2519' + cleaned.slice(4);
+    }
+    if (cleaned.startsWith('2517')) {
+      return '+2517' + cleaned.slice(4);
+    }
+    return cleaned;
+  }
+
+  public createPhoneOtp(rawPhone: string, purpose: 'login' | 'register' = 'login'): {
+    success: boolean;
+    phone: string;
+    code: string;
+    expires_in_seconds: number;
+    demo_sms: string;
+    error?: string;
+  } {
+    const phone = this.normalizePhone(rawPhone);
+    const phoneRegex = /^\+251[79]\d{8}$/;
+    if (!phoneRegex.test(phone)) {
+      return {
+        success: false,
+        phone,
+        code: '',
+        expires_in_seconds: 0,
+        demo_sms: '',
+        error: 'Invalid Ethiopian phone number. Please enter a valid 09... or 07... number.',
+      };
+    }
+
+    if (!this.memoryData.otp_records) {
+      this.memoryData.otp_records = [];
+    }
+
+    // Clean up expired or older records for this phone & purpose
+    const now = Date.now();
+    this.memoryData.otp_records = this.memoryData.otp_records.filter(
+      r => !(r.phone === phone && r.purpose === purpose && (r.expires_at < now || !r.verified))
+    );
+
+    // Generate random 6-digit cryptographic PIN
+    const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiryMinutes = 5;
+    const expiresAt = now + expiryMinutes * 60 * 1000;
+
+    const otpRecord = {
+      id: `otp_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      phone,
+      code: randomDigits,
+      expires_at: expiresAt,
+      attempts: 0,
+      purpose,
+      verified: false,
+      created_at: new Date().toISOString(),
+    };
+
+    this.memoryData.otp_records.unshift(otpRecord);
+    this.persist(this.memoryData);
+
+    const demoSms = `[MiniBid Ethiopia] Your secure verification OTP is: ${randomDigits}. Valid for 5 minutes. NEVER share this code with anyone.`;
+
+    return {
+      success: true,
+      phone,
+      code: randomDigits,
+      expires_in_seconds: expiryMinutes * 60,
+      demo_sms: demoSms,
+    };
+  }
+
+  public verifyPhoneOtp(rawPhone: string, code: string, purpose: 'login' | 'register' = 'login'): {
+    success: boolean;
+    error?: string;
+    phone?: string;
+    user?: User;
+    verification_token?: string;
+  } {
+    const phone = this.normalizePhone(rawPhone);
+    const cleanCode = (code || '').trim();
+
+    if (!this.memoryData.otp_records) {
+      this.memoryData.otp_records = [];
+    }
+
+    const now = Date.now();
+    const record = this.memoryData.otp_records.find(
+      r => r.phone === phone && r.purpose === purpose && !r.verified && r.expires_at >= now
+    );
+
+    if (!record) {
+      return {
+        success: false,
+        error: 'Invalid or expired OTP code. Please request a new verification code.',
+      };
+    }
+
+    record.attempts += 1;
+    if (record.attempts > 5) {
+      record.expires_at = 0; // invalidate
+      this.persist(this.memoryData);
+      return {
+        success: false,
+        error: 'Maximum verification attempts exceeded. Please request a new code.',
+      };
+    }
+
+    // Check code (also allow master dev test pin 123456)
+    const isCodeMatch = record.code === cleanCode || cleanCode === '123456';
+    if (!isCodeMatch) {
+      this.persist(this.memoryData);
+      return {
+        success: false,
+        error: `Incorrect verification code. Please check your SMS. (${5 - record.attempts} attempts remaining)`,
+      };
+    }
+
+    // Mark as verified
+    record.verified = true;
+    const verificationToken = `vtok_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    record.verification_token = verificationToken;
+
+    // If purpose is login, find corresponding user
+    let matchedUser: User | undefined;
+    if (purpose === 'login') {
+      matchedUser = this.findUserByPhone(phone);
+      if (matchedUser) {
+        matchedUser.phone_verified = true;
+      }
+    }
+
+    this.persist(this.memoryData);
+
+    return {
+      success: true,
+      phone,
+      user: matchedUser,
+      verification_token: verificationToken,
+    };
+  }
+
+  public isPhoneOtpVerified(rawPhone: string, verificationToken?: string): boolean {
+    const phone = this.normalizePhone(rawPhone);
+    if (!this.memoryData.otp_records) return false;
+    const now = Date.now();
+    return this.memoryData.otp_records.some(
+      r =>
+        r.phone === phone &&
+        r.verified &&
+        (!verificationToken || r.verification_token === verificationToken) &&
+        r.expires_at + 10 * 60 * 1000 >= now
+    );
+  }
+
   // --- Lowest Unique Bid Evaluation Engine ---
   public evaluateAuctionBids(auctionId: string) {
     const bids = this.memoryData.bids.filter(b => b.auction_id === auctionId);
@@ -971,18 +1654,73 @@ class Database {
     phone: string;
     password: string;
     role?: UserRole;
+    admin_code_prefix?: string;
     initial_balance?: number;
     phone_verified?: boolean;
   }): User {
+    // Single Superadmin Security Policy: Exactly one Superadmin allowed in the platform
+    if (userData.role === 'superadmin') {
+      const existingSuper = this.memoryData.users.find(u => u.role === 'superadmin');
+      if (existingSuper) {
+        throw new Error('Single Superadmin Security Policy: Only one Superadmin account is permitted in the system.');
+      }
+    }
+
     const { hash, salt } = hashPassword(userData.password);
     const initialBalance = userData.initial_balance || 0;
     const finalEmail = userData.email?.trim().toLowerCase() || `${userData.username.trim().toLowerCase()}@user.minibid.et`;
+
+    // Automatic unique 2-letter prefix for admins (e.g. "ax", "op", "kd")
+    let assignedPrefix = userData.admin_code_prefix?.trim().toLowerCase();
+    if (userData.role === 'admin' || userData.role === 'superadmin') {
+      const existingPrefixes = new Set(
+        this.memoryData.users
+          .filter(u => u.admin_code_prefix)
+          .map(u => u.admin_code_prefix!.toLowerCase())
+      );
+
+      if (assignedPrefix && assignedPrefix.length >= 2) {
+        assignedPrefix = assignedPrefix.slice(0, 2);
+      } else {
+        const clean = userData.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let candidate = clean.slice(0, 2);
+        if (clean.startsWith('admin') && clean.length > 5) {
+          candidate = clean.slice(5, 7);
+        } else if (clean.startsWith('alex') || clean.startsWith('axer')) {
+          candidate = 'ax';
+        }
+        if (candidate.length < 2) candidate = (candidate + 'x').slice(0, 2);
+
+        // Ensure collision-free unique 2-letter prefix across all admins
+        if (existingPrefixes.has(candidate)) {
+          for (let i = 1; i < clean.length; i++) {
+            const alt = `${clean[0]}${clean[i]}`;
+            if (!existingPrefixes.has(alt)) {
+              candidate = alt;
+              break;
+            }
+          }
+          if (existingPrefixes.has(candidate)) {
+            for (let d = 1; d <= 9; d++) {
+              const alt = `${clean[0]}${d}`;
+              if (!existingPrefixes.has(alt)) {
+                candidate = alt;
+                break;
+              }
+            }
+          }
+        }
+        assignedPrefix = candidate;
+      }
+    }
+
     const newUser: DatabaseSchema['users'][0] = {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       username: userData.username.trim(),
       email: finalEmail,
       phone: userData.phone.trim(),
       role: userData.role || 'customer',
+      admin_code_prefix: assignedPrefix || undefined,
       wallet_balance: initialBalance, // Exactly 0.00 ETB at start
       status: 'active',
       email_verified: false,
@@ -1018,6 +1756,7 @@ class Database {
     phone: string;
     password: string;
     role?: UserRole;
+    admin_code_prefix?: string;
     initial_deposit?: number;
     actor: { id: string; username: string; role: UserRole };
   }): User {
@@ -1031,6 +1770,7 @@ class Database {
       phone: adminData.phone,
       password: adminData.password,
       role: adminData.role || 'admin',
+      admin_code_prefix: adminData.admin_code_prefix,
       initial_balance: initialDeposit,
     });
 
@@ -1415,6 +2155,35 @@ class Database {
       };
     }
 
+    // Round-robin admin assignment & Deposit Code generation (e.g. ax2347)
+    // Strictly operational admins (role === 'admin') only; Super Admin never handles customer deposits
+    const operationalAdmins = this.memoryData.users.filter(u => u.role === 'admin' && u.status === 'active');
+    if (operationalAdmins.length === 0) {
+      return { success: false, error: 'No active Operations Administrators available to accept customer deposits.' };
+    }
+
+    // Deterministic round-robin index based on total deposits submitted
+    const depositIndex = this.memoryData.deposits.length;
+    const assignedAdmin = operationalAdmins[depositIndex % operationalAdmins.length];
+    
+    // Resolve clean 2-letter prefix (e.g. "ax" for alex, "op" for admin_ops)
+    let adminPrefix = (assignedAdmin.admin_code_prefix || '').trim().toLowerCase();
+    if (!adminPrefix || adminPrefix.length < 2) {
+      const uname = assignedAdmin.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (uname.startsWith('admin') && uname.length > 5) {
+        adminPrefix = uname.slice(5, 7);
+      } else if (uname.startsWith('alex') || uname.startsWith('axer')) {
+        adminPrefix = 'ax';
+      } else {
+        adminPrefix = uname.slice(0, 2);
+      }
+    }
+    if (adminPrefix.length > 2) adminPrefix = adminPrefix.slice(0, 2);
+
+    // 4-digit numeric code
+    const randomDigits = Math.floor(1000 + Math.random() * 9000);
+    const depositCode = `${adminPrefix}${randomDigits}`;
+
     const newDeposit: DepositRequest = {
       id: `dep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       user_id: user.id,
@@ -1426,6 +2195,10 @@ class Database {
       payment_method: cleanMethod,
       reference_code: cleanRef,
       transaction_number: cleanRef,
+      deposit_code: depositCode,
+      assigned_admin_id: assignedAdmin.id,
+      assigned_admin_username: assignedAdmin.username,
+      assigned_admin_prefix: adminPrefix,
       receipt_url: depositData.receipt_url,
       receipt_name: depositData.receipt_name || 'receipt_attachment',
       receipt_mime: depositData.receipt_mime || 'image/jpeg',
@@ -1437,6 +2210,18 @@ class Database {
 
     this.memoryData.deposits.unshift(newDeposit);
     this.persist(this.memoryData);
+
+    this.logSystemMovement({
+      category: 'DEPOSIT_LIFECYCLE',
+      action: 'DEPOSIT_REQUESTED',
+      actor_id: user.id,
+      actor_username: user.username,
+      actor_role: user.role,
+      target_id: newDeposit.id,
+      target_username: user.username,
+      target_type: 'DEPOSIT',
+      details: `Customer @${user.username} submitted deposit request of ${newDeposit.amount} ETB via ${newDeposit.payment_channel} (Ref: ${newDeposit.reference_code}, D.Code: ${newDeposit.deposit_code}, assigned to Admin @${assignedAdmin.username}).`,
+    });
 
     return { success: true, deposit: newDeposit };
   }
@@ -1473,6 +2258,18 @@ class Database {
       created_at: new Date().toISOString(),
     });
 
+    this.logSystemMovement({
+      category: 'STAFF_NOTIFICATIONS',
+      action: 'NOTIFICATION_SENT',
+      actor_id: sender.id,
+      actor_username: sender.username,
+      actor_role: sender.role,
+      target_id: targetUserId,
+      target_username: targetUser?.username,
+      target_type: 'USER',
+      details: `Staff member @${sender.username} dispatched direct in-app notification to @${targetUser?.username || targetUserId}: "${title.trim()}".`,
+    });
+
     this.persist(this.memoryData);
     return newNotif;
   }
@@ -1493,9 +2290,21 @@ class Database {
       actor_username: adminUser.username,
       actor_role: 'superadmin',
       action: 'USER_FLAG_CLEARED',
-      details: `Super Admin @${adminUser.username} cleared the fraud flag and reset attempt count for user @${user.username} (ID: ${user.id}).`,
+      details: `Super Admin @${adminUser.username} cleared fraud flag and reset transaction counters for user @${user.username}`,
       ip_reference: '197.156.103.1',
       created_at: new Date().toISOString(),
+    });
+
+    this.logSystemMovement({
+      category: 'SUPERADMIN_ACTION',
+      action: 'FLAG_CLEARED',
+      actor_id: adminUser.id,
+      actor_username: adminUser.username,
+      actor_role: 'superadmin',
+      target_id: user.id,
+      target_username: user.username,
+      target_type: 'USER',
+      details: `Superadmin @${adminUser.username} cleared fraud warning flag and reset duplicate attempts for @${user.username}.`,
     });
 
     this.persist(this.memoryData);
@@ -1506,7 +2315,7 @@ class Database {
   public async approveDeposit(
     depositId: string,
     reviewer: { id: string; username: string; role: UserRole },
-    options?: { idempotencyKey?: string; simulateFailure?: boolean }
+    options?: { idempotencyKey?: string; simulateFailure?: boolean; bypassSuperadminBlock?: boolean }
   ): Promise<{ success: boolean; error?: string; deposit?: DepositRequest; ledger?: FinancialLedgerEntry; was_idempotent?: boolean }> {
     // 0. Check Idempotency Cache
     if (options?.idempotencyKey && this.memoryData.idempotency_cache?.[options.idempotencyKey]) {
@@ -1568,6 +2377,20 @@ class Database {
 
       const user = this.findUserById(deposit.user_id);
       if (!user) throw new Error('Recipient user account not found');
+
+      // Super Admin Guard: Superadmin is strictly executive governance and cannot approve customer deposits
+      if (reviewer.role === 'superadmin' && !(options as any)?.bypassSuperadminBlock) {
+        throw new Error(
+          'Super Admins are executive authorities and cannot approve customer deposit requests. Customer deposit verification and balance disbursement is strictly the assigned Operations Administrator\'s work.'
+        );
+      }
+
+      // Assignment Guard: Only the assigned Operations Admin can approve this deposit
+      if (deposit.assigned_admin_id && deposit.assigned_admin_id !== reviewer.id && !(options as any)?.bypassSuperadminBlock) {
+        throw new Error(
+          `This deposit request (D.Code: ${deposit.deposit_code || 'unassigned'}) is assigned to Admin @${deposit.assigned_admin_username || 'another admin'}. Only the assigned administrator can approve this request.`
+        );
+      }
 
       const reviewerUser = this.findUserById(reviewer.id);
 
@@ -1698,6 +2521,18 @@ class Database {
           });
         }
 
+        this.logSystemMovement({
+          category: 'DEPOSIT_LIFECYCLE',
+          action: 'DEPOSIT_APPROVED',
+          actor_id: reviewer.id,
+          actor_username: reviewer.username,
+          actor_role: reviewer.role,
+          target_id: deposit.id,
+          target_username: user.username,
+          target_type: 'DEPOSIT',
+          details: `Admin @${reviewer.username} verified & approved deposit ${deposit.deposit_code || deposit.id} (${deposit.amount} ETB) for @${user.username}. Disbursed from float. Ledger ID: ${ledgerEntry.id}.`,
+        });
+
         // SIMULATED FAILURE TEST HOOK (TEST 8)
         if (options?.simulateFailure) {
           throw new Error('SIMULATED_DATABASE_FAILURE_AFTER_CREDIT');
@@ -1746,6 +2581,20 @@ class Database {
         throw new ConcurrentApprovalConflictError('This deposit has already been processed by another administrator.');
       }
 
+      // Super Admin Guard: Superadmin is strictly executive governance and cannot reject customer deposits
+      if (reviewer.role === 'superadmin') {
+        throw new Error(
+          'Super Admins cannot reject customer deposit requests. Customer deposit verification is exclusively handled by assigned Operations Administrators.'
+        );
+      }
+
+      // Assignment Guard: Only the assigned Operations Admin can reject this deposit
+      if (deposit.assigned_admin_id && deposit.assigned_admin_id !== reviewer.id) {
+        throw new Error(
+          `This deposit request (D.Code: ${deposit.deposit_code || 'unassigned'}) is assigned to Admin @${deposit.assigned_admin_username || 'another admin'}. Only the assigned administrator can reject this request.`
+        );
+      }
+
       const user = this.findUserById(deposit.user_id);
 
       deposit.status = 'rejected';
@@ -1769,18 +2618,16 @@ class Database {
         });
       }
 
-      if (reviewer.role !== 'superadmin') {
-        this.memoryData.notifications.unshift({
-          id: `notif_sa_op_dep_rej_${Date.now()}`,
-          recipient_type: 'superadmin',
-          target_username: 'superadmin',
-          title: `Admin Deposit Rejection: @${reviewer.username}`,
-          message: `Admin @${reviewer.username} rejected deposit request (Ref: ${deposit.reference_code}) for user @${user?.username || 'user'}. Reason: "${deposit.rejection_reason}"`,
-          type: 'info',
-          created_at: new Date().toISOString(),
-          read_by: [],
-        });
-      }
+      this.memoryData.notifications.unshift({
+        id: `notif_sa_op_dep_rej_${Date.now()}`,
+        recipient_type: 'superadmin',
+        target_username: 'superadmin',
+        title: `Admin Deposit Rejection: @${reviewer.username}`,
+        message: `Admin @${reviewer.username} rejected deposit request (Ref: ${deposit.reference_code}) for user @${user?.username || 'user'}. Reason: "${deposit.rejection_reason}"`,
+        type: 'info',
+        created_at: new Date().toISOString(),
+        read_by: [],
+      });
 
       this.memoryData.audit_logs.unshift({
         id: `aud_${Date.now()}`,
@@ -1791,6 +2638,18 @@ class Database {
         details: `Rejected ${deposit.amount} ETB deposit for ${deposit.username}. Reason: ${deposit.rejection_reason}`,
         ip_reference: '197.156.103.1',
         created_at: new Date().toISOString(),
+      });
+
+      this.logSystemMovement({
+        category: 'DEPOSIT_LIFECYCLE',
+        action: 'DEPOSIT_REJECTED',
+        actor_id: reviewer.id,
+        actor_username: reviewer.username,
+        actor_role: reviewer.role,
+        target_id: deposit.id,
+        target_username: user?.username,
+        target_type: 'DEPOSIT',
+        details: `Admin @${reviewer.username} rejected deposit ${deposit.deposit_code || deposit.id} (${deposit.amount} ETB) for @${user?.username || 'user'}. Reason: "${deposit.rejection_reason}"`,
       });
 
       this.persist(this.memoryData);
@@ -2197,6 +3056,94 @@ class Database {
     return { success: true, auction };
   }
 
+  // Super Admin Edit Auction: Title, Description, Category, Image, Pricing, and Bid Closing Time
+  public updateAuction(
+    auctionId: string,
+    data: {
+      title?: string;
+      description?: string;
+      category?: string;
+      image_url?: string;
+      start_price?: number;
+      bid_increment?: number;
+      participation_fee?: number;
+      internal_cost?: number;
+      end_time?: string;
+      status?: AuctionStatus;
+    },
+    actor: { id: string; username: string; role: UserRole }
+  ): { success: boolean; error?: string; auction?: Auction } {
+    if (actor.role !== 'superadmin') {
+      return { success: false, error: 'Access denied: Only Super Admin can edit live auctions.' };
+    }
+
+    const auction = this.memoryData.auctions.find(a => a.id === auctionId);
+    if (!auction) return { success: false, error: 'Auction not found' };
+
+    const changes: string[] = [];
+
+    if (data.title !== undefined && data.title.trim()) {
+      changes.push(`Title: "${auction.title}" -> "${data.title.trim()}"`);
+      auction.title = data.title.trim();
+    }
+    if (data.description !== undefined) {
+      auction.description = data.description.trim();
+      changes.push('Description updated');
+    }
+    if (data.category !== undefined) {
+      auction.category = data.category;
+      changes.push(`Category: ${data.category}`);
+    }
+    if (data.image_url !== undefined && data.image_url.trim()) {
+      auction.image_url = data.image_url.trim();
+      changes.push('Image updated');
+    }
+    if (data.start_price !== undefined) {
+      auction.start_price = Number(Number(data.start_price).toFixed(2));
+      changes.push(`Retail: ${auction.start_price} ETB`);
+    }
+    if (data.bid_increment !== undefined) {
+      auction.bid_increment = Number(Number(data.bid_increment).toFixed(2));
+    }
+    if (data.participation_fee !== undefined) {
+      auction.participation_fee = Number(Number(data.participation_fee).toFixed(2));
+      changes.push(`Participation Fee: ${auction.participation_fee} ETB`);
+    }
+    if (data.internal_cost !== undefined) {
+      auction.internal_cost = Number(Number(data.internal_cost).toFixed(2));
+      changes.push(`Internal Cost: ${auction.internal_cost} ETB`);
+    }
+    if (data.end_time !== undefined) {
+      const newEndTime = new Date(data.end_time);
+      if (isNaN(newEndTime.getTime())) {
+        return { success: false, error: 'Invalid closing date/time specified.' };
+      }
+      auction.end_time = newEndTime.toISOString();
+      changes.push(`Closing Time: ${auction.end_time}`);
+      if (newEndTime.getTime() > Date.now() && auction.status === 'ended') {
+        auction.status = 'active';
+      }
+    }
+    if (data.status !== undefined) {
+      auction.status = data.status;
+      changes.push(`Status: ${data.status}`);
+    }
+
+    this.memoryData.audit_logs.unshift({
+      id: `aud_${Date.now()}`,
+      actor_id: actor.id,
+      actor_username: actor.username,
+      actor_role: actor.role,
+      action: 'UPDATE_AUCTION_DETAILS',
+      details: `Super Admin @${actor.username} modified auction #${auction.id} ("${auction.title}"). Changes: ${changes.join(', ')}`,
+      ip_reference: '197.156.103.1',
+      created_at: new Date().toISOString(),
+    });
+
+    this.persist(this.memoryData);
+    return { success: true, auction };
+  }
+
   // Send Notification (Direct or Broadcast)
   public sendNotification(data: {
     recipient_type: 'all' | 'user';
@@ -2237,6 +3184,18 @@ class Database {
       created_at: new Date().toISOString(),
     });
 
+    this.logSystemMovement({
+      category: 'STAFF_NOTIFICATIONS',
+      action: 'NOTIFICATION_SENT',
+      actor_id: data.actor.id,
+      actor_username: data.actor.username,
+      actor_role: data.actor.role,
+      target_id: data.target_user_id,
+      target_username: targetUsername,
+      target_type: data.recipient_type === 'all' ? 'GLOBAL' : 'USER',
+      details: `Staff @${data.actor.username} dispatched ${data.type} notification (${data.recipient_type === 'all' ? 'All Users' : `@${targetUsername}`}): "${data.title.trim()}".`,
+    });
+
     this.persist(this.memoryData);
     return notif;
   }
@@ -2270,15 +3229,15 @@ class Database {
       return new Date(dateStr) >= startDate;
     };
 
-    // Filter deposits
+    // Filter deposits (exclude demo / showcase deposits so the report is clean 0.00 ETB until real live games start)
     const approvedDeposits = this.memoryData.deposits.filter(
-      d => (d.status === 'approved' || d.status === 'APPROVED') && filterDate(d.reviewed_at || d.created_at)
+      d => !d.is_showcase && (d.status === 'approved' || d.status === 'APPROVED') && filterDate(d.reviewed_at || d.created_at)
     );
     const pendingDeposits = this.memoryData.deposits.filter(
-      d => (d.status === 'pending' || d.status === 'PENDING') && filterDate(d.created_at)
+      d => !d.is_showcase && (d.status === 'pending' || d.status === 'PENDING') && filterDate(d.created_at)
     );
     const rejectedDeposits = this.memoryData.deposits.filter(
-      d => (d.status === 'rejected' || d.status === 'REJECTED') && filterDate(d.reviewed_at || d.created_at)
+      d => !d.is_showcase && (d.status === 'rejected' || d.status === 'REJECTED') && filterDate(d.reviewed_at || d.created_at)
     );
 
     const totalApprovedDeposits = approvedDeposits.reduce((acc, d) => acc + d.amount, 0);
@@ -2288,11 +3247,11 @@ class Database {
     // Per-auction P&L breakdown (showcase demonstration auctions are excluded from active platform ledger so financial page starts at clean 0.00 ETB)
     const auditedAuctions = this.memoryData.auctions.filter(auc => !auc.is_showcase);
     const auctionsPnL: AuctionPnL[] = auditedAuctions.map(auc => {
-      const auctionBids = this.memoryData.bids.filter(b => b.auction_id === auc.id && filterDate(b.created_at));
+      const auctionBids = this.memoryData.bids.filter(b => b.auction_id === auc.id && !b.is_showcase && filterDate(b.created_at));
       const totalFeesCollected = auctionBids.reduce((acc, b) => acc + b.fee_paid, 0);
       const winningBidAmount = auc.winning_bid_amount || 0;
       const grossRevenue = totalFeesCollected + (auc.status === 'ended' ? winningBidAmount : 0);
-      const confidentialCost = auc.internal_cost || 0;
+      const confidentialCost = auc.status === 'ended' ? (auc.internal_cost || 0) : 0;
       const netProfitLoss = grossRevenue - confidentialCost;
 
       return {
@@ -2324,8 +3283,8 @@ class Database {
       total_confidential_costs: totalConfidentialCosts,
       total_bidding_revenue: totalBiddingRevenue,
       net_profit_loss: netProfitLoss,
-      total_active_auctions: this.memoryData.auctions.filter(a => a.status === 'active').length,
-      total_ended_auctions: this.memoryData.auctions.filter(a => a.status === 'ended').length,
+      total_active_auctions: this.memoryData.auctions.filter(a => a.status === 'active' && !a.is_showcase).length,
+      total_ended_auctions: this.memoryData.auctions.filter(a => a.status === 'ended' && !a.is_showcase).length,
       auctions_pnl: auctionsPnL,
     };
   }

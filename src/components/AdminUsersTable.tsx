@@ -49,9 +49,15 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
       });
       if (res.ok) {
         const data = await res.json();
-        // Super admin should not be visible to anyone on the active users site, including admins
-        const nonSuperUsers = (data.users || []).filter((u: User) => u.role !== 'superadmin');
-        setUsers(nonSuperUsers);
+        const isSuperAdmin = currentUser?.role === 'superadmin';
+        if (isSuperAdmin) {
+          // Super Admin can see all system users info
+          setUsers(data.users || []);
+        } else {
+          // Operations Admin strictly sees customer accounts only (no other admin details)
+          const customerOnly = (data.users || []).filter((u: User) => u.role === 'customer');
+          setUsers(customerOnly);
+        }
       }
     } catch {
       // ignore
@@ -154,9 +160,11 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
     }
   };
 
-  // Requirement 7: Search users by profile info (username, phone, id, role)
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+
+  // Search users by profile info: Admin only sees customers; Super Admin sees all system users
   const filtered = users
-    .filter(u => u.role !== 'superadmin')
+    .filter(u => (isSuperAdmin ? true : u.role === 'customer'))
     .filter(u => {
       const q = searchQuery.toLowerCase().trim();
       if (!q) return true;
@@ -169,8 +177,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
       );
     });
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const flaggedUsersCount = users.filter(u => u.is_flagged).length;
+  const flaggedUsersCount = filtered.filter(u => u.is_flagged).length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -179,24 +186,36 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
         <div>
           <div className="flex items-center gap-2 text-blue-400 font-mono text-xs uppercase tracking-wider mb-1">
             <Users className="w-4 h-4" />
-            <span>{language === 'am' ? 'የተጠቃሚዎች ማውጫ እና አስተዳደር' : 'Customer Directory & Governance'}</span>
+            <span>
+              {isSuperAdmin
+                ? (language === 'am' ? 'የሁሉም ተጠቃሚዎች እና ሰራተኞች ማውጫ (ሱፐር አድሚን)' : 'All System Users & Staff Directory (Super Admin)')
+                : (language === 'am' ? 'የደንበኞች ተሳታፊዎች ማውጫ' : 'Active Customer Participants')}
+            </span>
           </div>
           <h1 className="text-2xl font-bold font-serif text-white">
-            {language === 'am' ? 'የተመዘገቡ ተጠቃሚዎች ዝርዝር' : 'Active Users Ledger'}
+            {isSuperAdmin
+              ? (language === 'am' ? 'የመድረኩ ሙሉ ተጠቃሚዎች መዝገብ' : 'Global Platform Users Ledger')
+              : (language === 'am' ? 'የተመዘገቡ ደንበኞች ዝርዝር' : 'Registered Customers Ledger')}
           </h1>
           <p className="text-xs text-zinc-400 mt-1">
-            {language === 'am'
-              ? 'ተጠቃሚዎችን በስልክ ቁጥር ወይም በተጠቃሚ ስም ይፈልጉ፣ በቀጥታ ያነጋግሩ ወይም የኪስ ቦርሳቸውን ይቆጣጠሩ።'
-              : 'Search registered platform participants by phone or username, contact directly, and monitor account access.'}
+            {isSuperAdmin
+              ? (language === 'am'
+                  ? 'የሁሉንም ተጠቃሚዎች፣ አስተዳዳሪዎች እና የሱፐር አድሚን ዝርዝር መረጃዎች ይመልከቱ እና ይቆጣጠሩ።'
+                  : 'Executive overview: Complete ledger of all platform participants, operational administrators, and superadmin accounts.')
+              : (language === 'am'
+                  ? 'ደንበኞችን በስልክ ቁጥር ወይም በተጠቃሚ ስም ይፈልጉ፣ በቀጥታ ያነጋግሩ ወይም የደንበኞችን አካውንት ያረጋግጡ።'
+                  : 'Search customer participants by phone or username, send in-app alerts, and monitor participant balances.')}
           </p>
         </div>
 
         <div className="text-right">
           <div className="text-[10px] text-zinc-500 font-mono uppercase">
-            {language === 'am' ? 'ጠቅላላ ተጠቃሚዎች' : 'Total Registered'}
+            {isSuperAdmin
+              ? (language === 'am' ? 'ጠቅላላ የመድረክ ተጠቃሚዎች' : 'Total System Users')
+              : (language === 'am' ? 'ጠቅላላ ደንበኞች' : 'Total Customers')}
           </div>
           <div className="text-xl font-bold font-mono text-white mt-0.5">
-            {users.length} {language === 'am' ? 'ተጠቃሚዎች' : 'Users'}
+            {filtered.length} {language === 'am' ? 'ተጠቃሚዎች' : 'Users'}
           </div>
         </div>
       </div>
@@ -290,12 +309,14 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
                       <td className="p-3.5">
                         <span
                           className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase tracking-wider ${
-                            u.role === 'admin'
+                            u.role === 'superadmin'
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                              : u.role === 'admin'
                               ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                               : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                           }`}
                         >
-                          {u.role}
+                          {u.role === 'admin' ? 'Operations Admin' : u.role}
                         </span>
                       </td>
 
@@ -394,8 +415,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenBalanceA
                           </button>
                         )}
 
-                        {/* Toggle active / suspended */}
-                        {u.role !== 'superadmin' && (
+                        {/* Toggle active / suspended: Super Admin can toggle any non-superadmin; Admins can only toggle customers */}
+                        {(isSuperAdmin || u.role === 'customer') && u.role !== 'superadmin' && (
                           <button
                             type="button"
                             onClick={() => handleToggleStatus(u)}

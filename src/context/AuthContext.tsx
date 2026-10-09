@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types.js';
-import { detectPortal } from '../utils/portal.js';
+import { detectPortal, navigateToPortal } from '../utils/portal.js';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (identifier: string, password: string, portalOverride?: 'admin' | 'player') => Promise<{ success: boolean; error?: string }>;
-  register: (data: { username: string; email?: string; phone: string; password: string }) => Promise<{ success: boolean; error?: string }>;
+  login: (identifier: string, password: string, portalOverride?: 'admin' | 'player') => Promise<{ success: boolean; error?: string; code?: string }>;
+  loginWithOtp: (phone: string, code: string) => Promise<{ success: boolean; error?: string; code?: string }>;
+  sendOtp: (phone: string, purpose?: 'login' | 'register') => Promise<{ success: boolean; error?: string; message?: string }>;
+  register: (data: { username: string; email?: string; phone: string; password: string; otp_code?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   updateUserBalance: (newBalance: number) => void;
@@ -45,8 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (token) {
       fetchCurrentUser(token);
     } else {
-      // REQUIREMENT 1: All 3 roles (user, Admin, Super Admin) must ONLY be accessed via Login & Registration!
-      // No unauthenticated access and no automatic guest login.
       setUser(null);
       setIsLoading(false);
     }
@@ -65,7 +65,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const data = await res.json();
       if (!res.ok) {
-        return { success: false, error: data.error || 'Failed to sign in' };
+        return { success: false, error: data.error || 'Failed to sign in', code: data.code };
+      }
+      localStorage.setItem('minibid_token', data.token);
+      setToken(data.token);
+      setUser(data.user);
+
+      // Auto-coordinate portal transition
+      if (data.user.role === 'admin' || data.user.role === 'superadmin') {
+        navigateToPortal('admin');
+      } else if (data.redirect_portal === 'player' && activePortal === 'admin') {
+        navigateToPortal('player');
+      }
+
+      return { success: true };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Network error';
+      return { success: false, error: msg };
+    }
+  };
+
+  const sendOtp = async (phone: string, purpose: 'login' | 'register' = 'login') => {
+    try {
+      const res = await fetch('/api/auth/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, purpose }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to dispatch SMS code' };
+      }
+      return {
+        success: true,
+        message: data.message,
+      };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Network error';
+      return { success: false, error: msg };
+    }
+  };
+
+  const loginWithOtp = async (phone: string, code: string) => {
+    try {
+      const res = await fetch('/api/auth/otp/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Portal': 'player',
+        },
+        body: JSON.stringify({ phone, code, portal: 'player' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Invalid OTP code', code: data.code };
       }
       localStorage.setItem('minibid_token', data.token);
       setToken(data.token);
@@ -77,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (userData: { username: string; email?: string; phone: string; password: string }) => {
+  const register = async (userData: { username: string; email?: string; phone: string; password: string; otp_code?: string }) => {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -121,6 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         isLoading,
         login,
+        loginWithOtp,
+        sendOtp,
         register,
         logout,
         refreshUser,

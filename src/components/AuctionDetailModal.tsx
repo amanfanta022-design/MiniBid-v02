@@ -24,11 +24,13 @@ import {
   AlertTriangle,
   Activity,
   RefreshCw,
+  Edit3,
 } from 'lucide-react';
 import { Auction, Bid, SuperAdminLiveGameDetail } from '../types.js';
 import { playBidChime, playVictoryChime } from '../utils/audio.js';
 import { useTranslation } from '../utils/i18n.js';
 import confetti from 'canvas-confetti';
+import { SuperAdminEditAuctionModal } from './SuperAdminEditAuctionModal.js';
 
 interface ConcludedBid {
   id: string;
@@ -94,10 +96,54 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
   const [adminSort, setAdminSort] = useState<'amount_asc' | 'amount_desc' | 'time_desc'>('amount_asc');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [expandedCluster, setExpandedCluster] = useState<number | null>(null);
-
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const isSuperAdmin = user?.role === 'superadmin';
   const isAdmin = user?.role === 'admin';
   const isCustomer = user?.role === 'customer';
+
+  // Concluded Public Bids Table pagination & filters
+  const [concludedSearch, setConcludedSearch] = useState('');
+  const [concludedFilter, setConcludedFilter] = useState<'all' | 'winner' | 'unique' | 'duplicate'>('all');
+  const [concludedPage, setConcludedPage] = useState(1);
+  const [concludedPageSize, setConcludedPageSize] = useState(50);
+
+  const filteredConcludedBids = useMemo(() => {
+    let list = concludedBids;
+    if (concludedFilter === 'winner') {
+      list = list.filter(b => b.status === 'unique_lowest');
+    } else if (concludedFilter === 'unique') {
+      list = list.filter(b => b.status === 'unique_lowest' || b.status === 'unique_not_lowest');
+    } else if (concludedFilter === 'duplicate') {
+      list = list.filter(b => b.status === 'not_unique');
+    }
+
+    if (concludedSearch.trim()) {
+      const q = concludedSearch.toLowerCase().trim();
+      list = list.filter(
+        b =>
+          b.username.toLowerCase().includes(q) ||
+          b.phone.toLowerCase().includes(q) ||
+          b.bid_amount.toFixed(2).includes(q)
+      );
+    }
+    return list;
+  }, [concludedBids, concludedFilter, concludedSearch]);
+
+  const totalConcludedPages = Math.max(1, Math.ceil(filteredConcludedBids.length / concludedPageSize));
+  const paginatedConcludedBids = useMemo(() => {
+    const start = (concludedPage - 1) * concludedPageSize;
+    return filteredConcludedBids.slice(start, start + concludedPageSize);
+  }, [filteredConcludedBids, concludedPage, concludedPageSize]);
+
+  const handleJumpToWinner = () => {
+    setConcludedFilter('all');
+    setConcludedSearch('');
+    const winnerIdx = concludedBids.findIndex(b => b.status === 'unique_lowest');
+    if (winnerIdx !== -1) {
+      const targetPage = Math.floor(winnerIdx / concludedPageSize) + 1;
+      setConcludedPage(targetPage);
+    }
+  };
 
   const getCategoryLabel = (cat: string) => {
     if (language !== 'am') return cat;
@@ -495,7 +541,7 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 <History className="w-3.5 h-3.5" />
                 <span>
                   {isEnded
-                    ? `${t('bid_history_tab', 'Full Bid History')} (${concludedBids.length})`
+                    ? `${t('bid_history_tab', 'Full Bid History')} (${(auction?.total_bids || concludedBids.length).toLocaleString()})`
                     : isSuperAdmin
                     ? `${t('live_bid_ledger_tab', 'Live Bid Ledger')} (${superadminBids?.length || 0})`
                     : t('bid_history_tab', 'Final Bid History')}
@@ -571,7 +617,16 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                             : 'Live telemetry: Winning bid, unmasked phones, and realtime margin tracking.'}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditModalOpen(true)}
+                          className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-[11px] font-mono shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                          title="Edit live item name, description, retail price, and bid closing time"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>{language === 'am' ? 'ጨረታውን አርም' : 'Edit Item & Schedule'}</span>
+                        </button>
                         <span className="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-semibold flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                           <span>{language === 'am' ? 'የቀጥታ ስርጭት (3s)' : 'Live Feed (3s)'}</span>
@@ -1293,21 +1348,137 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                   </div>
                 ) : isEnded ? (
                   /* Case B: Concluded Auction — Organized Table sorted lowest to highest with masked information! (Requirement 6) */
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#E5B842] uppercase tracking-wider flex items-center gap-1.5">
-                        <Trophy className="w-3.5 h-3.5 text-[#E5B842]" />
-                        {language === 'am' ? 'ይፋዊ የተረጋገጡ ጨረታዎች (ከዝቅተኛ ወደ ከፍተኛ)' : 'Official Concluded Bids (Lowest to Highest)'}
-                      </span>
-                      <span className="text-[11px] text-zinc-500 font-mono">
-                        {concludedBids.length} {language === 'am' ? 'ጠቅላላ ጨረታዎች' : 'Total Verified Bids'}
-                      </span>
+                  <div className="space-y-4">
+                    {/* Header & Quick Navigation */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-[#E5B842] shrink-0" />
+                        <span className="font-bold text-[#E5B842] uppercase tracking-wider">
+                          {language === 'am' ? 'ይፋዊ የተረጋገጡ ጨረታዎች (ከዝቅተኛ ወደ ከፍተኛ)' : 'Official Concluded Bids (Lowest to Highest)'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-mono text-[10px] border border-amber-500/20 font-bold">
+                          {(auction?.total_bids || concludedBids.length).toLocaleString()} {language === 'am' ? 'ጠቅላላ ጨረታዎች' : 'Audited Bids'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleJumpToWinner}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-mono text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer self-start sm:self-auto shadow-sm"
+                      >
+                        <span>👑 {language === 'am' ? 'ወደ አሸናፊው ዝለል' : 'Jump to Winning Bid'}</span>
+                        <span className="text-emerald-400 font-extrabold">({auction?.winning_bid_amount?.toFixed(2)} ETB)</span>
+                      </button>
                     </div>
 
+                    {/* Statistical Breakdown HUD */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                        <div className="text-[10px] uppercase font-mono text-zinc-500">
+                          {language === 'am' ? 'ጠቅላላ የተገመገሙ' : 'Total Evaluated'}
+                        </div>
+                        <div className="font-mono font-bold text-white text-sm mt-0.5">
+                          {(auction?.total_bids || concludedBids.length).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30">
+                        <div className="text-[10px] uppercase font-mono text-emerald-400">
+                          {language === 'am' ? 'አሸናፊ ዋጋ (ያልተደገመ)' : 'Winning Lowest Unique'}
+                        </div>
+                        <div className="font-mono font-bold text-emerald-300 text-sm mt-0.5">
+                          {auction?.winning_bid_amount?.toFixed(2)} ETB 👑
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30">
+                        <div className="text-[10px] uppercase font-mono text-amber-400">
+                          {language === 'am' ? 'ያልተደገሙ (ከፍተኛ)' : 'Unique (Higher)'}
+                        </div>
+                        <div className="font-mono font-bold text-amber-300 text-sm mt-0.5">
+                          {concludedBids.filter(b => b.status === 'unique_not_lowest').length.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-red-950/30 border border-red-500/30">
+                        <div className="text-[10px] uppercase font-mono text-red-400">
+                          {language === 'am' ? 'የተጋጩ (የተደገሙ)' : 'Collided Duplicates'}
+                        </div>
+                        <div className="font-mono font-bold text-red-300 text-sm mt-0.5">
+                          {concludedBids.filter(b => b.status === 'not_unique').length.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Search & Filter Controls */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 text-xs">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder={
+                            language === 'am'
+                              ? 'በተጠቃሚ ስም፣ ስልክ፣ ወይም ዋጋ ፈልግ (ምሳሌ፦ 14.85)...'
+                              : 'Search by player, masked phone, or bid amount (e.g. 14.85)...'
+                          }
+                          value={concludedSearch}
+                          onChange={e => {
+                            setConcludedSearch(e.target.value);
+                            setConcludedPage(1);
+                          }}
+                          className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-[#09090b] border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#E5B842] font-mono"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-[#121215] p-1 rounded-xl border border-zinc-800 text-[11px] overflow-x-auto scrollbar-none">
+                        <button
+                          type="button"
+                          onClick={() => { setConcludedFilter('all'); setConcludedPage(1); }}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer whitespace-nowrap ${
+                            concludedFilter === 'all'
+                              ? 'bg-[#E5B842] text-black font-bold'
+                              : 'text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {language === 'am' ? 'ሁሉም' : 'All'} ({filteredConcludedBids.length.toLocaleString()})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setConcludedFilter('winner'); setConcludedPage(1); }}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer whitespace-nowrap ${
+                            concludedFilter === 'winner'
+                              ? 'bg-emerald-500 text-black font-bold'
+                              : 'text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          👑 {language === 'am' ? 'አሸናፊ' : 'Winner'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setConcludedFilter('unique'); setConcludedPage(1); }}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer whitespace-nowrap ${
+                            concludedFilter === 'unique'
+                              ? 'bg-amber-500 text-black font-bold'
+                              : 'text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          ⚡ {language === 'am' ? 'ያልተደገመ' : 'Unique'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setConcludedFilter('duplicate'); setConcludedPage(1); }}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer whitespace-nowrap ${
+                            concludedFilter === 'duplicate'
+                              ? 'bg-rose-600 text-white font-bold'
+                              : 'text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          ⚠️ {language === 'am' ? 'የተደገመ' : 'Duplicate'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Table View */}
                     <div className="border border-[#27272a] rounded-2xl overflow-hidden bg-[#18181b]">
-                      <div className="max-h-72 overflow-x-auto overflow-y-auto">
+                      <div className="max-h-80 overflow-x-auto overflow-y-auto">
                         <table className="w-full text-left text-xs min-w-[550px]">
-                          <thead className="bg-[#09090b] text-zinc-400 border-b border-[#27272a] font-mono text-[10px] uppercase">
+                          <thead className="bg-[#09090b] text-zinc-400 border-b border-[#27272a] font-mono text-[10px] uppercase sticky top-0 z-10">
                             <tr>
                               <th className="py-2.5 px-3">{t('rank_col', 'Rank')}</th>
                               <th className="py-2.5 px-3">{t('bid_amount_col', 'Bid Amount')}</th>
@@ -1318,27 +1489,27 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-zinc-800 font-mono text-[11px]">
-                            {concludedBids.length === 0 ? (
+                            {paginatedConcludedBids.length === 0 ? (
                               <tr>
                                 <td colSpan={6} className="py-8 text-center text-zinc-500">
-                                  {language === 'am' ? 'ለዚህ ጨረታ ምንም የተመዘገበ ዋጋ የለም።' : 'No bids recorded for this auction.'}
+                                  {language === 'am' ? 'ለዚህ ፍለጋ ምንም የሚስማማ ጨረታ አልተገኘም።' : 'No bids match the filter or search criteria.'}
                                 </td>
                               </tr>
                             ) : (
-                              concludedBids.map(b => {
+                              paginatedConcludedBids.map(b => {
                                 const isWinner = b.status === 'unique_lowest';
                                 return (
                                   <tr
                                     key={b.id}
                                     className={`transition-colors ${
                                       isWinner
-                                        ? 'bg-emerald-950/30 text-emerald-200 font-bold'
+                                        ? 'bg-emerald-950/40 text-emerald-200 font-bold border-y-2 border-emerald-500/50'
                                         : 'hover:bg-zinc-800/30 text-zinc-300'
                                     }`}
                                   >
                                     <td className="py-2.5 px-3 font-mono">
                                       {isWinner ? (
-                                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
+                                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/40 inline-flex items-center gap-1">
                                           #1 👑
                                         </span>
                                       ) : (
@@ -1346,7 +1517,9 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                                       )}
                                     </td>
                                     <td className="py-2.5 px-3 font-bold text-white">
-                                      {b.bid_amount.toFixed(2)} ETB
+                                      <span className={isWinner ? 'text-emerald-300 text-sm font-extrabold' : ''}>
+                                        {b.bid_amount.toFixed(2)} ETB
+                                      </span>
                                     </td>
                                     <td className="py-2.5 px-3">
                                       {isWinner ? (
@@ -1354,12 +1527,15 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                                           <Trophy className="w-3 h-3 text-emerald-400" /> {t('unique_lowest_tag', 'Winner (Lowest Unique)')}
                                         </span>
                                       ) : b.status === 'unique_not_lowest' ? (
-                                        <span className="text-amber-400">{t('unique_higher_tag', 'Unique (Higher)')}</span>
+                                        <span className="text-amber-400 flex items-center gap-1">
+                                          <Sparkles className="w-3 h-3 text-amber-400" />
+                                          {t('unique_higher_tag', 'Unique (Higher)')}
+                                        </span>
                                       ) : (
                                         <span className="text-zinc-500">{t('duplicate_tag', 'Duplicate')}</span>
                                       )}
                                     </td>
-                                    <td className="py-2.5 px-3 text-zinc-300">
+                                    <td className="py-2.5 px-3 text-zinc-300 font-medium">
                                       @{b.username}
                                     </td>
                                     <td className="py-2.5 px-3 text-zinc-400 tracking-wider">
@@ -1377,6 +1553,76 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                             )}
                           </tbody>
                         </table>
+                      </div>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-zinc-400 pt-1">
+                      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                        <span>
+                          {filteredConcludedBids.length === 0
+                            ? '0 bids'
+                            : language === 'am'
+                            ? `ከ${filteredConcludedBids.length.toLocaleString()} ውስጥ ${(concludedPage - 1) * concludedPageSize + 1} - ${Math.min(concludedPage * concludedPageSize, filteredConcludedBids.length)} በማሳየት ላይ`
+                            : `Showing ${(concludedPage - 1) * concludedPageSize + 1} - ${Math.min(concludedPage * concludedPageSize, filteredConcludedBids.length)} of ${filteredConcludedBids.length.toLocaleString()} audited bids`}
+                        </span>
+                        <span className="text-zinc-600 hidden sm:inline">•</span>
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-zinc-500">{language === 'am' ? 'በገጽ:' : 'Per page:'}</span>
+                          <select
+                            value={concludedPageSize}
+                            onChange={e => {
+                              setConcludedPageSize(Number(e.target.value));
+                              setConcludedPage(1);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[11px] focus:outline-none focus:border-[#E5B842] cursor-pointer"
+                          >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={200}>200</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                        <button
+                          type="button"
+                          disabled={concludedPage === 1}
+                          onClick={() => setConcludedPage(1)}
+                          className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-30 hover:border-zinc-700 cursor-pointer disabled:cursor-not-allowed"
+                          title="First page"
+                        >
+                          «
+                        </button>
+                        <button
+                          type="button"
+                          disabled={concludedPage === 1}
+                          onClick={() => setConcludedPage(p => Math.max(1, p - 1))}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-30 hover:border-zinc-700 cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          {language === 'am' ? 'ቀዳሚ' : 'Prev'}
+                        </button>
+                        <span className="px-2.5 py-1 rounded-lg bg-zinc-800/80 border border-zinc-700 text-white font-bold">
+                          {concludedPage} / {totalConcludedPages}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={concludedPage >= totalConcludedPages}
+                          onClick={() => setConcludedPage(p => Math.min(totalConcludedPages, p + 1))}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-30 hover:border-zinc-700 cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          {language === 'am' ? 'ቀጣይ' : 'Next'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={concludedPage >= totalConcludedPages}
+                          onClick={() => setConcludedPage(totalConcludedPages)}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-30 hover:border-zinc-700 cursor-pointer disabled:cursor-not-allowed"
+                          title="Last page"
+                        >
+                          »
+                        </button>
                       </div>
                     </div>
                   </div>

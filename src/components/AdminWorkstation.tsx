@@ -10,6 +10,8 @@ import { SuperAdminAdmins } from './SuperAdminAdmins.js';
 import { SuperAdminAuditLogs } from './SuperAdminAuditLogs.js';
 import { SuperAdminBalanceAdjuster } from './SuperAdminBalanceAdjuster.js';
 import { SuperAdminLiveGameDesk } from './SuperAdminLiveGameDesk.js';
+import { SuperAdminActivityController } from './SuperAdminActivityController.js';
+import { SuperAdminDeviceSecurity } from './SuperAdminDeviceSecurity.js';
 import { AuctionsList } from './AuctionsList.js';
 import { AuctionDetailModal } from './AuctionDetailModal.js';
 import { GoldenParticleBackground } from './GoldenParticleBackground.js';
@@ -19,6 +21,7 @@ import {
   ShieldCheck,
   Lock,
   Activity,
+  Laptop,
   BarChart3,
   Inbox,
   Users,
@@ -38,6 +41,7 @@ import {
   Layers,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
   Building2,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
@@ -202,9 +206,21 @@ export const AdminWorkstation: React.FC = () => {
             </div>
 
             {loginError && (
-              <div className="mb-5 p-3.5 rounded-xl bg-red-950/50 border border-red-500/40 text-red-300 text-xs flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
-                <span>{loginError}</span>
+              <div className="mb-5 p-3.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-300 text-xs space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                  <span>{loginError}</span>
+                </div>
+                {(loginError.includes('Customer') || loginError.includes('gaming site')) && (
+                  <button
+                    type="button"
+                    onClick={() => switchPortal('player')}
+                    className="w-full mt-2 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-zinc-700"
+                  >
+                    <span>Go to Public Gaming Site (minibid.et)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             )}
 
@@ -218,7 +234,7 @@ export const AdminWorkstation: React.FC = () => {
                   required
                   value={loginIdentifier}
                   onChange={e => setLoginIdentifier(e.target.value)}
-                  placeholder="e.g. superadmin or staff user"
+                  placeholder="e.g. superadmin, alex, or email"
                   className="w-full bg-[#16161c] border border-zinc-700 focus:border-red-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 transition-all font-mono"
                 />
               </div>
@@ -511,7 +527,7 @@ export const AdminWorkstation: React.FC = () => {
                 }`}
               >
                 <Users className="w-4 h-4" />
-                <span>Users & Balances Directory</span>
+                <span>{isSuperAdmin ? 'All System Users & Staff' : 'Customer Participants'}</span>
               </button>
 
               {isSuperAdmin && (
@@ -525,6 +541,34 @@ export const AdminWorkstation: React.FC = () => {
                 >
                   <ShieldCheck className="w-4 h-4" />
                   <span>Staff Floats & Governance</span>
+                </button>
+              )}
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setCurrentTab('super-activity')}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                    currentTab === 'super-activity'
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/50 font-bold'
+                      : 'text-amber-300 hover:bg-amber-950/30 border border-amber-900/40'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Activity Control Room</span>
+                </button>
+              )}
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setCurrentTab('super-devices')}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                    currentTab === 'super-devices'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/50 font-bold'
+                      : 'text-emerald-300 hover:bg-emerald-950/30 border border-emerald-900/40'
+                  }`}
+                >
+                  <Laptop className="w-4 h-4" />
+                  <span>Device & Session Monitor</span>
                 </button>
               )}
 
@@ -550,6 +594,10 @@ export const AdminWorkstation: React.FC = () => {
           )}
 
           {currentTab === 'super-financials' && isSuperAdmin && <SuperAdminFinancials />}
+
+          {currentTab === 'super-activity' && isSuperAdmin && <SuperAdminActivityController />}
+
+          {currentTab === 'super-devices' && isSuperAdmin && <SuperAdminDeviceSecurity />}
 
           {currentTab === 'admin-deposits' && (
             <AdminDepositRequests onBackToAuctions={() => setCurrentTab('super-live-games')} />

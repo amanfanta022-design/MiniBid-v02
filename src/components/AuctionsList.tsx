@@ -4,7 +4,6 @@ import {
   Clock,
   Coins,
   Search,
-  SlidersHorizontal,
   Sparkles,
   ArrowRight,
   Trophy,
@@ -13,6 +12,12 @@ import {
   Layers,
   Crown,
   Activity,
+  Zap,
+  Radio,
+  CheckCircle2,
+  Wallet,
+  Smartphone,
+  Tag,
 } from 'lucide-react';
 import { Auction } from '../types.js';
 import { useAuth } from '../context/AuthContext.js';
@@ -33,13 +38,14 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
 }) => {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'superadmin';
-  const { language, t } = useTranslation();
+  const isCustomer = user && user.role === 'customer';
+  const { language } = useTranslation();
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Requirement 6: Expanded auction categories (Accessories, Kitchen, Electronics, Vehicles, Luxury, Tech, Smartphones, Jewelry, Appliances)
+  // Expanded categories
   const categories = [
     'All',
     'Accessories',
@@ -105,8 +111,100 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
   });
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Luxury Hero Banner */}
+    <div className="space-y-6 sm:space-y-8 pb-12">
+      {/* 1. Real-time Live Actuation Ticker Ribbon */}
+      <div className="rounded-2xl bg-gradient-to-r from-emerald-950/80 via-[#101014] to-emerald-950/80 border border-emerald-500/40 p-2.5 sm:p-3 flex items-center justify-between gap-3 shadow-lg shadow-emerald-950/20 overflow-hidden">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-[0_0_10px_#10b981]" />
+          </span>
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1">
+            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>{language === 'am' ? 'የቀጥታ ስራ ላይ ያለ ዙር (Live Actuation)' : 'Live Actuation Active'}</span>
+          </span>
+        </div>
+
+        <div className="hidden md:flex items-center gap-4 text-xs font-mono text-zinc-300 overflow-hidden whitespace-nowrap">
+          <span className="flex items-center gap-1.5 text-emerald-200">
+            <Zap className="w-3.5 h-3.5 text-emerald-400" />
+            <span>0.01 ETB Unique Bid Increments</span>
+          </span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-zinc-400">
+            {language === 'am' ? 'ፈጣን የቴሌብር እና ንግድ ባንክ ተቀማጭ ክፍት ነው' : 'CBE & Telebirr Instant Deposits Active'}
+          </span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-[#E5B842] font-semibold">
+            {language === 'am' ? 'በሂሳብ የተረጋገጠ ብቸኛ አሸናፊ' : 'Mathematically Proven Lowest Unique Winner'}
+          </span>
+        </div>
+
+        <button
+          onClick={onOpenHowItWorks}
+          className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 underline underline-offset-2 shrink-0 cursor-pointer"
+        >
+          {language === 'am' ? 'ህጎችን እይ →' : 'Game Rules →'}
+        </button>
+      </div>
+
+      {/* 2. Customer VIP Dashboard Hub (Shown when user is authenticated) */}
+      {isCustomer && (
+        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-[#16161c] via-[#121217] to-[#16161c] border border-amber-500/30 shadow-xl shadow-amber-950/20 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#E5B842]/10 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-zinc-400 uppercase tracking-wider">
+                  {language === 'am' ? 'እንኳን ደህና መጡ' : 'Welcome Back'},
+                </span>
+                <span className="font-serif font-black text-white text-base sm:text-lg">
+                  @{user.username}
+                </span>
+                {user.phone_verified && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 font-mono text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>OTP Verified</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-zinc-400">
+                {language === 'am'
+                  ? 'ዝቅተኛ ያልተደገመ ዋጋ በማስገባት የቅንጦት ዕቃዎችን ያሸንፉ።'
+                  : 'Submit mathematical lowest unique bids to win high-end electronics, luxury watches, and gold.'}
+              </p>
+            </div>
+
+            {/* Wallet & Quick Top-Up HUD */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="p-3 px-4 rounded-2xl bg-black/60 border border-[#27272a] flex items-center gap-3 shadow-inner">
+                <div className="w-9 h-9 rounded-xl bg-[#E5B842]/10 border border-[#E5B842]/30 flex items-center justify-center text-[#E5B842]">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-zinc-500">
+                    {language === 'am' ? 'የኪስ ቀሪ ሒሳብ' : 'Gaming Wallet'}
+                  </div>
+                  <div className="text-base sm:text-lg font-bold font-mono text-[#E5B842] tabular-nums">
+                    {(user.wallet_balance || 0).toLocaleString()} <span className="text-xs text-zinc-400">ETB</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={onOpenDeposit}
+                className="px-4 py-3 rounded-2xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-amber-950/40 flex items-center gap-1.5"
+              >
+                <Coins className="w-4 h-4" />
+                <span>{language === 'am' ? 'ተቀማጭ ጨምር' : 'Deposit'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Luxury Hero Banner */}
       <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-[#27272a] bg-gradient-to-br from-[#121215] via-[#0d0d10] to-[#09090b] p-5 sm:p-8 md:p-10 shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#E5B842]/10 via-[#d4af37]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
@@ -163,8 +261,9 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
             <div className="text-zinc-500 font-mono text-[10px] sm:text-[11px] uppercase">
               {language === 'am' ? 'ቀጥታ ጨረታዎች' : 'Live Auctions'}
             </div>
-            <div className="font-bold text-base sm:text-lg text-white font-mono mt-0.5">
-              {activeAuctions.length} {language === 'am' ? 'በሂደት ላይ' : 'Active'}
+            <div className="font-bold text-base sm:text-lg text-white font-mono mt-0.5 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{activeAuctions.length} {language === 'am' ? 'በሂደት ላይ' : 'Active'}</span>
             </div>
           </div>
           <div>
@@ -187,16 +286,17 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
             <div className="text-zinc-500 font-mono text-[10px] sm:text-[11px] uppercase">
               {language === 'am' ? 'የደህንነት ደረጃ' : 'Security Standard'}
             </div>
-            <div className="font-bold text-base sm:text-lg text-emerald-400 font-mono mt-0.5">
-              {language === 'am' ? 'በኦዲት የተጠበቀ' : 'ACID Encrypted'}
+            <div className="font-bold text-base sm:text-lg text-emerald-400 font-mono mt-0.5 flex items-center gap-1">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>{language === 'am' ? 'በኦዲት የተጠበቀ' : 'ACID Audited'}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filters & Search Row */}
+      {/* 4. Filters & Search Row */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
-        {/* Category Pills with smooth horizontal scrolling */}
+        {/* Category Navigation Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0 scrollbar-none -mx-1 px-1 sm:mx-0 sm:px-0">
           {categories.map(cat => {
             const isSelected = selectedCategory === cat;
@@ -222,7 +322,7 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
           <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
           <input
             type="text"
-            placeholder={language === 'am' ? 'ዕቃዎችን፣ ሞዴሎችን ወይም ዝርዝር መረጃ ፈልግ...' : 'Search items, specs, luxury...'}
+            placeholder={language === 'am' ? 'ዕቃዎችን፣ ሞዴሎችን ፈልግ...' : 'Search items, luxury specs...'}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 sm:py-2 rounded-xl bg-[#121215] border border-[#27272a] text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-[#E5B842]"
@@ -230,9 +330,9 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
         </div>
       </div>
 
-      {/* Live Auctions Grid */}
+      {/* 5. Live Auctions Grid with Green Flick Actuation Lights */}
       {isLoading ? (
-        <div className="py-20 text-center text-xs text-zinc-500">
+        <div className="py-20 text-center text-xs text-zinc-500 font-mono">
           {language === 'am' ? 'የቀጥታ ጨረታዎች ዝርዝር በመጫን ላይ...' : 'Loading live auction catalog...'}
         </div>
       ) : filteredAuctions.length === 0 ? (
@@ -242,11 +342,11 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
           </div>
           <div className="space-y-2">
             <h3 className="font-serif font-bold text-white text-lg">
-              {language === 'am' ? 'ሁሉም ያለፉ ጨረታዎች ተጠናቀዋል!' : 'All Previous Auctions Concluded & Settled!'}
+              {language === 'am' ? 'አሁን ምንም ንቁ ጨረታ የለም' : 'No Active Auctions In Round'}
             </h3>
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-md mx-auto">
+            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
               {language === 'am'
-                ? 'የአሁኑ ዙር ጨረታዎች ተጠናቀዋል። ያለፉ አሸናፊዎችን፣ ያሸነፉበትን ዝቅተኛ ዋጋ እና የኦዲት መዝገብ ለማየት ወደ ማጠቃለያ ገጽ ይሂዱ።'
+                ? 'የዚህ ዙር ጨረታዎች ተጠናቀዋል። ቀደም ሲል ያለቁ ጨረታዎችንና አሸናፊዎችን ይመልከቱ።'
                 : 'Our active auction round has completed. Explore our Concluded Auctions Showcase to inspect previous winning bids, audited uniqueness rankings, and player logs.'}
             </p>
           </div>
@@ -274,9 +374,9 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                 key={auc.id}
                 id={`auction-card-${auc.id}`}
                 onClick={() => onSelectAuction(auc.id)}
-                className="group relative bg-[#121215] border border-[#27272a] rounded-2xl overflow-hidden hover:border-[#E5B842]/60 hover:shadow-[0_0_25px_rgba(229,184,66,0.15)] transition-all duration-300 cursor-pointer flex flex-col"
+                className="group relative bg-[#121215] border border-[#27272a] hover:border-emerald-500/70 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-[0_0_30px_rgba(16,185,129,0.2)] transition-all duration-300 cursor-pointer flex flex-col"
               >
-                {/* Image Container */}
+                {/* Image Container with Visual Overlays */}
                 <div className="relative aspect-[4/3] overflow-hidden bg-zinc-900">
                   <img
                     src={auc.image_url}
@@ -285,23 +385,27 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#121215] via-transparent to-transparent opacity-80" />
 
-                  {/* Category & Status Badges */}
-                  <div className="absolute top-3 left-3 flex gap-1.5">
-                    <span className="px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-[#E5B842] border border-[#E5B842]/30 text-[10px] font-mono font-semibold uppercase">
-                      {getCategoryLabel(auc.category)}
+                  {/* GREEN FLICK LIVE ACTUATION INDICATOR (Pulsing Beacon) */}
+                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/85 backdrop-blur-md border border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.4)]">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_8px_#10b981]" />
+                    </span>
+                    <span className="text-[9px] font-mono font-bold text-emerald-300 tracking-wider uppercase">
+                      Live Actuation
                     </span>
                   </div>
 
-                  {/* Countdown Badge */}
-                  <div className="absolute top-3 right-3">
+                  {/* Countdown Badge with Dynamic Urgency Colors */}
+                  <div className="absolute top-3 right-3 z-10">
                     <span
                       className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 backdrop-blur-md ${
                         isUrgent
-                          ? 'bg-red-950/80 text-red-300 border border-red-500/50 animate-pulse'
+                          ? 'bg-red-950/90 text-red-300 border border-red-500/60 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.3)]'
                           : 'bg-black/80 text-zinc-300 border border-zinc-700'
                       }`}
                     >
-                      <Clock className="w-3 h-3" />
+                      <Clock className="w-3 h-3 text-amber-400" />
                       {hours > 0
                         ? `${hours}h ${minutes}m`
                         : language === 'am'
@@ -309,9 +413,25 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                         : `${minutes}m remaining`}
                     </span>
                   </div>
+
+                  {/* Category Pill Tag */}
+                  <div className="absolute bottom-3 left-3 z-10">
+                    <span className="px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-[#E5B842] border border-[#E5B842]/30 text-[10px] font-mono font-semibold uppercase">
+                      {getCategoryLabel(auc.category)}
+                    </span>
+                  </div>
+
+                  {/* Retail Value Discount Hint */}
+                  {auc.start_price > 0 && (
+                    <div className="absolute bottom-3 right-3 z-10">
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-mono text-[9px] font-bold">
+                        Retail: {auc.start_price.toLocaleString()} ETB
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Content */}
+                {/* Content Section */}
                 <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   <div>
                     <h3 className="font-serif font-bold text-white text-base line-clamp-1 group-hover:text-[#E5B842] transition-colors">
@@ -322,23 +442,25 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                     </p>
                   </div>
 
-                  {/* Pricing and fee bar */}
-                  <div className="p-3 rounded-xl bg-[#18181b] border border-[#27272a] flex items-center justify-between text-xs">
+                  {/* Pricing and Participation Fee Bar */}
+                  <div className="p-3 rounded-2xl bg-[#16161b] border border-[#27272a] flex items-center justify-between text-xs">
                     <div>
-                      <div className="text-[10px] uppercase font-mono text-zinc-500">
-                        {language === 'am' ? 'የመሳተፊያ ክፍያ' : 'Participation Fee'}
+                      <div className="text-[10px] uppercase font-mono text-zinc-500 flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-[#E5B842]" />
+                        <span>{language === 'am' ? 'የመሳተፊያ ክፍያ' : 'Fee per Bid'}</span>
                       </div>
-                      <div className="font-mono font-bold text-[#E5B842] mt-0.5">
+                      <div className="font-mono font-bold text-[#E5B842] text-sm mt-0.5">
                         {auc.participation_fee} <span className="text-[10px] text-zinc-400">ETB</span>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <div className="text-[10px] uppercase font-mono text-zinc-500">
-                        {language === 'am' ? 'የገቡ ጨረታዎች' : 'Total Bids'}
+                      <div className="text-[10px] uppercase font-mono text-zinc-500 flex items-center justify-end gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>{language === 'am' ? 'የገቡ ጨረታዎች' : 'Total Bids'}</span>
                       </div>
-                      <div className="font-mono font-bold text-white mt-0.5">
-                        {auc.total_bids} {language === 'am' ? 'ጨረታ' : 'bids'}
+                      <div className="font-mono font-bold text-white text-sm mt-0.5">
+                        {auc.total_bids} <span className="text-[10px] text-zinc-400">{language === 'am' ? 'ጨረታ' : 'bids'}</span>
                       </div>
                     </div>
                   </div>
@@ -368,13 +490,13 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                     </div>
                   )}
 
-                  {/* Action Button */}
+                  {/* Action CTA Button with Live Actuation Flare */}
                   <button
                     type="button"
-                    className={`w-full py-2.5 rounded-xl border text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm font-semibold ${
+                    className={`w-full py-2.5 rounded-xl text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm font-bold cursor-pointer ${
                       isSuperAdmin
-                        ? 'bg-purple-950/60 group-hover:bg-purple-600 border-purple-800/60 text-purple-200 group-hover:text-white'
-                        : 'bg-[#18181b] group-hover:bg-[#E5B842] border-[#27272a] group-hover:border-[#E5B842] text-zinc-200 group-hover:text-black'
+                        ? 'bg-purple-950/70 group-hover:bg-purple-600 border border-purple-800/60 text-purple-200 group-hover:text-white'
+                        : 'bg-[#18181b] group-hover:bg-emerald-600 border border-[#27272a] group-hover:border-emerald-500 text-zinc-200 group-hover:text-white group-hover:shadow-[0_0_20px_rgba(16,185,129,0.35)]'
                     }`}
                   >
                     <span>
@@ -386,7 +508,7 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                         ? 'ዝቅተኛ ያልተደገመ ዋጋ አስገባ'
                         : 'Place Lowest Unique Bid'}
                     </span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               </div>
