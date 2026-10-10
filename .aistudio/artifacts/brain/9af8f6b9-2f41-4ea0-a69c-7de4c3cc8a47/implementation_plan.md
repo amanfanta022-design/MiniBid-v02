@@ -1,207 +1,127 @@
-# Superadmin Security, Activity Movement Controller & Device Session Architecture
+# Implementation Plan: Direct Username & Phone Auth with Email OTP Verified Badge
 
-Executive security hardening and activity governance suite for the MiniBid platform. This implementation guarantees single Superadmin exclusivity, complete audit visibility over all system movements (registrations, deposit lifecycle, staff notifications, catalog changes, credential resets, and admin authentication), and real-time multi-device detection with remote session revocation for administrative staff.
+## 1. Executive Summary & Goals
 
-## User Review & Critical Decisions
+### The Problem
+- Physical SMS cellular delivery requires telecom carrier accounts and paid credits per text, causing confusion and delivery failures for phone-based OTP verification.
+- Customer sign-up and login were blocked by phone OTP requirements.
 
-> [!IMPORTANT]
-> The following requirements and clarifications have been confirmed and will be enforced across both backend guards and frontend workstations:
-
-- **Single Superadmin Exclusivity**: Enforced at the database and API level. Only one Superadmin account (`usr_superadmin`) is permitted in the system. The platform will permanently reject creating, assigning, or promoting any secondary Superadmin account.
-- **Deposit Desk Separation**: Customer deposit verification and balance disbursements are strictly delegated to Operations Administrators. The Superadmin interface features a read-only audit view without accept/approve or reject buttons, preventing accidental executive interference while maintaining full supervisory oversight.
-- **Active Users Privacy Boundary**: Standard Operations Admins viewing the active users directory are strictly restricted to regular customers and bidders. Only the Superadmin has clearance to view all platform accounts, staff credentials, and administrative profiles.
-- **Multi-Device Detection & Remote Revocation**: If an administrator logs into an account from two or more devices simultaneously, the system immediately flags the account with an active security alert, lists all device specifications (browser, OS, IP address, login and heartbeat timestamps), and provides the Superadmin with instant remote session revocation controls.
-
----
-
-## 1. Overview & Core Concept
-
-### What It Does
-1. **Single Superadmin Policy**: Restricts system architecture so only one Superadmin account can exist. Replaces all multi-superadmin creation vectors in both API endpoints and the admin management modal with a locked single-executive protocol.
-2. **System Activity Control Section ("Movement Controller")**: An executive mission-control center logging every granular event in the platform classified by date and time:
-   - User registrations
-   - Customer deposit requests
-   - Admin deposit approvals and rejections
-   - Admin direct messages and notifications sent to users
-   - Item and auction creation and modifications
-   - Password changes and credential updates
-   - Admin login and logout sessions
-   - Superadmin executive balance adjustments and governance actions
-3. **Admin Device & Session Security Section**: Real-time presence and concurrent device monitor tracking each administrator's connected hardware:
-   - Online / Offline presence detection (based on active ping within the last 5 minutes)
-   - Active device count per admin with automatic alerts whenever an admin account is active on $\ge 2$ devices simultaneously
-   - Granular session inspector displaying device type, browser, OS, IP address, first login timestamp, and last heartbeat
-   - One-click "Revoke Session" and "Revoke All Other Devices" buttons to remotely disconnect suspicious or unauthorized logins
-4. **Deposit & User Directory Hardening**: Validates that standard Admins never see fellow admin records in user directories, and Superadmin deposit views are strictly non-executable audit streams.
+### The Solution
+- **Remove Phone OTP entirely**: Customers register directly using **Username**, **Password (at least 6 characters)**, and valid **Ethiopian Phone Number** (+2519..., +2517..., 09..., 07...).
+- **Unified Password Login**: Customers sign in seamlessly in a single step using either their **Username or Phone Number** + **Password**.
+- **Optional Email Address & Email OTP Verification**:
+  - Customers can provide an email during registration or add one anytime from their Dashboard.
+  - Adding an email triggers a 6-digit OTP sent to their inbox.
+  - Verifying the email unlocks the official **"Verified" Profile Badge** displayed next to their username across the application.
+- **Cost-Free Email Delivery Architecture**: Standard SMTP / Resend integration with an instant development inspection fallback so local and staging environments work smoothly without requiring paid telecom SMS.
 
 ---
 
-## 2. User Experience & Visual Design
+## 2. Architecture & Data Flow
 
-### Key User Flows
+```
+[Customer Sign-Up]
+  ├── Username (>= 6 chars, alphanumeric)
+  ├── Ethiopian Phone (+2519... / +2517... / 09... / 07...)
+  ├── Password (>= 6 chars)
+  └── Optional Email
+        │
+        ├── If Email Provided ──> Send Email OTP (Free SMTP / Resend / Sandbox fallback)
+        │                            ├── Enter 6-digit Code ──> email_verified = true (Verified Badge Awarded!)
+        │                            └── Skip / Verify Later ──> User created, can verify anytime in Dashboard
+        └── If No Email ───────────> Account created immediately (Active, 0.00 ETB)
 
-#### A. System Movement Controller (Activity Control Room)
-- The Superadmin navigates to the **Executive Desk** and selects the **Activity Control Room** tab.
-- At the top, executive metric counters display: Total Recorded Movements, Active Admin Sessions, 24-Hour Event Volume, and Security Alerts.
-- A quick-filter category bar allows 1-click filtering:
-  `All Movements` · `User Registrations` · `Deposit Lifecycle` · `Auctions & Items` · `Security & Auth` · `Staff Notifications` · `Admin Sessions` · `Superadmin Actions`.
-- A date/time classifier allows viewing events by date grouping (Today, Yesterday, Older) with chronological descending order.
-- Each event row displays:
-  - Exact tabular timestamp (`YYYY-MM-DD HH:mm:ss`)
-  - Actor indicator with role badge (e.g., `Customer @dawit`, `Admin @alex`, `Superadmin @superadmin`)
-  - Movement type badge with semantic colors (Green for approvals, Amber for requests/changes, Crimson for suspensions/revocations, Purple for executive adjustments)
-  - Detailed narrative description and affected target entity ID / username
-  - Client IP address and device signature
-- Real-time refresh toggle and live search input for filtering by username, action name, IP address, or description.
+[Customer Sign-In]
+  ├── Identifier: Username OR Ethiopian Phone Number
+  └── Password
+        └── Instant authentication (No OTP required)
 
-#### B. Multi-Device & Session Security Monitor
-- The Superadmin opens the **Device & Session Security** section.
-- An alert banner is displayed at the top if any admin account is detected with $\ge 2$ active devices:
-  `⚠️ Multi-Device Alert: Admin @alex is currently connected from 2 active devices (Chrome on MacOS, Mobile Safari on iOS).`
-- An admin presence grid displays each registered administrator:
-  - Avatar, username, and assigned 2-letter routing prefix (e.g., `ax`, `op`)
-  - Presence status: Pulsing green dot for **Online** (heartbeat within 5m), muted dot for **Offline**
-  - Active device count badge: Neutral for 1 device, Crimson alert for $\ge 2$ devices
-  - Expandable device list showing each active session:
-    * Device badge (Desktop / Mobile / Tablet)
-    * Browser & OS (e.g., Chrome 124 on macOS Sonoma)
-    * IP address & session creation timestamp
-    * Last active heartbeat timestamp
-    * Action button: **Disconnect Device** (invalidates the session token immediately)
-    * Bulk action: **Revoke All Other Sessions** (preserves only the primary session)
-
-#### C. Read-Only Deposit Audit View
-- When the Superadmin views the **Customer Deposits** desk:
-  - Action buttons (`Approve & Disburse`, `Reject Request`) are replaced with a clear informational notice:
-    `🔒 Executive Audit View: Deposit verification and balance disbursement is strictly delegated to assigned Operations Admins.`
-  - The assigned desk admin (e.g., `@alex`, prefix `ax`) and audit status are displayed with clear visual hierarchy.
-
-#### D. Active Users Protection
-- Standard Operations Admins browsing `/admin/users` strictly see customer/bidder accounts with phone numbers and balances. Other administrator accounts, permissions, and internal staff records are omitted both from the API response and table rendering.
-
-### Visual Identity & Theme
-- **Color Discipline**: Strict 60-30-10 distribution. Deep slate `#070709` and `#0c0c10` canvas (60%), structured surface borders `#27272a` with subtle zinc cards `#121215` (30%), and gold `#E5B842` / rose `#F43F5E` / emerald `#10B981` accents (10%).
-- **Typography**: Clean sans headers (`Cabinet Grotesk` / `Plus Jakarta Sans`) paired with tabular monospace numerals (`font-mono tabular-nums`) for timestamps, IP addresses, session tokens, and currency amounts.
-- **Zero-Pill Discipline**: Metadata uses clean inline text separated by typographic middots (`·`) rather than nested colored pills.
+[Customer Dashboard & Profile]
+  ├── Profile Header displays "@username" + [Verified Badge] (if email_verified)
+  └── Email Management Section:
+        ├── If unverified: "Add/Verify email to earn your Verified Badge" [Send OTP]
+        └── If verified: Green checkmark & verified email address with badge status
+```
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## 3. Detailed Implementation Steps
 
-### 1. Single Superadmin Enforcement
-- **Approach**: Hardcoded database constraint in `server/db.ts` and route validator in `server.ts`. If an account with `role === 'superadmin'` exists, any attempt to register, provision, or promote another account to `superadmin` fails with HTTP 400/403.
-- **Why**: Eliminates privilege escalation risk and satisfies the user's explicit safety requirement.
+### Phase 1: Backend Data Model & Email OTP Service (`server.ts`, `server/db.ts`)
+1. **Email OTP Store**:
+   - Store active email OTP codes with expiration (10 minutes) and rate limiting.
+   - Methods in `db.ts`:
+     - `createEmailOtp(email, userId)`
+     - `verifyEmailOtp(email, code, userId)`
+     - `updateUserEmail(userId, email, isVerified)`
+2. **Email Delivery Dispatcher (`server/emailService.ts`)**:
+   - Configurable for Resend API or standard SMTP (e.g. Gmail / Brevo / Ethereal / Custom SMTP).
+   - Instant Dev Sandbox Fallback: logs email dispatches to a memory buffer accessible via `/api/auth/email-otp/sandbox-preview` so developers and testers can verify codes during testing without waiting.
+3. **API Endpoints**:
+   - `POST /api/auth/register`: Update to accept `username`, `phone`, `password`, and optional `email`. Remove mandatory phone OTP code check.
+   - `POST /api/auth/login`: Ensure `identifier` seamlessly accepts either username or Ethiopian phone number with standard password.
+   - `POST /api/auth/email-otp/send`: Dispatches 6-digit OTP code to specified email address.
+   - `POST /api/auth/email-otp/verify`: Validates email OTP and sets `email_verified: true` for the account.
+   - `GET /api/auth/email-otp/sandbox-preview`: Provides instant inspection of the last sent email OTP for testing.
+   - `PUT /api/auth/profile/email`: Allows authenticated users to update their email address and trigger OTP verification.
 
-### 2. Unified Movement Classification vs Separate Logs
-- **Approach**: Comprehensive system movement pipeline (`system_activities` store) capturing all platform movements uniformly with structured fields (`category`, `action`, `actor_id`, `actor_username`, `actor_role`, `target_id`, `target_type`, `details`, `ip_address`, `user_agent`, `created_at`).
-- **Why**: Allows the Superadmin to filter, search, and audit everything in one central console classified by date and time without fragmenting across disjointed logs.
+### Phase 2: Frontend Auth Modal Simplification (`src/components/AuthModal.tsx`)
+1. **Login Tab**:
+   - Single clean input form:
+     - "Username or Phone Number" (+2519..., 09..., or username handle)
+     - "Password" with show/hide toggle
+     - "Sign In" button with loading state
+   - Remove phone OTP input, send OTP button, and countdown timer from login.
+2. **Registration Tab**:
+   - Form fields:
+     - Username (alphanumeric, >= 6 characters)
+     - Ethiopian Phone Number (+2519..., +2517..., 09..., 07...)
+     - Password (>= 6 characters)
+     - Optional Email field with a badge incentive pill: *"Add email to get a Verified Badge"*
+   - Remove phone SMS OTP requirement from registration.
+   - If user enters an email during registration, offer an optional email OTP step or allow instant completion with prompt to verify email in dashboard.
+3. **Remove Clutter**:
+   - Remove obsolete SMS gateway sandbox drawer and telecom gateway errors from player-facing modal.
 
-### 3. Session Fingerprinting & Multi-Device Heartbeats
-- **Approach**: Session store tracking active admin tokens with parsed User-Agent (OS, browser, device category), IP address, and last seen timestamp. When an admin makes API calls, their session heartbeat is refreshed.
-- **Why**: Accurately detects whether an admin is logged in from multiple devices in real-time, displays human-readable device names, and enables instant remote revocation.
+### Phase 3: Verified Badge & Dashboard Email Management (`src/components/`)
+1. **Verified Badge Component**:
+   - Visual styling: Glowing emerald/gold badge with `CheckCircle2` icon and label *"Verified"*.
+   - Render in `Header.tsx` (next to `@username` in player header).
+   - Render in `AuctionsList.tsx` (in the VIP Dashboard greeting).
+   - Render in `UserDashboard.tsx` (in the player identity card).
+2. **Email Verification Module in `UserDashboard.tsx`**:
+   - Dedicated card in the profile view:
+     - If verified: Displays verified email with checkmark and active badge indicator.
+     - If not verified: Input field for email, "Send OTP" button, and 6-digit code entry modal/drawer.
+     - Instant dev preview helper button for local/sandbox testing.
+3. **Context Updates (`src/context/AuthContext.tsx`)**:
+   - Add `sendEmailOtp(email)`, `verifyEmailOtp(email, code)`, and `updateEmail(email)` helper methods.
+
+### Phase 4: Localization & Validation Polish (`src/utils/i18n.ts`)
+1. Provide bilingual translations (Amharic & English) for:
+   - "Username or Phone Number" / "የተጠቃሚ ስም ወይም ስልክ ቁጥር"
+   - "Optional Email (for Verified Badge)" / "አማራጭ ኢሜይል (የተረጋገጠ ባጅ ለማግኘት)"
+   - "Email OTP Verification" / "የኢሜይል OTP ማረጋገጫ"
+   - "Verified Badge" / "የተረጋገጠ ባጅ"
+   - "Enter 6-digit code sent to your email" / "ወደ ኢሜይልዎ የተላከውን ባለ 6 አሃዝ ኮድ ያስገቡ"
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 4. User Experience Flow
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        SUPERADMIN EXECUTIVE DESK                       │
-├────────────────────┬───────────────────────┬───────────────────────────┤
-│  Activity Control  │   Device & Sessions   │   Deposit Audit (Read-   │
-│   Room (Timeline)  │   Security Monitor    │          Only)            │
-└─────────┬──────────┴───────────┬───────────┴─────────────┬─────────────┘
-          │                      │                         │
-          ▼                      ▼                         ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                          EXPRESS API LAYER                             │
-│  • /api/superadmin/activities (classified events & date filters)       │
-│  • /api/superadmin/devices (active sessions, online/offline, alerts)   │
-│  • /api/superadmin/devices/revoke (remote session termination)         │
-│  • /api/admin/users (strict customer-only filter for standard admins)   │
-│  • /api/admin/deposits/approve (blocks superadmin execution)           │
-└──────────────────────────────────┬─────────────────────────────────────┘
-                                   │
-                                   ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        IN-MEMORY & JSON DATABASE                       │
-│  • db.logActivity(...) [records all movements automatically]          │
-│  • db.registerDeviceSession(...) & db.revokeSession(...)               │
-│  • db.getAdminDeviceStatuses() [detects multi-device usage]           │
-│  • Single superadmin guard in createUser & createAdmin                 │
-└────────────────────────────────────────────────────────────────────────┘
-```
+| Step | User Action | System Response |
+|------|-------------|-----------------|
+| **1. Register** | Enters `@johndoe`, `+251912345678`, password, optional email `john@example.com` | Account created instantly; welcome message displayed; if email entered, OTP dispatched. |
+| **2. Login** | Enters `0912345678` (or `@johndoe`) and password | Authenticates immediately without SMS codes or waiting. |
+| **3. Verify Email** | Clicks "Verify Email" in Dashboard or during signup, enters 6-digit email code | Email marked verified; **"Verified" Badge** illuminates on profile & header. |
 
-### Data Models
+---
 
-#### 1. System Activity Movement Record
-```typescript
-interface SystemMovement {
-  id: string;
-  category: 
-    | 'USER_LIFECYCLE'
-    | 'DEPOSIT_LIFECYCLE'
-    | 'AUCTIONS_ITEMS'
-    | 'SECURITY_AUTH'
-    | 'STAFF_NOTIFICATIONS'
-    | 'SUPERADMIN_ACTION';
-  action: string; // e.g., 'USER_REGISTERED', 'DEPOSIT_REQUESTED', 'DEPOSIT_APPROVED', 'PASSWORD_CHANGED', etc.
-  actor_id: string;
-  actor_username: string;
-  actor_role: 'customer' | 'admin' | 'superadmin' | 'system';
-  target_id?: string;
-  target_username?: string;
-  target_type?: string;
-  details: string;
-  metadata?: Record<string, any>;
-  ip_address: string;
-  user_agent?: string;
-  created_at: string;
-}
-```
-
-#### 2. Admin Active Device Session Record
-```typescript
-interface AdminDeviceSession {
-  id: string;
-  user_id: string;
-  username: string;
-  token_id: string;
-  device_type: 'desktop' | 'mobile' | 'tablet';
-  browser: string;
-  os: string;
-  ip_address: string;
-  is_online: boolean; // heartbeat < 5 minutes
-  login_at: string;
-  last_active_at: string;
-}
-```
-
-### Step-by-Step Implementation Sequence
-1. **Database & Backend Layer (`server/db.ts` & `server.ts`)**:
-   - Enforce single Superadmin constraint in `createUser`, `createAdmin`, and `/api/superadmin/admins/create`.
-   - Implement `logActivity` system that hooks into:
-     * User registration (`/api/auth/register`)
-     * Deposit requests (`/api/payments/deposit`)
-     * Deposit approvals and rejections (`approveDeposit`, `rejectDeposit`)
-     * Direct user messaging (`/api/admin/users/:id/message`)
-     * Auction/Item creation and updates (`/api/admin/auctions`, `/api/admin/auctions/:id`)
-     * Password changes and credential updates (`/api/auth/change-password`, `/api/auth/reset-password`)
-     * Admin logins & logouts (`/api/auth/login`, `/api/auth/logout`)
-     * Superadmin balance adjustments and staff provisioning
-   - Implement active session and device tracker:
-     * Register device session on login with parsed User-Agent
-     * Update session heartbeat on authenticated requests
-     * Remove session on logout or revocation
-     * Expose `/api/superadmin/activities` with date, category, and search filters
-     * Expose `/api/superadmin/devices` with multi-device detection flags and online/offline status
-     * Expose `/api/superadmin/devices/revoke` for single or bulk revocation
-2. **Frontend UI Components**:
-   - Create `SuperAdminActivityController.tsx`: High-density classified movement timeline with category filters, date groupings, search, and real-time refresh.
-   - Create `SuperAdminDeviceSecurity.tsx`: Admin device monitor with online/offline indicators, multi-device alert badges, session specifications, and revoke buttons.
-   - Update `AdminWorkstation.tsx`: Add dedicated navigation tabs for **Activity Control Room** and **Device & Session Security**, and ensure clean routing.
-   - Update `AdminDepositRequests.tsx`: Confirm read-only audit mode for Superadmin with no accept or reject action buttons.
-   - Update `AdminUsersTable.tsx`: Confirm standard admins strictly see customers only, with other admin details hidden.
-   - Update `SuperAdminAdmins.tsx`: Lock role creation to `admin` only with clear single-superadmin policy notice.
-3. **Verification**:
-   - Run `compile_applet` and test all endpoints to guarantee zero regressions.
+## 5. Verification & Testing Checklist
+- [ ] Register new account with Username + Phone + Password (without email) -> Succeeds immediately without OTP.
+- [ ] Sign out and log in using Phone Number + Password -> Logs in immediately.
+- [ ] Sign out and log in using Username + Password -> Logs in immediately.
+- [ ] Register with optional email -> Dispatches email OTP, validates code, awards Verified Badge.
+- [ ] From User Dashboard, add/verify email on an unverified account -> OTP sent, code verified, badge appears.
+- [ ] Verified badge renders consistently across Header, Dashboard, and Auctions List.
+- [ ] Build succeeds with zero errors via `compile_applet`.

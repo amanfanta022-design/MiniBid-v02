@@ -9,7 +9,9 @@ interface AuthContextType {
   login: (identifier: string, password: string, portalOverride?: 'admin' | 'player') => Promise<{ success: boolean; error?: string; code?: string }>;
   loginWithOtp: (phone: string, code: string) => Promise<{ success: boolean; error?: string; code?: string }>;
   sendOtp: (phone: string, purpose?: 'login' | 'register') => Promise<{ success: boolean; error?: string; message?: string }>;
-  register: (data: { username: string; email?: string; phone: string; password: string; otp_code?: string }) => Promise<{ success: boolean; error?: string }>;
+  sendEmailOtp: (email?: string) => Promise<{ success: boolean; error?: string; message?: string; email?: string }>;
+  verifyEmailOtp: (email: string, code: string) => Promise<{ success: boolean; error?: string; message?: string; user?: User }>;
+  register: (data: { username: string; email?: string; phone: string; password: string; otp_code?: string }) => Promise<{ success: boolean; error?: string; email_otp_dispatched?: boolean; email?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   updateUserBalance: (newBalance: number) => void;
@@ -106,6 +108,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendEmailOtp = async (email?: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/auth/email-otp/send', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to dispatch email verification code' };
+      }
+      return {
+        success: true,
+        message: data.message,
+        email: data.email,
+      };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Network error';
+      return { success: false, error: msg };
+    }
+  };
+
+  const verifyEmailOtp = async (email: string, code: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/auth/email-otp/verify', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to verify email code' };
+      }
+      if (data.user) {
+        setUser(data.user);
+      } else {
+        await refreshUser();
+      }
+      return {
+        success: true,
+        message: data.message,
+        user: data.user,
+      };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Network error';
+      return { success: false, error: msg };
+    }
+  };
+
   const loginWithOtp = async (phone: string, code: string) => {
     try {
       const res = await fetch('/api/auth/otp/login', {
@@ -144,7 +203,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('minibid_token', data.token);
       setToken(data.token);
       setUser(data.user);
-      return { success: true };
+      return {
+        success: true,
+        email_otp_dispatched: data.email_otp_dispatched,
+        email: data.user?.email || userData.email,
+      };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Network error';
       return { success: false, error: msg };
@@ -176,6 +239,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         loginWithOtp,
         sendOtp,
+        sendEmailOtp,
+        verifyEmailOtp,
         register,
         logout,
         refreshUser,

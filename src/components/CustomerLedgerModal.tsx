@@ -22,8 +22,10 @@ import {
   PhoneCall,
   Crown,
   Gift,
+  Mail,
 } from 'lucide-react';
 import { Transaction, Auction } from '../types.js';
+import { EmailVerificationModal } from './EmailVerificationModal.js';
 
 interface CustomerLedgerModalProps {
   isOpen: boolean;
@@ -43,18 +45,21 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
   const [wonAuctions, setWonAuctions] = useState<Auction[]>([]);
   const [isLoadingTx, setIsLoadingTx] = useState(false);
 
-  // Settings form (Requirement 5: username, phone, password - email removed)
+  // Settings form (username, phone, password, email)
   const [usernameInput, setUsernameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
+  const [emailInput, setEmailInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isEmailVerifyOpen, setIsEmailVerifyOpen] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen || !user) return;
     setUsernameInput(user.username || '');
     setPhoneInput(user.phone || '');
+    setEmailInput(user.email || '');
     setNewPasswordInput('');
     setSettingsMsg(null);
 
@@ -125,6 +130,7 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
       const payload: any = {
         username: cleanUser,
         phone: cleanPhone,
+        email: emailInput.trim() || undefined,
       };
       if (newPasswordInput) {
         payload.password = newPasswordInput;
@@ -212,13 +218,24 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1">
+            <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1 flex-wrap">
               <span className="font-mono text-zinc-300">{user.phone}</span>
               <span>•</span>
-              <span className="text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {language === 'am' ? 'የተረጋገጠ አባል' : 'Verified Member'}
-              </span>
+              {user.email_verified ? (
+                <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{language === 'am' ? 'የተረጋገጠ አባል (Verified 🛡️)' : 'Verified Member 🛡️'}</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEmailVerifyOpen(true)}
+                  className="text-[#E5B842] hover:text-amber-300 flex items-center gap-1 cursor-pointer font-semibold underline text-xs transition-colors"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>{language === 'am' ? 'ኢሜይል አረጋግጥ (ባጅ ውሰድ)' : 'Verify Email (Claim Badge)'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -566,6 +583,42 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
             </div>
 
             <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-[#E5B842]" />
+                  <span>{language === 'am' ? 'ኢሜይል አድራሻ' : 'Email Address'}</span>
+                </label>
+                {user.email_verified ? (
+                  <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{language === 'am' ? 'የተረጋገጠ ባጅ' : 'Verified Badge Active'}</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEmailVerifyOpen(true)}
+                    className="text-[10px] font-mono text-[#E5B842] hover:text-amber-300 underline cursor-pointer flex items-center gap-0.5"
+                  >
+                    <span>{language === 'am' ? 'ባጅ ለማግኘት አረጋግጥ' : 'Verify for Badge'}</span>
+                    <Sparkles className="w-2.5 h-2.5 text-[#E5B842]" />
+                  </button>
+                )}
+              </div>
+              <input
+                type="email"
+                placeholder="name@example.com"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-sm text-white font-mono focus:outline-none focus:border-[#E5B842]"
+              />
+              <p className="text-[10px] text-zinc-500 mt-1">
+                {language === 'am'
+                  ? 'ኢሜይልዎን በማረጋገጥ በመገለጫዎ ላይ የተረጋገጠ ባጅ (Verified Badge) ይውሰዱ።'
+                  : 'Verify your email to award the Verified Profile Badge to your account.'}
+              </p>
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1">
                 {language === 'am' ? 'አዲስ የይለፍ ቃል (የይለፍ ቃል ለመቀየር ካልፈለጉ ባዶ ይተዉት)' : 'New Password (Leave blank to keep current)'}
               </label>
@@ -630,6 +683,16 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
           </form>
         )}
       </div>
+
+      {/* Email Verification Modal */}
+      <EmailVerificationModal
+        isOpen={isEmailVerifyOpen}
+        onClose={() => setIsEmailVerifyOpen(false)}
+        initialEmail={emailInput || user.email}
+        onSuccess={() => {
+          refreshUser();
+        }}
+      />
     </div>
   );
 };

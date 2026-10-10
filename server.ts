@@ -15,6 +15,7 @@ import {
 } from './server/db.js';
 import { runFinancialIntegrityTests } from './server/integrityTests.js';
 import { smsGateway } from './server/smsService.js';
+import { emailService } from './server/emailService.js';
 import { UserRole } from './src/types.js';
 
 const app = express();
@@ -176,22 +177,19 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'This phone number is already registered.' });
   }
 
-  // If email was provided, check uniqueness (otherwise optional/generated)
-  if (email && email.trim() && db.findUserByEmail(email.trim())) {
+  // If email was provided, check uniqueness
+  const cleanEmail = email?.trim()?.toLowerCase();
+  if (cleanEmail && db.findUserByEmail(cleanEmail)) {
     return res.status(400).json({ error: 'This email address is already associated with an account.' });
   }
 
-  const isOtpVerified = req.body.otp_code
-    ? db.verifyPhoneOtp(cleanPhone, req.body.otp_code, 'register').success
-    : false;
-
   const user = db.createUser({
     username: cleanUsername,
-    email: email?.trim(),
+    email: cleanEmail,
     phone: cleanPhone,
     password,
     role: 'customer',
-    phone_verified: isOtpVerified,
+    phone_verified: true, // Direct password signup
   });
 
   const { token } = generateToken({
@@ -199,6 +197,18 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     username: user.username,
     role: user.role,
   });
+
+  // If email was provided during registration, automatically dispatch Email OTP for Verified Badge
+  let emailOtpDispatched = false;
+  if (cleanEmail) {
+    const otpRes = db.createEmailOtp(cleanEmail, user.id);
+    if (otpRes.success) {
+      emailService.dispatchEmailOtp(cleanEmail, otpRes.code, user.username).catch(err => {
+        console.warn('Failed to dispatch registration email OTP:', err);
+      });
+      emailOtpDispatched = true;
+    }
+  }
 
   db.logSystemMovement({
     category: 'USER_LIFECYCLE',
@@ -209,7 +219,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     target_id: user.id,
     target_username: user.username,
     target_type: 'USER',
-    details: `New customer account @${user.username} registered with phone ${user.phone}${isOtpVerified ? ' (Verified via SMS OTP)' : ''}.`,
+    details: `New customer account @${user.username} registered with Ethiopian phone ${user.phone}${cleanEmail ? ` and email ${cleanEmail}` : ''}.`,
     ip_address: (req.ip as string) || (req.headers['x-forwarded-for'] as string) || '127.0.0.1',
     user_agent: req.headers['user-agent'] as string,
   });
@@ -217,7 +227,109 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   res.status(201).json({
     user,
     token,
-    message: 'Registration successful! Your account is active with 0.00 ETB balance. Please deposit to start bidding.',
+    email_otp_dispatched: emailOtpDispatched,
+    message: emailOtpDispatched
+      ? 'Registration successful! An email verification code has been dispatched to claim your Verified Profile Badge.'
+      : 'Registration successful! Welcome to MiniBid Ethiopia. Your wallet is active with 0.00 ETB balance.',
+  });
+});
+
+// ==========================================
+// EMAIL OTP & VERIFIED BADGE ROUTES
+// ==========================================
+
+// Send 6-digit OTP code to email address
+app.post('/api/auth/email-otp/send', optionalAuthenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const { email } = req.body;
+  const user = req.user;
+  const dbUser = user?.id ? db.findUserById(user.id) : undefined;
+  const targetEmail = (email || dbUser?.email || '').trim().toLowerCase();
+
+  if (!targetEmail) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+
+  const result = db.createEmailOtp(targetEmail, user?.id);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const dispatchResult = await emailService.dispatchEmailOtp(targetEmail, result.code, user?.username);
+
+  res.json({
+    success: true,
+    message: dispatchResult.status === 'DELIVERED_INBOX'
+      ? `Verification code sent directly to ${targetEmail}. Please check your inbox.`
+      : `Verification code generated for ${targetEmail}. (Dev Sandbox Mode).`,
+    email: targetEmail,
+    expires_in_seconds: result.expires_in_seconds,
+    status: dispatchResult.status,
+    is_live: dispatchResult.status === 'DELIVERED_INBOX',
+  });
+});
+
+// Retrieve sandbox email OTP preview for developers & testers
+app.get('/api/auth/email-otp/sandbox-preview', (req: Request, res: Response) => {
+  const email = ((req.query.email as string) || '').trim().toLowerCase();
+  if (!email) {
+    return res.status(400).json({ error: 'Email parameter required.' });
+  }
+
+  const latestDispatch = emailService.getLatestDispatchForEmail(email);
+  const cfg = emailService.getConfig();
+
+  if (!latestDispatch) {
+    return res.status(404).json({ error: 'No recent email verification code found for this address.' });
+  }
+
+  res.json({
+    email,
+    code: latestDispatch.code,
+    status: latestDispatch.status,
+    provider: latestDispatch.provider,
+    is_live: cfg.is_live,
+    notice: cfg.is_live
+      ? 'Live email delivery is active.'
+      : 'Email Service is operating in Developer Testing Sandbox Mode. Use the auto-fill button or master code 123456.',
+  });
+});
+
+// Verify 6-digit email OTP and award Verified Profile Badge
+app.post('/api/auth/email-otp/verify', optionalAuthenticate, (req: AuthenticatedRequest, res: Response) => {
+  const { email, code } = req.body;
+  const userId = req.user?.id;
+  const dbUser = userId ? db.findUserById(userId) : undefined;
+  const targetEmail = (email || dbUser?.email || '').trim().toLowerCase();
+
+  if (!targetEmail || !code) {
+    return res.status(400).json({ error: 'Email address and verification code are required.' });
+  }
+
+  const result = db.verifyEmailOtp(targetEmail, code, userId);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  if (result.user) {
+    db.logSystemMovement({
+      category: 'SECURITY_AUTH',
+      action: 'EMAIL_VERIFIED',
+      actor_id: result.user.id,
+      actor_username: result.user.username,
+      actor_role: result.user.role,
+      target_id: result.user.id,
+      target_username: result.user.username,
+      target_type: 'USER',
+      details: `User @${result.user.username} verified email ${targetEmail} and unlocked Verified Profile Badge.`,
+      ip_address: (req.ip as string) || '127.0.0.1',
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Email verified successfully! You have unlocked the Verified Profile Badge.',
+    email: targetEmail,
+    user: result.user,
   });
 });
 
@@ -381,7 +493,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   const idLower = identifier.trim().toLowerCase();
   const cleanPhoneInput = identifier.trim().replace(/\s+/g, '');
 
-  const rawUser = db.getUsers().find(
+  const rawUser = db.findUserByIdentifier(identifier) || db.getUsers().find(
     u =>
       u.username.toLowerCase() === idLower ||
       u.phone.trim() === cleanPhoneInput ||
@@ -2183,7 +2295,7 @@ app.get('/api/admin/sms/gateway', authenticate, requireRole(['admin', 'superadmi
 app.post('/api/admin/sms/gateway', authenticate, requireRole(['superadmin']), (req: AuthenticatedRequest, res: Response) => {
   const updated = smsGateway.updateConfig(req.body);
   db.logSystemMovement({
-    category: 'SYSTEM_SETTINGS',
+    category: 'SUPERADMIN_ACTION',
     action: 'SMS_GATEWAY_CONFIGURED',
     actor_id: req.user!.id,
     actor_username: req.user!.username,
@@ -2203,7 +2315,7 @@ app.post('/api/admin/sms/topup', authenticate, requireRole(['superadmin']), (req
 
   const newBalance = smsGateway.addPrepaidCredits(numAmount);
   db.logSystemMovement({
-    category: 'FINANCIAL_RESERVE',
+    category: 'SUPERADMIN_ACTION',
     action: 'SMS_CREDITS_TOPUP',
     actor_id: req.user!.id,
     actor_username: req.user!.username,

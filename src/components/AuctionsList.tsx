@@ -162,10 +162,15 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                 <span className="font-serif font-black text-white text-base sm:text-lg">
                   @{user.username}
                 </span>
-                {user.phone_verified && (
+                {user.email_verified ? (
                   <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 font-mono text-[10px] font-bold flex items-center gap-1 shadow-sm">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>OTP Verified</span>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Verified Badge</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 font-mono text-[10px] font-medium flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-[#E5B842]" />
+                    <span>Player</span>
                   </span>
                 )}
               </div>

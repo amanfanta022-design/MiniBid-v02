@@ -32,6 +32,7 @@ import {
   Languages,
   Settings,
   Activity,
+  CheckCircle2,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
 import { PlatformNotification } from '../types.js';
@@ -516,12 +517,16 @@ export const Header: React.FC<HeaderProps> = ({
                   {/* User Profile Trigger */}
                   <div
                     onClick={onOpenLedger}
-                    className="hidden sm:flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-[#27272a] bg-[#121214] hover:border-zinc-600 cursor-pointer transition-all"
+                    className="hidden sm:flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-xl border border-[#27272a] bg-[#121214] hover:border-zinc-600 cursor-pointer transition-all"
+                    title={user.email_verified ? 'Verified Account' : 'Player Account'}
                   >
                     <div className="w-5 h-5 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300">
                       {user.username.charAt(0).toUpperCase()}
                     </div>
                     <span className="text-xs font-medium text-zinc-200 max-w-[100px] truncate">@{user.username}</span>
+                    {user.email_verified && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 drop-shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+                    )}
                   </div>
 
                   {/* Desktop Logout Button */}
@@ -641,7 +646,12 @@ export const Header: React.FC<HeaderProps> = ({
                         {user.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-bold text-sm text-white">@{user.username}</div>
+                        <div className="font-bold text-sm text-white flex items-center gap-1.5">
+                          <span>@{user.username}</span>
+                          {user.email_verified && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          )}
+                        </div>
                         <div className="text-[10px] text-zinc-400 font-mono">{user.phone}</div>
                       </div>
                     </div>

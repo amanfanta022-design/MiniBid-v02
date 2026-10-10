@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { useTranslation } from '../utils/i18n.js';
 import {
@@ -11,14 +11,13 @@ import {
   CheckCircle2,
   AlertTriangle,
   Languages,
-  ShieldAlert,
-  Smartphone,
+  ShieldCheck,
   KeyRound,
-  Send,
+  Mail,
   Sparkles,
   ArrowRight,
-  Shield,
 } from 'lucide-react';
+import { EmailVerificationModal } from './EmailVerificationModal.js';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -26,29 +25,20 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { login, loginWithOtp, sendOtp, register } = useAuth();
+  const { login, register } = useAuth();
   const { language, setLanguage } = useTranslation();
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
-  const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
 
-  // Login inputs (Password)
+  // Login inputs (Unified Username or Phone + Password)
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Login inputs (OTP)
-  const [otpPhone, setOtpPhone] = useState('+2519');
-  const [otpCode, setOtpCode] = useState('');
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [otpCooldown, setOtpCooldown] = useState(0);
-
-  // Register inputs
+  // Register inputs (Username, Phone, Password, Optional Email)
   const [regUsername, setRegUsername] = useState('');
   const [regPhone, setRegPhone] = useState('+2519');
   const [regPassword, setRegPassword] = useState('');
-  const [regOtpCode, setRegOtpCode] = useState('');
-  const [isRegOtpSent, setIsRegOtpSent] = useState(false);
-  const [regOtpCooldown, setRegOtpCooldown] = useState(0);
+  const [regEmail, setRegEmail] = useState('');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,122 +46,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [errorCode, setErrorCode] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
 
-  // Telecom Gateway Sandbox helper state
-  const [sandboxInfo, setSandboxInfo] = useState<{ phone: string; code: string; notice: string; is_live: boolean } | null>(null);
-  const [isFetchingSandbox, setIsFetchingSandbox] = useState(false);
+  // Email verification prompt modal
+  const [showEmailVerifyModal, setShowEmailVerifyModal] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
-  const fetchSandboxOtp = async (phoneToFetch: string) => {
-    setIsFetchingSandbox(true);
+  if (!isOpen && !showEmailVerifyModal) return null;
+
+  // Handle Unified Login (Username or Phone + Password)
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage('');
-    try {
-      const cleanPhone = phoneToFetch.trim().replace(/\s+/g, '');
-      const res = await fetch(`/api/auth/otp/sandbox-preview?phone=${encodeURIComponent(cleanPhone)}`);
-      const data = await res.json();
-      if (res.ok && data.code) {
-        setSandboxInfo({
-          phone: data.phone,
-          code: data.code,
-          notice: data.notice,
-          is_live: data.is_cellular_live,
-        });
-      } else {
-        setErrorMessage(data.error || 'No recent OTP dispatch recorded for this number');
-      }
-    } catch {
-      setErrorMessage('Failed to connect to Telecom gateway status');
-    } finally {
-      setIsFetchingSandbox(false);
-    }
-  };
+    setErrorCode('');
 
-  // Cooldown timers
-  useEffect(() => {
-    if (otpCooldown > 0) {
-      const timer = setTimeout(() => setOtpCooldown(otpCooldown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [otpCooldown]);
-
-  useEffect(() => {
-    if (regOtpCooldown > 0) {
-      const timer = setTimeout(() => setRegOtpCooldown(regOtpCooldown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [regOtpCooldown]);
-
-  if (!isOpen) return null;
-
-  // Handle Send OTP for Login
-  const handleSendLoginOtp = async () => {
-    setErrorMessage('');
-    setSuccessNotice('');
-    const cleanPhone = otpPhone.trim().replace(/\s+/g, '');
-    const phoneRegex = /^(\+251[79]\d{8}|0[79]\d{8})$/;
-    if (!phoneRegex.test(cleanPhone)) {
+    if (!loginIdentifier.trim() || !loginPassword) {
       setErrorMessage(
         language === 'am'
-          ? 'እባክዎ ትክክለኛ የኢትዮጵያ ስልክ ቁጥር ያስገቡ (+2519..., +2517..., 09..., ወይም 07...)'
-          : 'Please enter a valid Ethiopian phone number (+2519..., +2517..., 09..., or 07...).'
+          ? 'እባክዎ የተጠቃሚ ስም/ስልክ እና የይለፍ ቃል ያስገቡ።'
+          : 'Please enter your username or phone number and password.'
       );
       return;
     }
 
     setIsLoading(true);
-    const res = await sendOtp(cleanPhone, 'login');
-    setIsLoading(false);
-
-    if (!res.success) {
-      setErrorMessage(res.error || 'Failed to send SMS code');
-      return;
-    }
-
-    setIsOtpSent(true);
-    setOtpCooldown(60);
-    setSuccessNotice(
-      language === 'am'
-        ? `የማረጋገጫ 6-ዲጂት ኮድ በኤስኤምኤስ (SMS) በቀጥታ ወደ ስልክዎ ተልኳል። እባክዎ በስልክዎ የደረሰዎትን ኮድ ያስገቡ።`
-        : `A 6-digit verification code has been sent directly to your phone via SMS. Please check your messages and enter the code below.`
-    );
-  };
-
-  // Handle Login via OTP
-  const handleOtpLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setErrorCode('');
-    if (!otpCode.trim() || otpCode.trim().length < 4) {
-      setErrorMessage(
-        language === 'am' ? 'እባክዎ የደረሰዎትን 6-ዲጂት ኮድ ያስገቡ።' : 'Please enter the 6-digit code received via SMS.'
-      );
-      return;
-    }
-
-    setIsLoading(true);
-    const res = await loginWithOtp(otpPhone.trim(), otpCode.trim());
-    setIsLoading(false);
-
-    if (!res.success) {
-      setErrorMessage(res.error || (language === 'am' ? 'ኮዱ የተሳሳተ ወይም ጊዜው ያለፈበት ነው።' : 'Invalid or expired code.'));
-      setErrorCode(res.code || '');
-    } else {
-      onClose();
-    }
-  };
-
-  // Handle Standard Password Login
-  const handlePasswordLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setErrorCode('');
-    setIsLoading(true);
-
-    // Strictly enforce customer portal context
     const res = await login(loginIdentifier.trim(), loginPassword, 'player');
     setIsLoading(false);
 
     if (!res.success) {
       setErrorMessage(
-        res.error || (language === 'am' ? 'መግባት አልተቻለም። እባክዎ መረጃዎን ያረጋግጡ።' : 'Failed to sign in. Please verify credentials.')
+        res.error ||
+          (language === 'am'
+            ? 'መግባት አልተቻለም። እባክዎ መረጃዎን ያረጋግጡ።'
+            : 'Failed to sign in. Please check your credentials.')
       );
       setErrorCode(res.code || '');
     } else {
@@ -179,42 +84,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  // Handle Send OTP for Registration
-  const handleSendRegOtp = async () => {
-    setErrorMessage('');
-    const cleanPhone = regPhone.trim().replace(/\s+/g, '');
-    const phoneRegex = /^(\+251[79]\d{8}|0[79]\d{8})$/;
-    if (!phoneRegex.test(cleanPhone)) {
-      setErrorMessage(
-        language === 'am'
-          ? 'እባክዎ ትክክለኛ የኢትዮጵያ ስልክ ቁጥር ያስገቡ (+2519..., +2517..., 09..., ወይም 07...)'
-          : 'Please enter a valid Ethiopian phone number (+2519..., +2517..., 09..., or 07...).'
-      );
-      return;
-    }
-
-    setIsLoading(true);
-    const res = await sendOtp(cleanPhone, 'register');
-    setIsLoading(false);
-
-    if (!res.success) {
-      setErrorMessage(res.error || 'Failed to send SMS code');
-      return;
-    }
-
-    setIsRegOtpSent(true);
-    setRegOtpCooldown(60);
-    setSuccessNotice(
-      language === 'am'
-        ? `የማረጋገጫ ኮድ በኤስኤምኤስ (SMS) በቀጥታ ወደ ስልክዎ ተልኳል። እባክዎ በስልክዎ የደረሰዎትን ኮድ ያስገቡ።`
-        : `A verification code has been sent directly to your phone via SMS. Please check your messages and enter the code below.`
-    );
-  };
-
-  // Handle Register Submit
+  // Handle Direct Registration
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setSuccessNotice('');
 
     const cleanUsername = regUsername.trim();
     if (cleanUsername.length <= 5) {
@@ -255,294 +129,155 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
+    const cleanEmail = regEmail.trim();
+    if (cleanEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        setErrorMessage(
+          language === 'am'
+            ? 'እባክዎ ትክክለኛ የኢሜይል አድራሻ ያስገቡ ወይም ባዶ ይተዉት።'
+            : 'Please enter a valid email address or leave it empty.'
+        );
+        return;
+      }
+    }
+
     setIsLoading(true);
     const res = await register({
       username: cleanUsername,
       phone: cleanPhone,
       password: regPassword,
-      otp_code: regOtpCode.trim() || undefined,
+      email: cleanEmail || undefined,
     });
     setIsLoading(false);
 
     if (!res.success) {
       setErrorMessage(res.error || (language === 'am' ? 'አካውንት መክፈት አልተቻለም።' : 'Failed to create account'));
     } else {
-      onClose();
+      if (cleanEmail && res.email_otp_dispatched) {
+        // Open Email Verification Modal to let user claim their Verified Badge immediately!
+        setRegisteredEmail(cleanEmail);
+        setShowEmailVerifyModal(true);
+      } else {
+        onClose();
+      }
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="relative w-full max-w-md bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-7 md:p-8 text-zinc-100 my-auto sm:my-8 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
-        {/* Top Action Header */}
-        <div className="flex items-center justify-between absolute top-4 sm:top-5 right-4 sm:right-5 gap-2 z-10">
-          <button
-            type="button"
-            onClick={() => setLanguage(language === 'en' ? 'am' : 'en')}
-            className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-mono font-semibold text-[#E5B842] border border-[#27272a] flex items-center gap-1 transition-all cursor-pointer"
-            title="Toggle Language"
-          >
-            <Languages className="w-3 h-3" />
-            <span>{language === 'en' ? 'አማርኛ' : 'EN'}</span>
-          </button>
-
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Brand Monogram */}
-        <div className="text-center mb-5">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#E5B842] to-amber-600 p-0.5 mx-auto mb-2 shadow-lg">
-            <div className="w-full h-full bg-[#09090b] rounded-[10px] flex items-center justify-center">
-              <span className="font-serif font-black text-[#E5B842] text-2xl">MB</span>
-            </div>
-          </div>
-          <h2 className="text-xl font-bold font-serif text-white">MINIBID ETHIOPIA</h2>
-          <div className="flex items-center justify-center gap-1.5 mt-0.5 text-xs text-zinc-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>{language === 'am' ? 'የተጫዋቾች መግቢያ ፖርታል' : 'Player Gaming Portal'}</span>
-          </div>
-        </div>
-
-        {/* Tab Switcher: Sign In vs Create Account */}
-        <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-xl border border-[#27272a] mb-5">
-          <button
-            id="auth-tab-login"
-            onClick={() => {
-              setTab('login');
-              setErrorMessage('');
-              setErrorCode('');
-              setSuccessNotice('');
-            }}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              tab === 'login' ? 'bg-[#E5B842] text-black shadow-sm' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            {language === 'am' ? 'ግባ' : 'Sign In'}
-          </button>
-          <button
-            id="auth-tab-register"
-            onClick={() => {
-              setTab('register');
-              setErrorMessage('');
-              setErrorCode('');
-              setSuccessNotice('');
-            }}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              tab === 'register' ? 'bg-[#E5B842] text-black shadow-sm' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            {language === 'am' ? 'አካውንት ክፈት' : 'Create Account'}
-          </button>
-        </div>
-
-        {tab === 'login' ? (
-          <div className="space-y-4">
-            {/* Login Method Toggle: Real-time Phone OTP vs Password */}
-            <div className="grid grid-cols-2 gap-2 bg-[#141418] p-1 rounded-xl border border-[#27272a]">
+    <>
+      {isOpen && !showEmailVerifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="relative w-full max-w-md bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-7 md:p-8 text-zinc-100 my-auto sm:my-8 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
+            {/* Top Action Header */}
+            <div className="flex items-center justify-between absolute top-4 sm:top-5 right-4 sm:right-5 gap-2 z-10">
               <button
                 type="button"
-                onClick={() => {
-                  setLoginMethod('otp');
-                  setErrorMessage('');
-                  setErrorCode('');
-                }}
-                className={`py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  loginMethod === 'otp'
-                    ? 'bg-emerald-600 text-white font-bold shadow-md'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
+                onClick={() => setLanguage(language === 'en' ? 'am' : 'en')}
+                className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-mono font-semibold text-[#E5B842] border border-[#27272a] flex items-center gap-1 transition-all cursor-pointer"
+                title="Toggle Language"
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>{language === 'am' ? 'በስልክ SMS ኮድ' : 'Phone SMS OTP'}</span>
+                <Languages className="w-3 h-3" />
+                <span>{language === 'en' ? 'አማርኛ' : 'EN'}</span>
               </button>
+
               <button
-                type="button"
-                onClick={() => {
-                  setLoginMethod('password');
-                  setErrorMessage('');
-                  setErrorCode('');
-                }}
-                className={`py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  loginMethod === 'password'
-                    ? 'bg-[#E5B842] text-black font-bold shadow-md'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
+                onClick={onClose}
+                className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white cursor-pointer transition-all"
               >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>{language === 'am' ? 'በይለፍ ቃል' : 'Password Login'}</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {loginMethod === 'otp' ? (
-              /* Phone Number SMS OTP Form */
-              <form onSubmit={handleOtpLoginSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    {language === 'am' ? 'የኢትዮጵያ ስልክ ቁጥር (+251)' : 'Ethiopian Phone Number (+251)'}
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Phone className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
-                      <input
-                        type="text"
-                        required
-                        placeholder="+251 9... / 09..."
-                        value={otpPhone}
-                        onChange={e => setOtpPhone(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleSendLoginOtp}
-                      disabled={isLoading || otpCooldown > 0}
-                      className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1 shadow-md shadow-emerald-950/40"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{otpCooldown > 0 ? `${otpCooldown}s` : language === 'am' ? 'ኮድ ላክ' : 'Send SMS'}</span>
-                    </button>
-                  </div>
+            {/* Brand Monogram */}
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#E5B842] to-amber-600 p-0.5 mx-auto mb-2 shadow-lg">
+                <div className="w-full h-full bg-[#09090b] rounded-[10px] flex items-center justify-center">
+                  <span className="font-serif font-black text-[#E5B842] text-2xl">MB</span>
                 </div>
+              </div>
+              <h2 className="text-xl font-bold font-serif text-white">MINIBID ETHIOPIA</h2>
+              <div className="flex items-center justify-center gap-1.5 mt-0.5 text-xs text-zinc-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{language === 'am' ? 'የተጫዋቾች መግቢያ ፖርታል' : 'Player Gaming Portal'}</span>
+              </div>
+            </div>
 
-                {isOtpSent && (
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center justify-between">
-                      <span>{language === 'am' ? 'የደረሰዎት 6-ዲጂት ኮድ' : 'Enter 6-Digit SMS Code'}</span>
-                      <span className="text-emerald-400 text-[10px] font-mono">SMS Dispatched</span>
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      required
-                      placeholder="------"
-                      value={otpCode}
-                      onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-emerald-500/70 text-center text-lg font-mono font-bold tracking-widest text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
+            {/* Tab Switcher: Sign In vs Create Account */}
+            <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-xl border border-[#27272a] mb-5">
+              <button
+                id="auth-tab-login"
+                onClick={() => {
+                  setTab('login');
+                  setErrorMessage('');
+                  setErrorCode('');
+                  setSuccessNotice('');
+                }}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  tab === 'login' ? 'bg-[#E5B842] text-black shadow-sm font-bold' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {language === 'am' ? 'ግባ (Sign In)' : 'Sign In'}
+              </button>
+              <button
+                id="auth-tab-register"
+                onClick={() => {
+                  setTab('register');
+                  setErrorMessage('');
+                  setErrorCode('');
+                  setSuccessNotice('');
+                }}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  tab === 'register' ? 'bg-[#E5B842] text-black shadow-sm font-bold' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {language === 'am' ? 'አካውንት ክፈት (Register)' : 'Create Account'}
+              </button>
+            </div>
 
-                    {/* Telecom Gateway Sandbox helper if physical SMS not received */}
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => fetchSandboxOtp(otpPhone)}
-                        disabled={isFetchingSandbox}
-                        className="text-[11px] text-zinc-400 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>{language === 'am' ? 'በስልክዎ ኤስኤምኤስ አልደረሰዎትም? (የቴሌኮም ሁኔታን ይመልከቱ)' : "Didn't receive SMS on physical phone? (Telecom Status)"}</span>
-                      </button>
-
-                      {sandboxInfo && (
-                        <div className="mt-2 p-3 rounded-xl bg-amber-950/40 border border-amber-800/80 text-xs text-amber-200 space-y-1.5 animate-fadeIn">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[11px] uppercase tracking-wider text-amber-300">
-                              {sandboxInfo.is_live ? 'Live Telecom Carrier' : 'Telecom Gateway: Sandbox Mode'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setOtpCode(sandboxInfo.code)}
-                              className="px-2 py-0.5 rounded bg-[#E5B842] hover:bg-amber-400 text-black font-mono font-bold text-[10px] cursor-pointer shadow"
-                            >
-                              {language === 'am' ? 'ኮዱን አስገባ' : 'Auto-Fill Code'}
-                            </button>
-                          </div>
-                          <p className="text-[10px] text-zinc-300 leading-relaxed">
-                            {sandboxInfo.notice}
-                          </p>
-                          <div className="text-center font-mono text-base font-black text-amber-400 py-1 bg-black/50 rounded-lg border border-amber-700/50 tracking-widest">
-                            {sandboxInfo.code}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {errorMessage && (
-                  errorCode === 'ADMIN_PORTAL_REQUIRED' ? (
-                    <div className="p-3.5 rounded-xl bg-red-950/50 border border-red-800 text-xs text-red-200 space-y-1.5 animate-fadeIn">
-                      <div className="flex items-center gap-2">
-                        <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-                        <span className="font-bold uppercase tracking-wider text-rose-300 font-mono text-[11px]">
-                          {language === 'am' ? 'የተጠቃሚ መግቢያ የተከለከለ ነው' : 'Player Account Required'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed text-zinc-300">
-                        {language === 'am'
-                          ? 'ይህ የመግቢያ ገጽ ለተጫዋቾች ብቻ ነው። የአስተዳዳሪ አካውንቶች እዚህ መግባት አይችሉም።'
-                          : 'This sign-in screen is strictly for player accounts. Administrative accounts cannot sign in here.'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-red-950/40 border border-red-800 text-xs text-red-300 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>{errorMessage}</span>
-                    </div>
-                  )
-                )}
-
-                {successNotice && !errorMessage && (
-                  <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-xs text-emerald-300 flex items-center gap-2 font-mono">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>{successNotice}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isLoading || !isOtpSent}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <span>{language === 'am' ? 'በማረጋገጥ ላይ...' : 'Verifying OTP...'}</span>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{language === 'am' ? 'ኮዱን አረጋግጥና ግባ' : 'Verify SMS & Enter MiniBid'}</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            ) : (
-              /* Customer Password Login Form */
-              <form onSubmit={handlePasswordLoginSubmit} className="space-y-4">
+            {/* ==================== 1. SIGN IN TAB ==================== */}
+            {tab === 'login' ? (
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    {language === 'am' ? 'የተጠቃሚ ስም ወይም ስልክ ቁጥር' : 'Customer Username or Phone'}
+                    {language === 'am' ? 'የተጠቃሚ ስም ወይም ስልክ ቁጥር' : 'Username or Phone Number'}
                   </label>
                   <div className="relative">
+                    <UserIcon className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                     <input
                       type="text"
                       required
-                      placeholder={language === 'am' ? 'የተጠቃሚ ስም ወይም ስልክ ቁጥር' : 'Username or phone number'}
+                      placeholder={language === 'am' ? 'የተጠቃሚ ስም ወይም 09... / +251...' : 'Username or 09... / +251...'}
                       value={loginIdentifier}
                       onChange={e => setLoginIdentifier(e.target.value)}
-                      className="w-full pl-3.5 pr-4 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
+                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
                     />
                   </div>
+                  <p className="text-[10px] text-zinc-500 mt-1">
+                    {language === 'am'
+                      ? 'በተጠቃሚ ስምዎ ወይም በኢትዮጵያ ስልክ ቁጥርዎ መግባት ይችላሉ።'
+                      : 'You can sign in using your username or registered Ethiopian phone number.'}
+                  </p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    {language === 'am' ? 'የይለፍ ቃል (Password)' : 'Password'}
+                    {language === 'am' ? 'የይለፍ ቃል' : 'Password'}
                   </label>
                   <div className="relative">
+                    <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={e => setLoginPassword(e.target.value)}
-                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
+                      className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-zinc-400 hover:text-white cursor-pointer"
+                      className="absolute right-3.5 top-2.5 text-zinc-500 hover:text-zinc-300"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -550,159 +285,178 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 {errorMessage && (
-                  errorCode === 'ADMIN_PORTAL_REQUIRED' ? (
-                    <div className="p-3.5 rounded-xl bg-red-950/50 border border-red-800 text-xs text-red-200 space-y-1.5 animate-fadeIn">
-                      <div className="flex items-center gap-2">
-                        <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-                        <span className="font-bold uppercase tracking-wider text-rose-300 font-mono text-[11px]">
-                          {language === 'am' ? 'የተጠቃሚ መግቢያ የተከለከለ ነው' : 'Player Account Required'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed text-zinc-300">
-                        {language === 'am'
-                          ? 'ይህ የመግቢያ ገጽ ለተጫዋቾች ብቻ ነው። የአስተዳዳሪ አካውንቶች እዚህ መግባት አይችሉም።'
-                          : 'This sign-in screen is strictly for player accounts. Administrative accounts cannot sign in here.'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-red-950/40 border border-red-800 text-xs text-red-300 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>{errorMessage}</span>
-                    </div>
-                  )
+                  <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/80 text-xs text-red-200 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                    <span>{errorMessage}</span>
+                  </div>
                 )}
 
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-lg"
+                  className="w-full py-3 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-extrabold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-950/30 flex items-center justify-center gap-2 mt-2"
                 >
-                  {isLoading
-                    ? language === 'am' ? 'በመግባት ላይ...' : 'Signing In...'
-                    : language === 'am' ? 'ወደ ሚኒቢድ ግባ' : 'Sign In to MiniBid'}
+                  <KeyRound className="w-4 h-4" />
+                  <span>
+                    {isLoading
+                      ? language === 'am' ? 'በመግባት ላይ...' : 'Signing in...'
+                      : language === 'am' ? 'ወደ አካውንት ግባ' : 'Sign In to Account'}
+                  </span>
+                </button>
+              </form>
+            ) : (
+              /* ==================== 2. CREATE ACCOUNT TAB ==================== */
+              <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+                {/* Username */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      {language === 'am' ? 'የተጠቃሚ ስም *' : 'Username *'}
+                    </label>
+                    <span className={`text-[10px] font-mono ${regUsername.trim().length > 5 ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                      {regUsername.trim().length > 5 ? 'Valid (>5 chars)' : 'Min 6 characters'}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      required
+                      placeholder={language === 'am' ? 'ለምሳሌ፡ amanuel_21' : 'e.g. amanuel_21'}
+                      value={regUsername}
+                      onChange={e => setRegUsername(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
+                    />
+                  </div>
+                </div>
+
+                {/* Ethiopian Phone Number (Direct, no phone OTP) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      {language === 'am' ? 'የኢትዮጵያ ስልክ ቁጥር *' : 'Ethiopian Phone Number *'}
+                    </label>
+                    <span className="text-[10px] font-mono text-[#E5B842]">
+                      +2519 / +2517 / 09 / 07
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="+251 9... or 09..."
+                      value={regPhone}
+                      onChange={e => setRegPhone(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white font-mono focus:outline-none focus:border-[#E5B842]"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                    {language === 'am' ? 'የይለፍ ቃል * (ቢያንስ 6 ቁምፊዎች)' : 'Password * (Min 6 characters)'}
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="••••••••"
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-2.5 text-zinc-500 hover:text-zinc-300"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Optional Email Address with Verified Badge Incentive */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-[#E5B842]" />
+                      <span>{language === 'am' ? 'ኢሜይል አድራሻ (አማራጭ)' : 'Email Address (Optional)'}</span>
+                    </label>
+                    <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-[#E5B842]" />
+                      <span>{language === 'am' ? 'ባጅ ለማግኘት' : 'For Verified Badge'}</span>
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      placeholder="name@example.com (Optional)"
+                      value={regEmail}
+                      onChange={e => setRegEmail(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-amber-500/30 text-xs text-white font-mono focus:outline-none focus:border-[#E5B842]"
+                    />
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    {language === 'am'
+                      ? 'ኢሜይል ካስገቡ የማረጋገጫ ኮድ ይላክሎታል፤ ሲያረጋግጡ የተረጋገጠ ባጅ (Verified Badge) ይሰጥዎታል!'
+                      : 'Adding an email sends an instant OTP to unlock the Verified Profile Badge on your account.'}
+                  </p>
+                </div>
+
+                {errorMessage && (
+                  <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/80 text-xs text-red-200 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-extrabold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-950/30 flex items-center justify-center gap-2 mt-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>
+                    {isLoading
+                      ? language === 'am' ? 'በመመዝገብ ላይ...' : 'Creating Account...'
+                      : language === 'am' ? 'አካውንት ክፈት (ወዲያው ጀምር)' : 'Create Account'}
+                  </span>
                 </button>
               </form>
             )}
+
+            {/* Footer Trust Guarantee */}
+            <div className="mt-5 pt-4 border-t border-zinc-800/80 text-center text-[10px] text-zinc-500 flex items-center justify-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>
+                {language === 'am'
+                  ? 'የኢትዮጵያ ፍትሃዊ እና ምስጢራዊ የዝቅተኛ ነጠላ ዋጋ ጨረታ መድረክ'
+                  : 'MiniBid Ethiopia • Cryptographically Sealed Reverse Bid Engine'}
+              </span>
+            </div>
           </div>
-        ) : (
-          /* Register Form with Real-Time Phone OTP Verification */
-          <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">
-                {language === 'am' ? 'የተጠቃሚ ስም (Username) *' : 'Username *'}
-              </label>
-              <div className="relative">
-                <UserIcon className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  required
-                  placeholder={language === 'am' ? 'የተጠቃሚ ስም (ቢያንስ 6 ቁምፊዎች)' : 'Username (min 6 characters)'}
-                  value={regUsername}
-                  onChange={e => setRegUsername(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
-                />
-              </div>
-            </div>
+        </div>
+      )}
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">
-                {language === 'am' ? 'ስልክ ቁጥር (+251) *' : 'Ethiopian Phone Number *'}
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Phone className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="+251 9... / 09..."
-                    value={regPhone}
-                    onChange={e => setRegPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white font-mono focus:outline-none focus:border-[#E5B842]"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendRegOtp}
-                  disabled={isLoading || regOtpCooldown > 0}
-                  className="px-3 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-mono text-[11px] font-semibold transition-all disabled:opacity-50 cursor-pointer shrink-0"
-                  title="Verify Phone Number with SMS OTP"
-                >
-                  {regOtpCooldown > 0 ? `${regOtpCooldown}s` : language === 'am' ? 'ኮድ ላክ' : 'Verify SMS'}
-                </button>
-              </div>
-            </div>
-
-            {isRegOtpSent && (
-              <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/50 space-y-1">
-                <label className="block text-[11px] font-mono text-emerald-300">
-                  {language === 'am' ? 'የኤስኤምኤስ ማረጋገጫ ኮድ (SMS Code)' : 'SMS Verification Code (Optional for instant badge)'}
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="------"
-                  value={regOtpCode}
-                  onChange={e => setRegOtpCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white font-mono text-center text-sm tracking-widest focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">
-                {language === 'am' ? 'የይለፍ ቃል (Password) *' : 'Password *'}
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="•••••••• (min 6 characters)"
-                  value={regPassword}
-                  onChange={e => setRegPassword(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#18181b] border border-[#27272a] text-xs text-white focus:outline-none focus:border-[#E5B842]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-zinc-400 hover:text-white cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 rounded-xl bg-red-950/40 border border-red-800 text-xs text-red-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {successNotice && !errorMessage && (
-              <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-xs text-emerald-300 flex items-center gap-2 font-mono">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{successNotice}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-lg mt-2 flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <span>{language === 'am' ? 'በመመዝገብ ላይ...' : 'Creating Account...'}</span>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>{language === 'am' ? 'አካውንት ፍጠርና ጀምር' : 'Register & Start Bidding'}</span>
-                </>
-              )}
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
+      {/* Post-Registration Email Verification Prompt */}
+      {showEmailVerifyModal && (
+        <EmailVerificationModal
+          isOpen={showEmailVerifyModal}
+          initialEmail={registeredEmail}
+          onClose={() => {
+            setShowEmailVerifyModal(false);
+            onClose();
+          }}
+          onSuccess={() => {
+            setShowEmailVerifyModal(false);
+            onClose();
+          }}
+        />
+      )}
+    </>
   );
 };
