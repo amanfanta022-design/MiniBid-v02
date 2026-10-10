@@ -22,8 +22,11 @@ import {
   Copy,
   Check,
   Filter,
+  Edit3,
 } from 'lucide-react';
-import type { AuctionStatus } from '../types.js';
+import type { AuctionStatus, Auction } from '../types.js';
+import { SuperAdminEditAuctionModal } from './SuperAdminEditAuctionModal.js';
+import { calculateTimeRemaining } from '../utils/timer.js';
 
 interface DuplicateBidder {
   username: string;
@@ -105,6 +108,14 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
   const [sortBy, setSortBy] = useState<'amount_asc' | 'amount_desc' | 'time_desc'>('amount_asc');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedClusterAmount, setExpandedClusterAmount] = useState<number | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [, setClockTick] = useState(0);
+
+  // 1-second live countdown ticker
+  useEffect(() => {
+    const timer = setInterval(() => setClockTick(prev => prev + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchLiveGames = async (manual = false) => {
     if (!token) return;
@@ -120,14 +131,15 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
         setLastUpdated(new Date());
         setError('');
 
-        // Default select the first game if none selected or current selection missing
-        if (auctionsList.length > 0) {
-          if (!selectedGameId || !auctionsList.some(g => g.id === selectedGameId)) {
-            setSelectedGameId(auctionsList[0].id);
+        // Requirement 8: When superadmin views live auction game radar, preserve their clicked selection!
+        // Never override active selection back to the latest game during background polling.
+        setSelectedGameId(prevId => {
+          if (auctionsList.length === 0) return null;
+          if (prevId && auctionsList.some(g => g.id === prevId)) {
+            return prevId; // Keep current user selection
           }
-        } else {
-          setSelectedGameId(null);
-        }
+          return auctionsList[0].id; // Fallback to first if none selected or deleted
+        });
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error || 'Failed to fetch live game telemetry');
@@ -397,8 +409,12 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
                         <h4 className="font-serif font-bold text-white text-sm truncate mt-1">
                           {g.title}
                         </h4>
-                        <div className="text-[11px] text-zinc-400 font-mono">
-                          {g.total_bids} {language === 'am' ? 'ጨረታዎች' : 'live bids'}
+                        <div className="text-[11px] text-zinc-400 font-mono flex items-center justify-between mt-1">
+                          <span>{g.total_bids} {language === 'am' ? 'ጨረታዎች' : 'live bids'}</span>
+                          <span className="text-[10px] text-amber-300 font-bold flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded border border-amber-500/30">
+                            <Clock className="w-2.5 h-2.5 text-[#E5B842]" />
+                            {calculateTimeRemaining(g.end_time).formatted}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -504,18 +520,42 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
                       <strong className="text-zinc-300 font-mono">{activeGame.internal_cost.toFixed(2)} ETB</strong>
                     </span>
                   </div>
+
+                  {/* Requirement 2: Live Auction Timer as Days, Hours, Minutes, and Seconds */}
+                  <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-black/80 border border-amber-500/50 shadow-inner">
+                    <Clock className="w-3.5 h-3.5 text-[#E5B842] animate-pulse" />
+                    <span className="text-[11px] font-mono font-bold text-amber-300">
+                      {language === 'am' ? 'የሚቀረው ጊዜ፦' : 'Closing In:'}{' '}
+                      <span className="text-white tracking-wide">
+                        {calculateTimeRemaining(activeGame.end_time).formatted}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {onSelectAuction && (
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {/* Requirement 4: Super Admin Edit Live Auction */}
                 <button
-                  onClick={() => onSelectAuction(activeGame.id)}
-                  className="px-4 py-2.5 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shrink-0"
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg"
+                  title="Edit title, description, category, images, retail, fee, and closing schedule"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>{language === 'am' ? 'በጨዋታ ሞዳል ክፈት' : 'Inspect in Full Modal'}</span>
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>{language === 'am' ? 'ጨረታውን አርም' : 'Edit Live Item'}</span>
                 </button>
-              )}
+
+                {onSelectAuction && (
+                  <button
+                    onClick={() => onSelectAuction(activeGame.id)}
+                    className="px-4 py-2.5 rounded-xl bg-[#E5B842] hover:bg-[#d4a836] text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shrink-0"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>{language === 'am' ? 'በጨዋታ ሞዳል ክፈት' : 'Inspect in Full Modal'}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* BIG PROMINENT CURRENTLY WINNING BID HUD */}
@@ -981,6 +1021,18 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Super Admin Edit Live Auction Modal */}
+      {activeGame && (
+        <SuperAdminEditAuctionModal
+          isOpen={isEditModalOpen}
+          auction={activeGame as unknown as Auction}
+          onClose={() => setIsEditModalOpen(false)}
+          onUpdated={() => {
+            fetchLiveGames(true);
+          }}
+        />
       )}
     </div>
   );

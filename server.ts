@@ -259,9 +259,10 @@ app.post('/api/auth/email-otp/send', optionalAuthenticate, async (req: Authentic
   res.json({
     success: true,
     message: dispatchResult.status === 'DELIVERED_INBOX'
-      ? `Verification code sent directly to ${targetEmail}. Please check your inbox.`
+      ? `Verification code dispatched to ${targetEmail}. Please check your inbox or spam folder.`
       : `Verification code generated for ${targetEmail}. (Dev Sandbox Mode).`,
     email: targetEmail,
+    code: result.code,
     expires_in_seconds: result.expires_in_seconds,
     status: dispatchResult.status,
     is_live: dispatchResult.status === 'DELIVERED_INBOX',
@@ -1525,10 +1526,20 @@ app.get('/api/payments/my-transactions', authenticate, (req: AuthenticatedReques
 // 4. ADMIN DASHBOARD & CONTROLS (RBAC)
 // ==========================================
 
-// Get All Deposit Requests
-app.get('/api/admin/deposits', authenticate, requireRole(['admin', 'superadmin']), (_req: Request, res: Response) => {
-  const deposits = db.getDeposits();
-  res.json({ deposits });
+// Get Deposit Requests: Operations Admins see ONLY their allocated requests; Superadmin sees all
+app.get('/api/admin/deposits', authenticate, requireRole(['admin', 'superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const allDeposits = db.getDeposits();
+  if (req.user?.role === 'admin') {
+    // Requirement 7: Admins should see their allocated deposit request ONLY!
+    const allocated = allDeposits.filter(
+      d =>
+        d.assigned_admin_id === req.user!.id ||
+        (d.assigned_admin_username && d.assigned_admin_username.toLowerCase() === req.user!.username.toLowerCase())
+    );
+    return res.json({ deposits: allocated });
+  }
+  // Super Admin platform oversight
+  res.json({ deposits: allDeposits });
 });
 
 // Approve Deposit Request (Exclusively for assigned Operations Admin, NOT Super Admin)

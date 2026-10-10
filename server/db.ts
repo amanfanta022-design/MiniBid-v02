@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import sharp from 'sharp';
 import {
   User,
   Auction,
@@ -21,6 +22,46 @@ import {
   AdminDeviceSession,
   AdminDeviceOverview,
 } from '../src/types.js';
+
+/**
+ * Compresses an image data URI to under 100KB using Sharp
+ * Used to save database disk space and workspace memory when receipts are stored/approved.
+ */
+export async function compressReceiptImage(base64DataUrl: string, maxSizeBytes = 95 * 1024): Promise<string> {
+  try {
+    if (!base64DataUrl || !base64DataUrl.startsWith('data:image')) {
+      return base64DataUrl;
+    }
+    const commaIdx = base64DataUrl.indexOf(',');
+    if (commaIdx === -1) return base64DataUrl;
+
+    const base64Data = base64DataUrl.substring(commaIdx + 1);
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    if (buffer.length <= maxSizeBytes) {
+      return base64DataUrl;
+    }
+
+    // Step 1: Resize to max 800px width/height and quality 65
+    let compressed = await sharp(buffer)
+      .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 65, progressive: true })
+      .toBuffer();
+
+    // Step 2: If still above limit, compress further
+    if (compressed.length > maxSizeBytes) {
+      compressed = await sharp(buffer)
+        .resize({ width: 600, height: 600, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 50, progressive: true })
+        .toBuffer();
+    }
+
+    return `data:image/jpeg;base64,${compressed.toString('base64')}`;
+  } catch (err: any) {
+    console.warn('[ReceiptCompression] Failed to compress image:', err?.message || err);
+    return base64DataUrl;
+  }
+}
 
 // ========================================================
 // CRITICAL FINANCIAL INTEGRITY ERROR CLASSES
@@ -877,6 +918,19 @@ class Database {
     this.isWriting = true;
     try {
       this.ensureDirectory();
+      // Requirement 9: Keep Data Stored safely while pruning unbounded ephemeral history
+      if (data.audit_logs && data.audit_logs.length > 300) {
+        data.audit_logs = data.audit_logs.slice(0, 300);
+      }
+      if (data.notifications && data.notifications.length > 200) {
+        data.notifications = data.notifications.slice(0, 200);
+      }
+      if (data.transactions && data.transactions.length > 500) {
+        data.transactions = data.transactions.slice(0, 500);
+      }
+      if (data.system_movements && data.system_movements.length > 300) {
+        data.system_movements = data.system_movements.slice(0, 300);
+      }
       const tempPath = `${DB_FILE}.tmp.${Date.now()}`;
       fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
       fs.renameSync(tempPath, DB_FILE);
@@ -2292,11 +2346,11 @@ class Database {
       const checkRes = this.checkTransactionNumberUniqueness(cleanMethod, cleanRef, depositData.user_id);
       attemptNumber = checkRes.attemptNumber;
     } catch (err: any) {
-      // Track duplicate attempts for fraud detection
+      // Requirement 5: 3 attempts of using the same/used transaction number should mark as flagged account and notify Super Admin
       user.duplicate_txn_attempts = (user.duplicate_txn_attempts || 0) + 1;
-      if (user.duplicate_txn_attempts > 3) {
+      if (user.duplicate_txn_attempts >= 3) {
         user.is_flagged = true;
-        user.flag_reason = `Attempted ${user.duplicate_txn_attempts} times to reuse submitted transaction number: ${cleanRef}`;
+        user.flag_reason = `Fraud Alert: 3 attempts of using duplicate/used transaction number "${cleanRef}". Account flagged.`;
         user.flagged_at = new Date().toISOString();
 
         this.memoryData.audit_logs.unshift({
@@ -2305,9 +2359,20 @@ class Database {
           actor_username: user.username,
           actor_role: user.role,
           action: 'FRAUD_ALERT_TXN_REUSE',
-          details: `CRITICAL FRAUD ALERT: User @${user.username} repeatedly attempted to reuse transaction number "${cleanRef}" (${user.duplicate_txn_attempts} attempts). Account flagged.`,
+          details: `CRITICAL FRAUD ALERT: User @${user.username} (${user.phone}) repeatedly attempted to reuse transaction number "${cleanRef}" (${user.duplicate_txn_attempts} attempts). Account automatically marked as FLAGGED.`,
           ip_reference: '197.156.103.1',
           created_at: new Date().toISOString(),
+        });
+
+        // High-priority notification to Super Admin & Staff
+        this.memoryData.notifications.unshift({
+          id: `notif_fraud_${Date.now()}`,
+          recipient_type: 'admin',
+          title: `⚠️ FRAUD ALERT: Account @${user.username} Flagged`,
+          message: `User @${user.username} (Phone: ${user.phone}) has attempted 3 times to submit used/duplicate transaction reference "${cleanRef}". Account has been automatically locked & flagged.`,
+          type: 'urgent',
+          created_at: new Date().toISOString(),
+          read_by: [],
         });
       }
 
@@ -2584,6 +2649,17 @@ class Database {
         deposit.approved_at = deposit.reviewed_at;
         deposit.reviewed_by = reviewer.username;
         deposit.approved_by = reviewer.username;
+
+        // Requirement 6: To save workspace memory after successfully approving users deposit request,
+        // the system compresses the uploaded receipt screenshot to under 100KB size data!
+        if (deposit.receipt_url && deposit.receipt_url.startsWith('data:image')) {
+          try {
+            deposit.receipt_url = await compressReceiptImage(deposit.receipt_url, 95 * 1024);
+            deposit.receipt_size_bytes = Buffer.byteLength(deposit.receipt_url, 'utf8');
+          } catch (compErr: any) {
+            console.warn('[ReceiptCompressor] Non-fatal error during post-approval compression:', compErr?.message);
+          }
+        }
 
         // Deduct from Admin float if applicable
         if (reviewer.role === 'admin' && reviewerUser) {

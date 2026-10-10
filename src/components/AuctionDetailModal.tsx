@@ -88,7 +88,7 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
   const [bidError, setBidError] = useState<string>('');
   const [bidSuccess, setBidSuccess] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'bidding' | 'history'>('bidding');
-  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number } | null>(null);
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null);
 
   // Super Admin Control Deck Table controls
   const [adminSearch, setAdminSearch] = useState('');
@@ -252,12 +252,13 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
     const calculateTime = () => {
       const diff = new Date(auction.end_time).getTime() - Date.now();
       if (diff <= 0) {
-        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
       } else {
-        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        setTimeLeft({ hours, minutes, seconds });
+        setTimeLeft({ days, hours, minutes, seconds });
       }
     };
 
@@ -418,34 +419,42 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                   </div>
                 </div>
               ) : timeLeft ? (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
-                    <div className="text-xl sm:text-2xl font-black font-mono text-white">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
+                    <div className="text-lg sm:text-2xl font-black font-mono text-white">
+                      {String(timeLeft.days).padStart(2, '0')}
+                    </div>
+                    <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500">
+                      {language === 'am' ? 'ቀናት' : 'Days'}
+                    </div>
+                  </div>
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
+                    <div className="text-lg sm:text-2xl font-black font-mono text-white">
                       {String(timeLeft.hours).padStart(2, '0')}
                     </div>
-                    <div className="text-[9px] uppercase tracking-wider text-zinc-500">
+                    <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500">
                       {language === 'am' ? 'ሰዓታት' : 'Hours'}
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
-                    <div className="text-xl sm:text-2xl font-black font-mono text-white">
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
+                    <div className="text-lg sm:text-2xl font-black font-mono text-white">
                       {String(timeLeft.minutes).padStart(2, '0')}
                     </div>
-                    <div className="text-[9px] uppercase tracking-wider text-zinc-500">
+                    <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500">
                       {language === 'am' ? 'ደቂቃዎች' : 'Minutes'}
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-[#09090b] border border-zinc-800">
                     <div
-                      className={`text-xl sm:text-2xl font-black font-mono ${
-                        timeLeft.hours === 0 && timeLeft.minutes < 5
+                      className={`text-lg sm:text-2xl font-black font-mono ${
+                        timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes < 5
                           ? 'text-red-400 animate-pulse'
                           : 'text-[#E5B842]'
                       }`}
                     >
                       {String(timeLeft.seconds).padStart(2, '0')}
                     </div>
-                    <div className="text-[9px] uppercase tracking-wider text-zinc-500">
+                    <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500">
                       {language === 'am' ? 'ሰከንዶች' : 'Seconds'}
                     </div>
                   </div>
@@ -1657,6 +1666,18 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Requirement 4: Super Admin Live Auction Editor Modal */}
+      {isSuperAdmin && auction && (
+        <SuperAdminEditAuctionModal
+          isOpen={isEditModalOpen}
+          auction={auction}
+          onClose={() => setIsEditModalOpen(false)}
+          onUpdated={updated => {
+            setAuction(updated);
+          }}
+        />
+      )}
     </div>
   );
 };

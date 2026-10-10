@@ -9,7 +9,7 @@ interface AuthContextType {
   login: (identifier: string, password: string, portalOverride?: 'admin' | 'player') => Promise<{ success: boolean; error?: string; code?: string }>;
   loginWithOtp: (phone: string, code: string) => Promise<{ success: boolean; error?: string; code?: string }>;
   sendOtp: (phone: string, purpose?: 'login' | 'register') => Promise<{ success: boolean; error?: string; message?: string }>;
-  sendEmailOtp: (email?: string) => Promise<{ success: boolean; error?: string; message?: string; email?: string }>;
+  sendEmailOtp: (email?: string) => Promise<{ success: boolean; error?: string; message?: string; email?: string; code?: string; is_live?: boolean }>;
   verifyEmailOtp: (email: string, code: string) => Promise<{ success: boolean; error?: string; message?: string; user?: User }>;
   register: (data: { username: string; email?: string; phone: string; password: string; otp_code?: string }) => Promise<{ success: boolean; error?: string; email_otp_dispatched?: boolean; email?: string }>;
   logout: () => void;
@@ -127,6 +127,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         success: true,
         message: data.message,
         email: data.email,
+        code: data.code,
+        is_live: data.is_live,
       };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Network error';

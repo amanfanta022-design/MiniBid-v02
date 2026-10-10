@@ -437,32 +437,38 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                   }`}
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>{language === 'am' ? 'የእኔ የተመደቡ ጥያቄዎች' : 'My Assigned Queue'}</span>
-                  {myPendingCount > 0 && (
+                  <span>{language === 'am' ? 'የእኔ የተመደቡ ጥያቄዎች' : 'My Allocated Queue'}</span>
+                  {deposits.filter(d => d.status === 'pending').length > 0 && (
                     <span className="px-1.5 py-0.2 rounded-full bg-black text-[#E5B842] text-[10px] font-extrabold">
-                      {myPendingCount}
+                      {deposits.filter(d => d.status === 'pending').length}
                     </span>
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setQueueScope('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    queueScope === 'all'
-                      ? 'bg-blue-600 text-white font-bold shadow-md'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  <Inbox className="w-3.5 h-3.5" />
-                  <span>{language === 'am' ? 'ሁሉም የቡድን ጥያቄዎች' : 'All Requests'}</span>
-                  <span className="text-[10px] opacity-75 font-normal">({deposits.length})</span>
-                </button>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setQueueScope('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      queueScope === 'all'
+                        ? 'bg-blue-600 text-white font-bold shadow-md'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Inbox className="w-3.5 h-3.5" />
+                    <span>{language === 'am' ? 'ሁሉም የቡድን ጥያቄዎች' : 'All Platform Requests'}</span>
+                    <span className="text-[10px] opacity-75 font-normal">({deposits.length})</span>
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="text-[11px] font-mono text-zinc-400">
-              {queueScope === 'my_queue' ? (
+              {!isSuperAdmin ? (
+                <span className="text-amber-300 flex items-center gap-1">
+                  🔒 {language === 'am' ? `ለእርስዎ (@${user?.username}) የተመደቡ የተቀማጭ ጥያቄዎች ብቻ (Allocated Only)` : `Allocated Queue Only: You (@${user?.username}) see your assigned deposit verification requests only.`}
+                </span>
+              ) : queueScope === 'my_queue' ? (
                 <span className="text-amber-300">
                   ⚡ {language === 'am' ? `ለእርስዎ (@${user?.username}) በ D.Code የተመደቡ ብቻ በማሳየት ላይ` : `Showing requests assigned to you (@${user?.username}) via D.Code`}
                 </span>

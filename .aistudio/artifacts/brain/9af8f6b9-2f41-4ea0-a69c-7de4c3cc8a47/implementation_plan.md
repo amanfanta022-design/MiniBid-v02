@@ -1,127 +1,111 @@
-# Implementation Plan: Direct Username & Phone Auth with Email OTP Verified Badge
+# Comprehensive Platform Upgrade & Issue Resolution Plan
 
-## 1. Executive Summary & Goals
-
-### The Problem
-- Physical SMS cellular delivery requires telecom carrier accounts and paid credits per text, causing confusion and delivery failures for phone-based OTP verification.
-- Customer sign-up and login were blocked by phone OTP requirements.
-
-### The Solution
-- **Remove Phone OTP entirely**: Customers register directly using **Username**, **Password (at least 6 characters)**, and valid **Ethiopian Phone Number** (+2519..., +2517..., 09..., 07...).
-- **Unified Password Login**: Customers sign in seamlessly in a single step using either their **Username or Phone Number** + **Password**.
-- **Optional Email Address & Email OTP Verification**:
-  - Customers can provide an email during registration or add one anytime from their Dashboard.
-  - Adding an email triggers a 6-digit OTP sent to their inbox.
-  - Verifying the email unlocks the official **"Verified" Profile Badge** displayed next to their username across the application.
-- **Cost-Free Email Delivery Architecture**: Standard SMTP / Resend integration with an instant development inspection fallback so local and staging environments work smoothly without requiring paid telecom SMS.
+This plan addresses all 9 specific requirements provided in your request.
 
 ---
 
-## 2. Architecture & Data Flow
-
-```
-[Customer Sign-Up]
-  ├── Username (>= 6 chars, alphanumeric)
-  ├── Ethiopian Phone (+2519... / +2517... / 09... / 07...)
-  ├── Password (>= 6 chars)
-  └── Optional Email
-        │
-        ├── If Email Provided ──> Send Email OTP (Free SMTP / Resend / Sandbox fallback)
-        │                            ├── Enter 6-digit Code ──> email_verified = true (Verified Badge Awarded!)
-        │                            └── Skip / Verify Later ──> User created, can verify anytime in Dashboard
-        └── If No Email ───────────> Account created immediately (Active, 0.00 ETB)
-
-[Customer Sign-In]
-  ├── Identifier: Username OR Ethiopian Phone Number
-  └── Password
-        └── Instant authentication (No OTP required)
-
-[Customer Dashboard & Profile]
-  ├── Profile Header displays "@username" + [Verified Badge] (if email_verified)
-  └── Email Management Section:
-        ├── If unverified: "Add/Verify email to earn your Verified Badge" [Send OTP]
-        └── If verified: Green checkmark & verified email address with badge status
-```
+### 1. Fix Email OTP Verification & Inbox Delivery
+- **Problem**: When users register or verify email, codes must be deliverable to real inboxes while remaining verifiable in sandbox mode without external blockers.
+- **Solution**:
+  - Configure robust email sending via **Resend REST API** (using `RESEND_API_KEY` from environment variables) and standard **SMTP** transport fallback.
+  - Enhance the `/api/auth/email-otp/send` and `/api/auth/email-otp/verify` endpoints with rich HTML email templates formatted with branded Ethiopian Birr styling, anti-phishing warnings, and a 10-minute expiry window.
+  - Keep the instant **Developer Sandbox Inspector** modal popup accessible so administrators and testers can immediately inspect and auto-fill generated OTPs even without live mailbox access.
+  - Automatically grant the **Verified Profile Badge** (🛡️) upon successful code entry.
 
 ---
 
-## 3. Detailed Implementation Steps
-
-### Phase 1: Backend Data Model & Email OTP Service (`server.ts`, `server/db.ts`)
-1. **Email OTP Store**:
-   - Store active email OTP codes with expiration (10 minutes) and rate limiting.
-   - Methods in `db.ts`:
-     - `createEmailOtp(email, userId)`
-     - `verifyEmailOtp(email, code, userId)`
-     - `updateUserEmail(userId, email, isVerified)`
-2. **Email Delivery Dispatcher (`server/emailService.ts`)**:
-   - Configurable for Resend API or standard SMTP (e.g. Gmail / Brevo / Ethereal / Custom SMTP).
-   - Instant Dev Sandbox Fallback: logs email dispatches to a memory buffer accessible via `/api/auth/email-otp/sandbox-preview` so developers and testers can verify codes during testing without waiting.
-3. **API Endpoints**:
-   - `POST /api/auth/register`: Update to accept `username`, `phone`, `password`, and optional `email`. Remove mandatory phone OTP code check.
-   - `POST /api/auth/login`: Ensure `identifier` seamlessly accepts either username or Ethiopian phone number with standard password.
-   - `POST /api/auth/email-otp/send`: Dispatches 6-digit OTP code to specified email address.
-   - `POST /api/auth/email-otp/verify`: Validates email OTP and sets `email_verified: true` for the account.
-   - `GET /api/auth/email-otp/sandbox-preview`: Provides instant inspection of the last sent email OTP for testing.
-   - `PUT /api/auth/profile/email`: Allows authenticated users to update their email address and trigger OTP verification.
-
-### Phase 2: Frontend Auth Modal Simplification (`src/components/AuthModal.tsx`)
-1. **Login Tab**:
-   - Single clean input form:
-     - "Username or Phone Number" (+2519..., 09..., or username handle)
-     - "Password" with show/hide toggle
-     - "Sign In" button with loading state
-   - Remove phone OTP input, send OTP button, and countdown timer from login.
-2. **Registration Tab**:
-   - Form fields:
-     - Username (alphanumeric, >= 6 characters)
-     - Ethiopian Phone Number (+2519..., +2517..., 09..., 07...)
-     - Password (>= 6 characters)
-     - Optional Email field with a badge incentive pill: *"Add email to get a Verified Badge"*
-   - Remove phone SMS OTP requirement from registration.
-   - If user enters an email during registration, offer an optional email OTP step or allow instant completion with prompt to verify email in dashboard.
-3. **Remove Clutter**:
-   - Remove obsolete SMS gateway sandbox drawer and telecom gateway errors from player-facing modal.
-
-### Phase 3: Verified Badge & Dashboard Email Management (`src/components/`)
-1. **Verified Badge Component**:
-   - Visual styling: Glowing emerald/gold badge with `CheckCircle2` icon and label *"Verified"*.
-   - Render in `Header.tsx` (next to `@username` in player header).
-   - Render in `AuctionsList.tsx` (in the VIP Dashboard greeting).
-   - Render in `UserDashboard.tsx` (in the player identity card).
-2. **Email Verification Module in `UserDashboard.tsx`**:
-   - Dedicated card in the profile view:
-     - If verified: Displays verified email with checkmark and active badge indicator.
-     - If not verified: Input field for email, "Send OTP" button, and 6-digit code entry modal/drawer.
-     - Instant dev preview helper button for local/sandbox testing.
-3. **Context Updates (`src/context/AuthContext.tsx`)**:
-   - Add `sendEmailOtp(email)`, `verifyEmailOtp(email, code)`, and `updateEmail(email)` helper methods.
-
-### Phase 4: Localization & Validation Polish (`src/utils/i18n.ts`)
-1. Provide bilingual translations (Amharic & English) for:
-   - "Username or Phone Number" / "የተጠቃሚ ስም ወይም ስልክ ቁጥር"
-   - "Optional Email (for Verified Badge)" / "አማራጭ ኢሜይል (የተረጋገጠ ባጅ ለማግኘት)"
-   - "Email OTP Verification" / "የኢሜይል OTP ማረጋገጫ"
-   - "Verified Badge" / "የተረጋገጠ ባጅ"
-   - "Enter 6-digit code sent to your email" / "ወደ ኢሜይልዎ የተላከውን ባለ 6 አሃዝ ኮድ ያስገቡ"
+### 2. Live Auction Timers: Days, Hours, Minutes, and Seconds
+- **Problem**: Timers currently omit the "Days" count and only show hours/minutes in card views.
+- **Solution**:
+  - Upgrade the countdown calculation in:
+    - `src/components/AuctionsList.tsx` (all live auction cards)
+    - `src/components/AuctionDetailModal.tsx` (detail view for bidders and admins)
+    - `src/components/SuperAdminLiveGameDesk.tsx` (live radar telemetry desk)
+  - Display full dynamic breakdown: **`[D]d [H]h [M]m [S]s`** (e.g., `2d 14h 32m 05s`) in English and **`[D]ቀን [H]ሰዓት [M]ደቂቃ [S]ሰከንድ`** in Amharic.
+  - Add visual pulsing/urgency indicators when the auction is under 1 hour or 5 minutes.
 
 ---
 
-## 4. User Experience Flow
-
-| Step | User Action | System Response |
-|------|-------------|-----------------|
-| **1. Register** | Enters `@johndoe`, `+251912345678`, password, optional email `john@example.com` | Account created instantly; welcome message displayed; if email entered, OTP dispatched. |
-| **2. Login** | Enters `0912345678` (or `@johndoe`) and password | Authenticates immediately without SMS codes or waiting. |
-| **3. Verify Email** | Clicks "Verify Email" in Dashboard or during signup, enters 6-digit email code | Email marked verified; **"Verified" Badge** illuminates on profile & header. |
+### 3. "How It Works" Animated Video Guide & Complete Onboarding Walkthrough
+- **Problem**: Users need an interactive, visual, animated video-style guide covering:
+  1. How to Register (Username, Ethiopian Phone, Password, optional Email)
+  2. How to Login (using Username or Phone Number + Password)
+  3. How to Deposit (Telebirr, CBE Birr, uploading payment receipt)
+  4. How to Bid (Lowest Unique Bid strategy, fee rules)
+  5. How to Check Results (Winner determination, live ranking, unique lowest bids)
+- **Solution**:
+  - Transform `src/components/HowItWorksModal.tsx` into an **Animated Interactive Video Player**:
+    - Animated screen-recording mockups with progress scrubbing bar, play/pause controls, step auto-advance, and audio-visual transitions.
+    - 5 full chapters (Registration, Login, Deposit & Approval, Bidding Mechanics, Viewing Results & Radar).
+    - Interactive "Try a Bid Simulator" allowing users to simulate duplicate vs. unique lowest bids in real-time.
 
 ---
 
-## 5. Verification & Testing Checklist
-- [ ] Register new account with Username + Phone + Password (without email) -> Succeeds immediately without OTP.
-- [ ] Sign out and log in using Phone Number + Password -> Logs in immediately.
-- [ ] Sign out and log in using Username + Password -> Logs in immediately.
-- [ ] Register with optional email -> Dispatches email OTP, validates code, awards Verified Badge.
-- [ ] From User Dashboard, add/verify email on an unverified account -> OTP sent, code verified, badge appears.
-- [ ] Verified badge renders consistently across Header, Dashboard, and Auctions List.
-- [ ] Build succeeds with zero errors via `compile_applet`.
+### 4. Enable Super Admin Live Auction Editing
+- **Problem**: Superadmin was unable to edit active live auctions because the `SuperAdminEditAuctionModal` was not connected to the `AuctionDetailModal` header and control deck.
+- **Solution**:
+  - Wire the "Edit Auction Item" action button in `AuctionDetailModal.tsx` and `AdminWorkstation.tsx` directly to `SuperAdminEditAuctionModal`.
+  - Connect the `PUT /api/superadmin/auctions/:id` backend route allowing Super Admins to edit:
+    - Auction title and description
+    - Image URL & category
+    - Start price, bid increment, participation fee, internal cost
+    - **Closing schedule extension/shortening** (End Date/Time) with audit trail logging in `audit_logs` and `system_movements`.
+
+---
+
+### 5. Flag Account on 3 Duplicate Transaction Attempts & Alert Super Admin
+- **Problem**: When a user submits an already-used or duplicate transaction reference number 3 times, their account must be automatically flagged and Super Admin notified.
+- **Solution**:
+  - In `server/db.ts`: Update `createDepositRequest` condition from `> 3` to `>= 3` duplicate attempts.
+  - Automatically mark `user.is_flagged = true` and `user.flag_reason = 'Exceeded 3 attempts to submit duplicate/used transaction numbers'`.
+  - Immediately dispatch a high-priority `PlatformNotification` to all Super Admin accounts and write a `FRAUD_ALERT_TXN_REUSE` entry into `audit_logs`.
+  - Display an audit warning badge in `AdminUsersTable.tsx` with Super Admin clearance action.
+
+---
+
+### 6. Auto-Compress Receipt Screenshots to Under 100KB on Deposit Approval
+- **Problem**: High-resolution receipt screenshots take up significant storage in workspace memory and disk backups.
+- **Solution**:
+  - In `server/db.ts` (`approveDeposit`): Upon successful approval of a deposit request:
+    - Check if `deposit.receipt_url` contains an image data URI.
+    - Re-encode and compress the base64 image data (downscaling dimensions and applying JPEG/WebP quality compression) so the stored thumbnail/archive is strictly **under 100KB** in size.
+    - Update `deposit.receipt_size_bytes` and store the lightweight compressed version for permanent storage, drastically freeing up RAM and JSON persistence size.
+
+---
+
+### 7. Scoped Admin Deposit Requests (Assigned Admin Only)
+- **Problem**: Operations Admins were seeing all pending customer deposits instead of only the deposits specifically allocated to their admin account.
+- **Solution**:
+  - Update `GET /api/admin/deposits` in `server.ts`:
+    - If `req.user.role === 'admin'`: Filter deposits where `deposit.assigned_admin_id === req.user.id` or `deposit.assigned_admin_username === req.user.username`.
+    - If `req.user.role === 'superadmin'`: Retain executive view of all platform deposit requests.
+  - In frontend `AdminWorkstation.tsx`: Show a clear banner indicating *"Showing your assigned deposit verification queue (Admin @username)"*.
+
+---
+
+### 8. Fix Super Admin Live Game Radar Navigation
+- **Problem**: When Super Admin selected an auction in the radar/telemetry desk, the 3-second background polling refreshed and reset `selectedGameId` back to the newest live game (`auctionsList[0]`).
+- **Solution**:
+  - In `src/components/SuperAdminLiveGameDesk.tsx`:
+    - Track `selectedGameId` via a React ref or functional state update.
+    - During polling refresh, preserve the active selection if it still exists in the list (`prevId && auctionsList.some(g => g.id === prevId) ? prevId : auctionsList[0]?.id`).
+    - Only default to the first game on initial mount or when the previously monitored auction concludes.
+
+---
+
+### 9. Platform-Wide Storage Optimization & Data Retention
+- **Problem**: Unchecked growth of base64 receipts, redundant audit logs, and old completed auctions consume excessive workspace memory.
+- **Solution**:
+  - Implement scheduled cleanup in `server/db.ts`:
+    - Automatically trim resolved sandbox OTP logs older than 24 hours.
+    - Prune duplicate session entries.
+    - Store receipts as compressed thumbnails upon verification.
+    - Compact persistent JSON storage on disk to eliminate whitespace bloat.
+
+---
+
+## Verification & Testing
+1. Compile the applet with `compile_applet`.
+2. Verify all UI components, countdown timers (Days, Hours, Minutes, Seconds), and radar persistence.
+3. Test deposit submission, 3-attempt duplicate detection flag, receipt compression (<100KB), and admin-specific filtering.
+4. Test email OTP generation and Super Admin live auction edit modal.

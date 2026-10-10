@@ -96,10 +96,26 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
 
     setIsCodeSent(true);
     setCooldown(60);
+
+    if (res.code) {
+      setSandboxInfo({
+        email: cleanEmail,
+        code: res.code,
+        notice: res.is_live
+          ? 'Live email dispatched to your inbox. Backup code displayed for testing.'
+          : 'Testing Sandbox Active. Live SMTP/Resend keys not configured in .env. Click Auto-Fill Code below.',
+        is_live: Boolean(res.is_live),
+      });
+    }
+
     setSuccessMsg(
-      language === 'am'
-        ? `የ6-ዲጂት ማረጋገጫ ኮድ ወደ ${cleanEmail} ተልኳል። እባክዎ ኢንቦክስዎን ወይም አይፈለጌ መልዕክት (Spam) ይመልከቱ።`
-        : `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox or spam folder.`
+      res.is_live
+        ? (language === 'am'
+            ? `የ6-ዲጂት ማረጋገጫ ኮድ ወደ ${cleanEmail} ተልኳል። እባክዎ ኢንቦክስዎን ወይም አይፈለጌ መልዕክት (Spam) ይመልከቱ።`
+            : `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox or spam folder.`)
+        : (language === 'am'
+            ? `የማረጋገጫ ኮድ ለ ${cleanEmail} ተዘጋጅቷል (Dev Sandbox)። ከታች ያለውን "ኮዱን አስገባ" በመጫን በቀጥታ ማረጋገጥ ይችላሉ።`
+            : `Verification code generated for ${cleanEmail} (Dev Sandbox Mode). You can click "Auto-Fill Code" below or enter it manually.`)
     );
   };
 

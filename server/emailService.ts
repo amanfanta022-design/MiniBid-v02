@@ -1,7 +1,9 @@
 /**
  * MiniBid Ethiopia — Email Verification & Delivery Service
- * Supports Resend REST API, standard SMTP gateway, and developer testing sandbox.
+ * Supports Resend REST API, standard SMTP (Nodemailer), and developer testing sandbox.
  */
+
+import nodemailer, { type Transporter } from 'nodemailer';
 
 export interface EmailDispatchRecord {
   email: string;
@@ -16,6 +18,8 @@ export interface EmailDispatchRecord {
 class EmailService {
   private resendApiKey: string | null = null;
   private resendFromEmail: string = 'MiniBid Ethiopia <onboarding@resend.dev>';
+  private smtpTransporter: Transporter | null = null;
+  private smtpFromEmail: string = 'MiniBid Ethiopia <noreply@minibid.et>';
   private dispatches: Map<string, EmailDispatchRecord> = new Map();
 
   constructor() {
@@ -23,14 +27,40 @@ class EmailService {
     if (process.env.RESEND_FROM_EMAIL) {
       this.resendFromEmail = process.env.RESEND_FROM_EMAIL;
     }
+
+    if (process.env.SMTP_HOST) {
+      const port = parseInt(process.env.SMTP_PORT || '587', 10);
+      const secure = port === 465;
+      this.smtpFromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || this.smtpFromEmail;
+
+      this.smtpTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure,
+        auth: process.env.SMTP_USER
+          ? {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS || '',
+            }
+          : undefined,
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+      console.log(`[EmailService] SMTP transport initialized for host: ${process.env.SMTP_HOST}:${port}`);
+    }
   }
 
   public getConfig() {
-    const isLive = Boolean(this.resendApiKey);
+    const isLive = Boolean(this.resendApiKey || this.smtpTransporter);
+    let providerName = 'Developer Testing Sandbox (Local Dev)';
+    if (this.resendApiKey) providerName = 'Resend REST API';
+    else if (this.smtpTransporter) providerName = `SMTP (${process.env.SMTP_HOST})`;
+
     return {
       is_live: isLive,
-      provider: this.resendApiKey ? 'Resend API' : 'Developer Sandbox (Free / Dev Mode)',
-      sender_address: this.resendFromEmail,
+      provider: providerName,
+      sender_address: this.resendApiKey ? this.resendFromEmail : this.smtpFromEmail,
     };
   }
 
@@ -104,7 +134,39 @@ class EmailService {
       </html>
     `;
 
-    // Try sending with Resend if API key is provided
+    // 1. Try sending via standard SMTP if configured
+    if (this.smtpTransporter) {
+      try {
+        const info = await this.smtpTransporter.sendMail({
+          from: this.smtpFromEmail,
+          to: email,
+          subject,
+          html: htmlBody,
+        });
+
+        console.log(`[EmailService] SMTP email successfully delivered to ${email} (MessageId: ${info.messageId})`);
+        const record: EmailDispatchRecord = {
+          email,
+          code,
+          subject,
+          timestamp: Date.now(),
+          provider: 'SMTP',
+          status: 'DELIVERED_INBOX',
+          html_preview: htmlBody,
+        };
+        this.dispatches.set(email, record);
+        return {
+          success: true,
+          provider: 'SMTP Server',
+          status: 'DELIVERED_INBOX',
+          messageId: info.messageId,
+        };
+      } catch (err: any) {
+        console.warn(`[EmailService] SMTP send failed: ${err.message}. Trying Resend fallback.`);
+      }
+    }
+
+    // 2. Try sending with Resend if API key is provided
     if (this.resendApiKey) {
       try {
         const response = await fetch('https://api.resend.com/emails', {
@@ -149,9 +211,9 @@ class EmailService {
       }
     }
 
-    // Sandbox / Dev Testing Record
+    // 3. Developer Sandbox / Dev Testing Record
     console.log(`\n======================================================`);
-    console.log(`📧 [MiniBid Email OTP Dispatch - Dev/Sandbox Preview]`);
+    console.log(`📧 [MiniBid Email OTP Dispatch - Dev/Sandbox Delivery]`);
     console.log(`Recipient: ${email} (${displayName})`);
     console.log(`OTP Code : >>> ${code} <<<`);
     console.log(`Valid for: 10 minutes`);

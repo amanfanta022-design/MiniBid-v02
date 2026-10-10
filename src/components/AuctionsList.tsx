@@ -22,6 +22,7 @@ import {
 import { Auction } from '../types.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useTranslation } from '../utils/i18n.js';
+import { calculateTimeRemaining } from '../utils/timer.js';
 
 interface AuctionsListProps {
   onSelectAuction: (id: string) => void;
@@ -73,10 +74,16 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
     }
   };
 
+  const [, setClockTick] = useState(0);
+
   useEffect(() => {
     fetchAuctions();
     const interval = setInterval(fetchAuctions, 5000);
-    return () => clearInterval(interval);
+    const clockInterval = setInterval(() => setClockTick(p => p + 1), 1000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(clockInterval);
+    };
   }, []);
 
   const activeAuctions = auctions.filter(a => a.status === 'active');
@@ -368,11 +375,7 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAuctions.map(auc => {
-            const timeDiff = new Date(auc.end_time).getTime() - Date.now();
-            const isUrgent = timeDiff > 0 && timeDiff < 30 * 60 * 1000; // < 30 mins
-
-            const hours = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60)));
-            const minutes = Math.max(0, Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60)));
+            const timer = calculateTimeRemaining(auc.end_time);
 
             return (
               <div
@@ -401,21 +404,18 @@ export const AuctionsList: React.FC<AuctionsListProps> = ({
                     </span>
                   </div>
 
-                  {/* Countdown Badge with Dynamic Urgency Colors */}
+                  {/* Requirement 2: Countdown Badge with Live Days, Hours, Minutes, and Seconds */}
                   <div className="absolute top-3 right-3 z-10">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 backdrop-blur-md ${
-                        isUrgent
-                          ? 'bg-red-950/90 text-red-300 border border-red-500/60 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                          : 'bg-black/80 text-zinc-300 border border-zinc-700'
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 backdrop-blur-md shadow-lg ${
+                        timer.isUrgent
+                          ? 'bg-red-950/90 text-red-300 border border-red-500/70 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                          : 'bg-black/85 text-amber-300 border border-amber-500/40'
                       }`}
+                      title={language === 'am' ? 'የጨረታው ማብቂያ ቆጣሪ' : 'Live Auction Countdown Timer'}
                     >
                       <Clock className="w-3 h-3 text-amber-400" />
-                      {hours > 0
-                        ? `${hours}h ${minutes}m`
-                        : language === 'am'
-                        ? `${minutes} ደቂቃ ይቀራል`
-                        : `${minutes}m remaining`}
+                      <span>{timer.formatted}</span>
                     </span>
                   </div>
 
