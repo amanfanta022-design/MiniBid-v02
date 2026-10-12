@@ -153,6 +153,22 @@ export function validateReceiptPayload(payload: {
   return { valid: true };
 }
 
+export interface EmailSettingsConfig {
+  provider: 'gmail_smtp' | 'custom_smtp' | 'resend_api' | 'sandbox';
+  smtp_host: string;
+  smtp_port: number;
+  smtp_secure: boolean;
+  smtp_user: string;
+  smtp_pass: string;
+  from_name: string;
+  from_email: string;
+  resend_api_key?: string;
+  is_enabled: boolean;
+  last_tested_at?: string;
+  last_test_status?: 'success' | 'failed' | 'pending';
+  last_test_message?: string;
+}
+
 interface DatabaseSchema {
   users: (User & { password_hash: string; salt: string })[];
   auctions: Auction[];
@@ -166,6 +182,7 @@ interface DatabaseSchema {
   notifications: PlatformNotification[];
   audit_logs: AuditLog[];
   brand_logo_url?: string | null;
+  email_settings?: EmailSettingsConfig;
   system_movements?: SystemMovement[];
   admin_device_sessions?: AdminDeviceSession[];
   revoked_session_tokens?: string[];
@@ -950,6 +967,51 @@ class Database {
   public setBrandLogo(logoUrl: string | null): void {
     this.memoryData.brand_logo_url = logoUrl || null;
     this.persist(this.memoryData);
+  }
+
+  public getEmailSettings(): EmailSettingsConfig {
+    if (!this.memoryData.email_settings) {
+      this.memoryData.email_settings = {
+        provider: process.env.SMTP_HOST ? 'custom_smtp' : (process.env.RESEND_API_KEY ? 'resend_api' : 'sandbox'),
+        smtp_host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        smtp_port: parseInt(process.env.SMTP_PORT || '465', 10),
+        smtp_secure: (process.env.SMTP_PORT || '465') === '465',
+        smtp_user: process.env.SMTP_USER || '',
+        smtp_pass: process.env.SMTP_PASS || '',
+        from_name: 'MiniBid Ethiopia',
+        from_email: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@minibid.et',
+        resend_api_key: process.env.RESEND_API_KEY || '',
+        is_enabled: Boolean(process.env.SMTP_HOST || process.env.RESEND_API_KEY),
+      };
+    }
+    return { ...this.memoryData.email_settings };
+  }
+
+  public saveEmailSettings(settings: Partial<EmailSettingsConfig>, actorUser?: { id: string; username: string; role: string }): EmailSettingsConfig {
+    const current = this.getEmailSettings();
+    const updated: EmailSettingsConfig = {
+      ...current,
+      ...settings,
+      smtp_port: Number(settings.smtp_port ?? current.smtp_port) || 465,
+      smtp_secure: settings.smtp_secure !== undefined ? Boolean(settings.smtp_secure) : (Number(settings.smtp_port ?? current.smtp_port) === 465),
+      is_enabled: settings.is_enabled !== undefined ? Boolean(settings.is_enabled) : true,
+    };
+
+    this.memoryData.email_settings = updated;
+    this.persist(this.memoryData);
+
+    if (actorUser) {
+      this.addAuditLog({
+        actor_id: actorUser.id,
+        actor_username: actorUser.username,
+        actor_role: actorUser.role as any,
+        action: 'UPDATE_EMAIL_SETTINGS',
+        details: `Updated email settings: provider=${updated.provider}, host=${updated.smtp_host}, user=${updated.smtp_user ? updated.smtp_user.substring(0, 3) + '***' : 'none'}, enabled=${updated.is_enabled}`,
+        ip_reference: '127.0.0.1',
+      });
+    }
+
+    return { ...updated };
   }
 
   public getUsers() {

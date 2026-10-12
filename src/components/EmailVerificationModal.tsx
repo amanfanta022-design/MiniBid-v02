@@ -11,6 +11,7 @@ import {
   Sparkles,
   ArrowRight,
   RefreshCw,
+  Info,
 } from 'lucide-react';
 
 interface EmailVerificationModalProps {
@@ -272,7 +273,17 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
             <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center justify-between">
               <span>{language === 'am' ? 'የደረሰዎት 6-ዲጂት ኮድ' : 'Enter 6-Digit Email Code'}</span>
               {isCodeSent && (
-                <span className="text-emerald-400 text-[10px] font-mono">OTP Sent</span>
+                sandboxInfo?.is_live ? (
+                  <span className="text-emerald-400 text-[10px] font-mono font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Dispatched to Inbox</span>
+                  </span>
+                ) : (
+                  <span className="text-amber-400 text-[10px] font-mono font-bold flex items-center gap-1">
+                    <Info className="w-3 h-3" />
+                    <span>Dev Sandbox Active</span>
+                  </span>
+                )
               )}
             </label>
             <input
@@ -285,41 +296,65 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-[#E5B842]/70 text-center text-xl font-mono font-black tracking-widest text-[#E5B842] focus:outline-none focus:ring-1 focus:ring-[#E5B842]"
             />
 
-            {/* Sandbox Inspector for Dev/Testing */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={fetchSandboxCode}
-                disabled={isFetchingSandbox}
-                className="text-[11px] text-zinc-400 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <span>
-                  {language === 'am'
-                    ? 'በኢሜይል አልደረሰዎትም? (የሙከራ ኮድ ሳጥን / Dev Sandbox)'
-                    : "Didn't receive email? (Testing Sandbox Preview)"}
-                </span>
-              </button>
-
-              {sandboxInfo && (
-                <div className="mt-2 p-3 rounded-xl bg-amber-950/40 border border-amber-800/80 text-xs text-amber-200 space-y-1.5 animate-fadeIn">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[10px] uppercase tracking-wider text-amber-300">
-                      {sandboxInfo.is_live ? 'Live Email Dispatch' : 'Developer Sandbox Mode'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setCode(sandboxInfo.code)}
-                      className="px-2 py-0.5 rounded bg-[#E5B842] hover:bg-amber-400 text-black font-mono font-bold text-[10px] cursor-pointer shadow"
-                    >
-                      {language === 'am' ? 'ኮዱን አስገባ' : 'Auto-Fill Code'}
-                    </button>
-                  </div>
-                  <div className="text-center font-mono text-base font-black text-amber-400 py-1 bg-black/60 rounded-lg border border-amber-700/50 tracking-widest">
-                    {sandboxInfo.code}
-                  </div>
+            {/* Sandbox Notice & 1-Click Auto-Fill (Shown prominently when Live SMTP is not connected) */}
+            {isCodeSent && !sandboxInfo?.is_live && sandboxInfo?.code && (
+              <div className="mt-2.5 p-3.5 rounded-2xl bg-amber-950/40 border border-amber-600/70 text-xs text-amber-200 space-y-2 animate-fadeIn shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[10px] uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Sandbox Notice (No Live SMTP Connected)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCode(sandboxInfo.code)}
+                    className="px-2.5 py-1 rounded-lg bg-[#E5B842] hover:bg-amber-400 text-black font-mono font-black text-xs cursor-pointer shadow flex items-center gap-1 transition-all"
+                  >
+                    <span>{language === 'am' ? 'ኮዱን አስገባ' : 'Auto-Fill Code'}</span>
+                  </button>
                 </div>
-              )}
-            </div>
+
+                <p className="text-[11px] text-zinc-300 leading-relaxed">
+                  {language === 'am'
+                    ? 'የቀጥታ SMTP ሜይል ሰርቨር እስካሁን አልተገናኘም። የእርስዎ የማረጋገጫ ኮድ ከታች ተዘጋጅቷል፤ "ኮዱን አስገባ" በመጫን ወዲያውኑ ማረጋገጥ ይችላሉ፦'
+                    : 'Outbound mail server is not yet configured in Admin settings. Your verification code is displayed below:'}
+                </p>
+
+                <div className="text-center font-mono text-2xl font-black text-[#E5B842] py-2 bg-black/70 rounded-xl border border-amber-600/50 tracking-widest shadow-inner">
+                  {sandboxInfo.code}
+                </div>
+              </div>
+            )}
+
+            {/* Live Email Confirmation (Shown when live SMTP is active) */}
+            {isCodeSent && sandboxInfo?.is_live && (
+              <div className="mt-2.5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-600/60 text-xs text-emerald-200 space-y-1 animate-fadeIn">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-400 text-[11px] uppercase tracking-wider">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Real Email Sent to Inbox</span>
+                </div>
+                <p className="text-[11px] text-zinc-300">
+                  Please check your inbox or spam folder for <span className="text-white font-mono">{emailInput}</span>.
+                </p>
+              </div>
+            )}
+
+            {/* Optional Sandbox query for debugging */}
+            {!isCodeSent && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={fetchSandboxCode}
+                  disabled={isFetchingSandbox}
+                  className="text-[11px] text-zinc-400 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span>
+                    {language === 'am'
+                      ? 'የሙከራ ኮድ ሳጥን / Sandbox Preview'
+                      : 'Testing Sandbox Preview'}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Feedback messages */}

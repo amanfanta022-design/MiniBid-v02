@@ -15,9 +15,11 @@ import { SuperAdminDeviceSecurity } from './SuperAdminDeviceSecurity.js';
 import { AuctionsList } from './AuctionsList.js';
 import { AuctionDetailModal } from './AuctionDetailModal.js';
 import { AdminSmsGateway } from './AdminSmsGateway.js';
+import { AdminEmailSmtpDesk } from './AdminEmailSmtpDesk.js';
 import { GoldenParticleBackground } from './GoldenParticleBackground.js';
 import { User, PlatformNotification } from '../types.js';
 import {
+  Mail,
   ShieldAlert,
   ShieldCheck,
   Lock,
@@ -588,6 +590,20 @@ export const AdminWorkstation: React.FC = () => {
                 </button>
               )}
 
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setCurrentTab('email-gateway')}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                    currentTab === 'email-gateway'
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-950/50 font-bold'
+                      : 'text-amber-300 hover:bg-amber-950/30 border border-amber-900/40'
+                  }`}
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Email & SMTP Gateway</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setCurrentTab('auctions-inspector')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
@@ -616,6 +632,8 @@ export const AdminWorkstation: React.FC = () => {
           {currentTab === 'super-devices' && isSuperAdmin && <SuperAdminDeviceSecurity />}
 
           {currentTab === 'sms-gateway' && isSuperAdmin && <AdminSmsGateway />}
+
+          {currentTab === 'email-gateway' && isSuperAdmin && <AdminEmailSmtpDesk />}
 
           {currentTab === 'admin-deposits' && (
             <AdminDepositRequests onBackToAuctions={() => setCurrentTab('super-live-games')} />

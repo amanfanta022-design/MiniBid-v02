@@ -2049,6 +2049,108 @@ app.post('/api/superadmin/admins/:id/deposit', authenticate, requireRole(['super
   res.json({ message: `Successfully deposited ${numAmount.toLocaleString()} ETB to Admin operational float.`, admin: result.admin });
 });
 
+// ==========================================
+// SUPER ADMIN EMAIL & SMTP GATEWAY DESK
+// ==========================================
+
+// Get current email gateway configuration & status
+app.get('/api/superadmin/email-settings', authenticate, requireRole(['superadmin']), (_req: Request, res: Response) => {
+  const settings = db.getEmailSettings();
+  const runtimeConfig = emailService.getConfig();
+
+  // Mask sensitive password for display
+  const maskedSettings = {
+    ...settings,
+    smtp_pass: settings.smtp_pass ? '••••••••••••••••' : '',
+    resend_api_key: settings.resend_api_key ? (settings.resend_api_key.substring(0, 7) + '••••••••') : '',
+    has_password: Boolean(settings.smtp_pass),
+    runtime_status: runtimeConfig,
+  };
+
+  res.json({ settings: maskedSettings });
+});
+
+// Update email gateway settings
+app.post('/api/superadmin/email-settings', authenticate, requireRole(['superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const body = req.body;
+  const current = db.getEmailSettings();
+
+  // If password is sent as masked dots or empty, retain previous password
+  const newPass = (body.smtp_pass && !body.smtp_pass.includes('••••')) ? body.smtp_pass : current.smtp_pass;
+  const newResendKey = (body.resend_api_key && !body.resend_api_key.includes('••••')) ? body.resend_api_key : current.resend_api_key;
+
+  const saved = db.saveEmailSettings({
+    provider: body.provider || current.provider,
+    smtp_host: body.smtp_host !== undefined ? body.smtp_host : current.smtp_host,
+    smtp_port: body.smtp_port ? Number(body.smtp_port) : current.smtp_port,
+    smtp_secure: body.smtp_secure !== undefined ? Boolean(body.smtp_secure) : current.smtp_secure,
+    smtp_user: body.smtp_user !== undefined ? body.smtp_user : current.smtp_user,
+    smtp_pass: newPass,
+    from_name: body.from_name !== undefined ? body.from_name : current.from_name,
+    from_email: body.from_email !== undefined ? body.from_email : current.from_email,
+    resend_api_key: newResendKey,
+    is_enabled: body.is_enabled !== undefined ? Boolean(body.is_enabled) : current.is_enabled,
+  }, req.user!);
+
+  // Reload the live email transport immediately!
+  emailService.reloadConfig(saved);
+
+  res.json({
+    success: true,
+    message: 'Email & SMTP gateway settings saved and active.',
+    settings: {
+      ...saved,
+      smtp_pass: saved.smtp_pass ? '••••••••••••••••' : '',
+      has_password: Boolean(saved.smtp_pass),
+      runtime_status: emailService.getConfig(),
+    },
+  });
+});
+
+// Test SMTP connection and dispatch live test email
+app.post('/api/superadmin/email-settings/test', authenticate, requireRole(['superadmin']), async (req: AuthenticatedRequest, res: Response) => {
+  const { target_email, provider, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, from_name, from_email, resend_api_key } = req.body;
+  const current = db.getEmailSettings();
+  const fullUser = req.user?.id ? db.findUserById(req.user.id) : undefined;
+  const recipient = (target_email || fullUser?.email || '').trim().toLowerCase();
+  if (!recipient || !recipient.includes('@')) {
+    return res.status(400).json({ error: 'Please enter a valid recipient email address for the test handshake.' });
+  }
+
+  // Use provided password or fallback to saved password if masked
+  const passwordToUse = (smtp_pass && !smtp_pass.includes('••••')) ? smtp_pass : current.smtp_pass;
+  const resendKeyToUse = (resend_api_key && !resend_api_key.includes('••••')) ? resend_api_key : current.resend_api_key;
+
+  const testConfig = {
+    provider: provider || current.provider,
+    smtp_host: smtp_host || current.smtp_host,
+    smtp_port: smtp_port ? Number(smtp_port) : current.smtp_port,
+    smtp_secure: smtp_secure !== undefined ? Boolean(smtp_secure) : current.smtp_secure,
+    smtp_user: smtp_user !== undefined ? smtp_user : current.smtp_user,
+    smtp_pass: passwordToUse,
+    from_name: from_name || current.from_name,
+    from_email: from_email || current.from_email,
+    resend_api_key: resendKeyToUse,
+  };
+
+  const testResult = await emailService.testConnection(recipient, testConfig);
+
+  // Update last test status in db
+  db.saveEmailSettings({
+    last_tested_at: new Date().toISOString(),
+    last_test_status: testResult.success ? 'success' : 'failed',
+    last_test_message: testResult.message,
+  });
+
+  res.json(testResult);
+});
+
+// View recent email dispatch logs (for SuperAdmin audit)
+app.get('/api/superadmin/email-settings/dispatches', authenticate, requireRole(['superadmin']), (_req: Request, res: Response) => {
+  const dispatches = emailService.getAllDispatches();
+  res.json({ dispatches });
+});
+
 // Admin Submits Float Request to Super Admin (Admins only; Super Admin cannot request because no one is above him)
 app.post('/api/admin/request-float', authenticate, requireRole(['admin']), (req: AuthenticatedRequest, res: Response) => {
   const { amount, notes, bank_reference } = req.body;
@@ -2354,6 +2456,16 @@ app.post('/api/notifications/:id/read', authenticate, (req: AuthenticatedRequest
 // VITE MIDDLEWARE & STATIC SERVING
 // ==========================================
 async function start() {
+  // Initialize email service from saved database settings
+  try {
+    const savedEmailSettings = db.getEmailSettings();
+    if (savedEmailSettings && savedEmailSettings.is_enabled) {
+      emailService.reloadConfig(savedEmailSettings);
+    }
+  } catch (e) {
+    console.warn('[Server] Could not initialize email settings from db:', e);
+  }
+
   // Explicitly serve /assets so uploaded brand logos are served reliably in all modes
   app.use('/assets', express.static(path.join(process.cwd(), 'public', 'assets')));
 
