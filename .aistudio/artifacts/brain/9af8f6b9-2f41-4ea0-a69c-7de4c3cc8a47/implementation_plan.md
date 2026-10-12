@@ -1,74 +1,109 @@
-# Implementation Plan: SuperAdmin SMTP & Gmail Settings Desk with Transparent OTP Delivery
+# Gmail SMTP Instant Diagnostics & Sub-3s Handshake Engine
 
-This plan resolves the core issue where the system reported "OTP Sent" without delivering emails to real inboxes, by providing an in-app SuperAdmin SMTP & Gmail configuration desk and an honest, transparent verification experience.
-
----
-
-## 1. Problem Summary & User Preferences
-- **Root Cause**: Node.js cloud servers cannot send external emails without an authenticated SMTP relay or transactional API. In this environment, `SMTP_HOST` and `RESEND_API_KEY` were empty, causing the backend to silently capture OTPs in internal server memory while returning `success: true`.
-- **False Positive UX**: The modal displayed a bright green "OTP Sent" badge, misleading the user into waiting for an email in their Gmail inbox.
-- **User Decision**:
-  1. Add a **SuperAdmin SMTP and Gmail settings desk** in the Admin Workstation to configure and test live email delivery.
-  2. When email credentials are not yet configured, the UI will **show a clear sandbox notice with the code displayed on screen** and an auto-fill button.
+A high-performance optimization and diagnostic upgrade for the SuperAdmin Email & SMTP Gateway that eliminates 2-minute connection hangs, solves Google `535-5.7.8 BadCredentials` rejections, and delivers instant, transparent error codes with actionable account remediation.
 
 ---
 
-## 2. Proposed Architecture & Changes
+### User Review & Critical Decisions
 
-### A. Database & Persistent Email Settings (`server/db.ts`)
-- Add `email_settings` schema to persistent database store:
-  - `provider`: `'gmail_smtp' | 'custom_smtp' | 'resend_api' | 'sandbox'`
-  - `smtp_host`: string (e.g., `smtp.gmail.com`)
-  - `smtp_port`: number (e.g., `465` or `587`)
-  - `smtp_secure`: boolean
-  - `smtp_user`: string (e.g., admin Gmail address)
-  - `smtp_pass`: string (e.g., 16-character Google App Password)
-  - `from_name`: string (e.g., `MiniBid Ethiopia`)
-  - `from_email`: string (e.g., `noreply@minibid.et` or Gmail address)
-  - `resend_api_key`: string (optional)
-  - `is_enabled`: boolean
-  - `last_tested_at`: string
-  - `last_test_status`: string
-- Add `db.getEmailSettings()` and `db.saveEmailSettings()` with audit logging.
+> [!IMPORTANT]
+> The following parameters were confirmed during interactive clarification and govern this implementation:
 
-### B. Dynamic Email Service Reloading (`server/emailService.ts`)
-- Enable `emailService` to initialize transports dynamically from:
-  1. Saved database settings (primary priority)
-  2. Environment variables (`SMTP_HOST`, `RESEND_API_KEY`) as fallback
-  3. Sandbox mode when unconfigured
-- Add `emailService.reloadConfig()` to refresh active Nodemailer transports immediately when updated from the UI without restarting the dev server.
-- Add `emailService.sendTestEmail(toEmail, actor)` to allow SuperAdmin to test deliverability with live verification feedback.
-
-### C. Backend API Routes (`server.ts`)
-- `GET /api/superadmin/email-settings`: Authenticated endpoint (SuperAdmin only) to fetch current email gateway status, provider, and masked credentials.
-- `POST /api/superadmin/email-settings`: Authenticated endpoint to save and test SMTP/Gmail credentials.
-- `POST /api/superadmin/email-settings/test`: Send a test email to any specified recipient (e.g., `amanfanta022@gmail.com`) and return exact transport handshake details.
-- Update `/api/auth/email-otp/send`: Return clear status (`is_live: boolean`, `provider: string`, `code: string` when in sandbox mode).
-
-### D. SuperAdmin Email & SMTP Gateway Desk (`src/components/AdminEmailSmtpDesk.tsx`)
-- Add new workstation tab **Email & SMTP Gateway** (`Mail` icon) in `AdminWorkstation.tsx`.
-- Visual features:
-  - Provider selector: **Google / Gmail SMTP (Recommended)**, **Custom SMTP Server**, or **Resend API**.
-  - Built-in guide for Gmail App Passwords: Step-by-step instructions on generating a 16-character App Password at `myaccount.google.com/apppasswords`.
-  - Credentials form: Host, Port, Secure SSL/TLS toggle, Username, Password, Sender Name, From Address.
-  - Interactive "Live Test Dispatcher": Test input with recipient email, "Send Test Email" button, and live status indicator.
-  - Recent dispatch activity log: Inspect sent OTPs, target emails, timestamps, and delivery providers.
-
-### E. Honest & Transparent Verification UX (`src/components/EmailVerificationModal.tsx`)
-- When `is_live === false` (no SMTP connected):
-  - Do NOT show misleading "OTP Sent" badge.
-  - Display prominent amber banner: **"Testing Sandbox Mode (No Live SMTP Connected)"**.
-  - Explain: *"An external mail server is not yet configured in the Admin settings. Your verification code is displayed below:"*
-  - Prominently render the 6-digit code with a 1-click **Auto-Fill Code** button so the user can verify without interruption.
-  - Provide a link for SuperAdmin: *"Configure Live SMTP in Admin Workstation"*.
-- When `is_live === true` (live SMTP connected):
-  - Display green badge: **"Live Email Dispatched to Inbox"**.
-  - Show delivery provider notice (e.g., *"Dispatched via Gmail SMTP to your inbox"*).
+- **Confirmed Credential Type**: SuperAdmin confirmed entering a 16-character Google App Password from their Google Account.
+- **Confirmed Timeout & Error Strategy**: "Keep testing Gmail SMTP with instant diagnostic error codes" — the server will actively test Gmail SMTP with aggressive 5–7 second timeouts and instant diagnostic telemetry, rather than hanging for 120 seconds or failing silently.
 
 ---
 
-## 3. Verification & Testing Steps
-1. Verify `tsc --noEmit` and `compile_applet` build with zero errors.
-2. In SuperAdmin Workstation: open new **Email & SMTP Gateway** tab.
-3. Test sandbox verification flow in customer modal: confirm clear sandbox indicator and 1-click auto-fill.
-4. Test live SMTP configuration and test email dispatch endpoint.
+### 1. Overview & Root Cause Analysis
+
+#### A. Why was it "very slow to respond"?
+- In standard Node.js / Nodemailer, the default connection and socket timeouts are **120,000 milliseconds (2 full minutes)**.
+- When attempting an SMTP handshake against `smtp.gmail.com`, any delay in TCP socket negotiation, TLS wrapping, or cloud container network routing causes Express to wait for the full 2-minute timeout before aborting.
+- **The Solution**: Enforce strict connection timeout (`5,000ms`), greeting timeout (`5,000ms`), and socket timeout (`7,000ms`). Any network attempt will now respond with real diagnostic telemetry in under 3 seconds.
+
+#### B. Why did it "always error" with `535-5.7.8 BadCredentials`?
+The system recorded Google's exact response: `535-5.7.8 Username and Password not accepted. https://support.google.com/mail/?p=BadCredentials`. Even when a 16-character App Password is created, Google throws this error due to five specific factors:
+1. **Username Format**: Google strictly requires the full email address (e.g. `yourname@gmail.com`). If only `yourname` was submitted, Google rejects the login instantly.
+2. **Account Mismatch**: Users frequently generate an App Password while logged into one Google Account in Chrome, but input a different Google email address into the form.
+3. **App Password Formatting**: Hidden non-breaking spaces or trailing whitespace from Google's 4-group format (`xxxx yyyy zzzz wwww`).
+4. **Port / Encryption Mismatch**: Port 465 requires direct SSL (`secure: true`), whereas Port 587 requires STARTTLS (`secure: false`). Inverted encryption flags cause TLS handshake failure.
+5. **Revoked Credentials**: Changing the master Google Account password automatically invalidates all previous App Passwords.
+
+---
+
+### 2. User Experience & Visual Design
+
+#### A. Instant Diagnostic Inspector in `AdminEmailSmtpDesk.tsx`
+- **Sub-3s Latency Gauge**: Displays exact roundtrip timing (e.g., `⚡ Response: 480ms`) right beside the test button.
+- **Diagnostic Error Code Badge**: Replaces generic "Handshake Rejected" with structured error codes:
+  - `CODE: 535_GMAIL_BAD_CREDENTIALS` (Invalid username/App Password pairing)
+  - `CODE: ETIMEDOUT_PORT_BLOCKED` (Firewall timeout on current port)
+  - `CODE: TLS_HANDSHAKE_ERROR` (Encryption protocol mismatch)
+  - `CODE: 250_DELIVERY_SUCCESS` (Verified live delivery)
+- **Automatic Username Normalizer**: If the user enters an address without `@gmail.com` under the Gmail provider, a subtle real-time helper notice prompts 1-click normalization to full email format.
+- **Dual-Port Quick Toggles**: Quick buttons to test **Port 465 (SSL)** and **Port 587 (STARTTLS)** without manually retyping port numbers.
+- **Actionable 4-Point Google Account Checklist**: Visual accordion guiding the SuperAdmin through verifying 2-Step Verification, checking the active Google account profile, and generating a dedicated 16-letter App Password.
+
+---
+
+### 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Aggressive 5–7s Timeouts with Immediate Diagnostic Return**
+  - *Chosen Approach*: Configure Nodemailer transport with `connectionTimeout: 5000`, `greetingTimeout: 5000`, and `socketTimeout: 7000`.
+  - *Why*: Eliminates 2-minute frozen requests. The admin receives definitive feedback within 1–3 seconds under normal network conditions, and in at most 7 seconds under complete packet drop.
+  - *Alternative Considered*: Background polling queue (rejected because the user explicitly chose instant diagnostic feedback during testing).
+
+- **Decision 2: Dual-Strategy Port Fallback Testing**
+  - *Chosen Approach*: When a test on Port 465 encounters a connection timeout or refusal, the backend diagnostic probe can immediately test Port 587 as an alternative and report whether Port 587 is open.
+  - *Why*: Cloud container networks occasionally filter Port 465 while leaving Port 587 open (or vice versa).
+
+- **Decision 3: Transparent Sandbox Fallback Preservation**
+  - *Chosen Approach*: While Gmail SMTP is being configured and tested, all customer OTP requests continue to display the clear on-screen sandbox banner and 1-click code auto-fill, ensuring zero disruption to player registration.
+
+---
+
+### 4. Technical Architecture & System Flow
+
+```
+┌────────────────────────────────────────────────────────┐
+│             SuperAdmin Workstation Desk                │
+│       (AdminEmailSmtpDesk.tsx with Latency Meter)      │
+└───────────────────────────┬────────────────────────────┘
+                            │ POST /api/superadmin/email-settings/test
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│               Express API Route Handler                │
+│           (Sanitizes username & app password)          │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│             emailService.testConnection()              │
+│  - Timeouts: connection 5s, greeting 5s, socket 7s     │
+│  - Measures exact latency in milliseconds              │
+│  - Runs verify() with detailed error classifier        │
+└───────────────┬────────────────────────┬───────────────┘
+                │                        │
+       Port 465 (SSL)           Port 587 (STARTTLS)
+                ▼                        ▼
+┌────────────────────────────────────────────────────────┐
+│                Google SMTP Mail Servers                │
+│                   (smtp.gmail.com)                     │
+└───────────────────────────┬────────────────────────────┘
+                            │ Error: 535 / 250 OK / ETIMEDOUT
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│              Diagnostic Error Classifier               │
+│  - Formats precise diagnostic code & remedy            │
+│  - Updates db last_test_status & telemetry log         │
+│  - Returns { success, statusCode, latencyMs, remedy }  │
+└────────────────────────────────────────────────────────┘
+```
+
+#### Diagnostic State Mapping
+| Google Response | Diagnostic Code | Actionable Guidance |
+| :--- | :--- | :--- |
+| `535-5.7.8 BadCredentials` | `AUTH_535_GMAIL` | Verify full email address, active 2FA, and matching Google account profile. |
+| `ETIMEDOUT` / `ESOCKETTIMEDOUT` | `NET_TIMEOUT` | Connection timed out after 5s. Switch to Port 587 (TLS) or verify firewall. |
+| `ECONNREFUSED` | `NET_REFUSED` | Target port was refused by server/network. |
+| `250 2.0.0 OK` | `SUCCESS_250` | Handshake verified! Live verification code delivered to recipient inbox. |

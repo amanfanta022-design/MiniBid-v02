@@ -2076,15 +2076,24 @@ app.post('/api/superadmin/email-settings', authenticate, requireRole(['superadmi
   const current = db.getEmailSettings();
 
   // If password is sent as masked dots or empty, retain previous password
-  const newPass = (body.smtp_pass && !body.smtp_pass.includes('••••')) ? body.smtp_pass : current.smtp_pass;
+  let newPass = (body.smtp_pass && !body.smtp_pass.includes('••••')) ? body.smtp_pass : current.smtp_pass;
+  if (newPass) {
+    newPass = newPass.replace(/\s+/g, '').replace(/^["']|["']$/g, '');
+  }
   const newResendKey = (body.resend_api_key && !body.resend_api_key.includes('••••')) ? body.resend_api_key : current.resend_api_key;
 
+  let rawUser = body.smtp_user !== undefined ? body.smtp_user.trim() : current.smtp_user;
+  const provider = body.provider || current.provider;
+  if (provider === 'gmail_smtp' && rawUser && !rawUser.includes('@')) {
+    rawUser = `${rawUser}@gmail.com`;
+  }
+
   const saved = db.saveEmailSettings({
-    provider: body.provider || current.provider,
+    provider,
     smtp_host: body.smtp_host !== undefined ? body.smtp_host : current.smtp_host,
     smtp_port: body.smtp_port ? Number(body.smtp_port) : current.smtp_port,
     smtp_secure: body.smtp_secure !== undefined ? Boolean(body.smtp_secure) : current.smtp_secure,
-    smtp_user: body.smtp_user !== undefined ? body.smtp_user : current.smtp_user,
+    smtp_user: rawUser,
     smtp_pass: newPass,
     from_name: body.from_name !== undefined ? body.from_name : current.from_name,
     from_email: body.from_email !== undefined ? body.from_email : current.from_email,
@@ -2118,15 +2127,24 @@ app.post('/api/superadmin/email-settings/test', authenticate, requireRole(['supe
   }
 
   // Use provided password or fallback to saved password if masked
-  const passwordToUse = (smtp_pass && !smtp_pass.includes('••••')) ? smtp_pass : current.smtp_pass;
+  let passwordToUse = (smtp_pass && !smtp_pass.includes('••••')) ? smtp_pass : current.smtp_pass;
+  if (passwordToUse) {
+    passwordToUse = passwordToUse.replace(/\s+/g, '').replace(/^["']|["']$/g, '');
+  }
   const resendKeyToUse = (resend_api_key && !resend_api_key.includes('••••')) ? resend_api_key : current.resend_api_key;
 
+  let userToUse = smtp_user !== undefined ? smtp_user.trim() : current.smtp_user;
+  const targetProvider = provider || current.provider;
+  if (targetProvider === 'gmail_smtp' && userToUse && !userToUse.includes('@')) {
+    userToUse = `${userToUse}@gmail.com`;
+  }
+
   const testConfig = {
-    provider: provider || current.provider,
+    provider: targetProvider,
     smtp_host: smtp_host || current.smtp_host,
     smtp_port: smtp_port ? Number(smtp_port) : current.smtp_port,
     smtp_secure: smtp_secure !== undefined ? Boolean(smtp_secure) : current.smtp_secure,
-    smtp_user: smtp_user !== undefined ? smtp_user : current.smtp_user,
+    smtp_user: userToUse,
     smtp_pass: passwordToUse,
     from_name: from_name || current.from_name,
     from_email: from_email || current.from_email,
@@ -2135,14 +2153,23 @@ app.post('/api/superadmin/email-settings/test', authenticate, requireRole(['supe
 
   const testResult = await emailService.testConnection(recipient, testConfig);
 
-  // Update last test status in db
+  // Update last test status & telemetry in db
   db.saveEmailSettings({
     last_tested_at: new Date().toISOString(),
     last_test_status: testResult.success ? 'success' : 'failed',
     last_test_message: testResult.message,
+    last_test_latency_ms: testResult.latencyMs,
+    last_test_diagnostic_code: testResult.diagnosticCode,
   });
 
   res.json(testResult);
+});
+
+// Fast real-time probe of SMTP ports 465 and 587
+app.get('/api/superadmin/email-settings/probe-ports', authenticate, requireRole(['superadmin']), async (req: Request, res: Response) => {
+  const host = (req.query.host as string) || 'smtp.gmail.com';
+  const probeResults = await emailService.probeDualPorts(host);
+  res.json({ host, ports: probeResults });
 });
 
 // View recent email dispatch logs (for SuperAdmin audit)

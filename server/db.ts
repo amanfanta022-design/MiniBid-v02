@@ -167,6 +167,8 @@ export interface EmailSettingsConfig {
   last_tested_at?: string;
   last_test_status?: 'success' | 'failed' | 'pending';
   last_test_message?: string;
+  last_test_latency_ms?: number;
+  last_test_diagnostic_code?: string;
 }
 
 interface DatabaseSchema {

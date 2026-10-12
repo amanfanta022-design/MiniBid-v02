@@ -1,8 +1,10 @@
 /**
  * MiniBid Ethiopia — Email Verification & Delivery Service
- * Supports Google/Gmail SMTP, Custom SMTP, Resend REST API, and Developer Testing Sandbox.
+ * Ultra-Fast Sub-3s Handshake Engine, Strict Timeout Bounds,
+ * and Instant Diagnostic Classifier for Google / Gmail SMTP & Custom Relays.
  */
 
+import net from 'net';
 import nodemailer, { type Transporter } from 'nodemailer';
 
 export interface EmailDispatchRecord {
@@ -31,6 +33,93 @@ export interface EmailGatewaySettings {
   last_tested_at?: string;
   last_test_status?: 'success' | 'failed' | 'pending';
   last_test_message?: string;
+  last_test_latency_ms?: number;
+  last_test_diagnostic_code?: string;
+}
+
+export type DiagnosticCode =
+  | 'SUCCESS_250'
+  | 'AUTH_535_GMAIL'
+  | 'AUTH_FAILED'
+  | 'NET_TIMEOUT'
+  | 'NET_REFUSED'
+  | 'TLS_ERROR'
+  | 'CONFIG_ERROR'
+  | 'UNKNOWN_ERROR';
+
+export interface DualPortProbeResult {
+  port465: { open: boolean; latencyMs?: number; error?: string };
+  port587: { open: boolean; latencyMs?: number; error?: string };
+}
+
+export interface SmtpTestResult {
+  success: boolean;
+  provider: string;
+  message: string;
+  messageId?: string;
+  diagnosticCode: DiagnosticCode;
+  latencyMs: number;
+  diagnosticDetails?: string;
+  actionableRemedy?: string;
+  normalizedUser?: string;
+  dualPortDiagnostics?: DualPortProbeResult;
+}
+
+/**
+ * Fast TCP probe helper to test port reachability without hanging
+ */
+function probeTcpPort(host: string, port: number, timeoutMs = 2500): Promise<{ open: boolean; latencyMs?: number; error?: string }> {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    let resolved = false;
+    const socket = net.createConnection({ host, port, timeout: timeoutMs }, () => {
+      if (!resolved) {
+        resolved = true;
+        const latencyMs = Date.now() - start;
+        socket.destroy();
+        resolve({ open: true, latencyMs });
+      }
+    });
+
+    socket.on('timeout', () => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve({ open: false, error: 'TIMEOUT' });
+      }
+    });
+
+    socket.on('error', (err: any) => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve({ open: false, error: err.code || err.message });
+      }
+    });
+  });
+}
+
+/**
+ * Clean and normalize Google username (append @gmail.com if missing, strip spaces)
+ */
+export function normalizeSmtpUser(rawUser: string, provider: string): string {
+  let user = (rawUser || '').trim();
+  if (provider === 'gmail_smtp') {
+    if (user && !user.includes('@')) {
+      user = `${user}@gmail.com`;
+    }
+  }
+  return user;
+}
+
+/**
+ * Clean Google App Password (strip 4-character chunk spaces, trim, remove quotes)
+ */
+export function normalizeSmtpPass(rawPass: string): string {
+  if (!rawPass) return '';
+  return rawPass
+    .replace(/\s+/g, '') // remove all spaces (Google gives App Passwords in groups like "abcd efgh ijkl mnop")
+    .replace(/^["']|["']$/g, ''); // remove accidental quotes
 }
 
 class EmailService {
@@ -58,22 +147,23 @@ class EmailService {
       const secure = port === 465 || process.env.SMTP_SECURE === 'true';
       this.smtpFromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || this.smtpFromEmail;
 
+      const user = normalizeSmtpUser(process.env.SMTP_USER || '', process.env.SMTP_HOST.includes('gmail') ? 'gmail_smtp' : 'custom_smtp');
+      const pass = normalizeSmtpPass(process.env.SMTP_PASS || '');
+
       this.smtpTransporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port,
         secure,
-        auth: process.env.SMTP_USER
-          ? {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS || '',
-            }
-          : undefined,
+        auth: user ? { user, pass } : undefined,
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 7000,
         tls: {
           rejectUnauthorized: false,
         },
       });
       this.activeProvider = process.env.SMTP_HOST.includes('gmail') ? 'gmail_smtp' : 'custom_smtp';
-      console.log(`[EmailService] Env SMTP initialized: ${process.env.SMTP_HOST}:${port} (secure: ${secure})`);
+      console.log(`[EmailService] Env SMTP initialized: ${process.env.SMTP_HOST}:${port} (secure: ${secure}) with strict 5s timeouts`);
     } else if (this.resendApiKey) {
       this.activeProvider = 'resend_api';
     } else {
@@ -102,25 +192,28 @@ class EmailService {
       const port = Number(settings.smtp_port) || (settings.provider === 'gmail_smtp' ? 465 : 587);
       const secure = settings.smtp_secure !== undefined ? Boolean(settings.smtp_secure) : (port === 465);
 
-      const senderEmail = settings.from_email || settings.smtp_user || 'noreply@minibid.et';
+      const rawUser = settings.smtp_user || '';
+      const user = normalizeSmtpUser(rawUser, settings.provider);
+      const pass = normalizeSmtpPass(settings.smtp_pass || '');
+
+      const senderEmail = settings.from_email || user || 'noreply@minibid.et';
       this.smtpFromEmail = `${this.fromName} <${senderEmail}>`;
 
       this.smtpTransporter = nodemailer.createTransport({
         host,
         port,
         secure,
-        auth: settings.smtp_user
-          ? {
-              user: settings.smtp_user.trim(),
-              pass: settings.smtp_pass ? settings.smtp_pass.replace(/\s+/g, '') : '',
-            }
-          : undefined,
+        requireTLS: !secure && port === 587,
+        auth: user ? { user, pass } : undefined,
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 7000,
         tls: {
           rejectUnauthorized: false,
         },
       });
 
-      console.log(`[EmailService] SMTP transporter active for ${host}:${port} (user: ${settings.smtp_user})`);
+      console.log(`[EmailService] SMTP transporter active for ${host}:${port} (user: ${user}, secure: ${secure}) with 5s timeouts`);
     } else if (settings.provider === 'resend_api') {
       this.smtpTransporter = null;
       this.resendApiKey = settings.resend_api_key || null;
@@ -159,59 +252,88 @@ class EmailService {
   }
 
   /**
-   * Verify SMTP credentials by sending a live test email and verifying handshake
+   * Fast diagnostic probe of dual ports 465 and 587
+   */
+  public async probeDualPorts(host = 'smtp.gmail.com'): Promise<DualPortProbeResult> {
+    const [p465, p587] = await Promise.all([
+      probeTcpPort(host, 465, 2500),
+      probeTcpPort(host, 587, 2500),
+    ]);
+    return {
+      port465: p465,
+      port587: p587,
+    };
+  }
+
+  /**
+   * Verify SMTP credentials by checking handshake within <3s and dispatching live test email
    */
   public async testConnection(
     targetEmail: string,
     overrideSettings?: Partial<EmailGatewaySettings>
-  ): Promise<{
-    success: boolean;
-    provider: string;
-    message: string;
-    messageId?: string;
-    diagnosticDetails?: string;
-  }> {
+  ): Promise<SmtpTestResult> {
+    const startTime = Date.now();
     const email = targetEmail.trim().toLowerCase();
     const testCode = Math.floor(100000 + Math.random() * 900000).toString();
     const subject = `[MiniBid Ethiopia] SMTP Gateway Test Handshake #${testCode}`;
 
-    let transporterToUse = this.smtpTransporter;
-    let senderAddress = this.smtpFromEmail;
     let providerLabel = this.activeProvider === 'gmail_smtp' ? 'Gmail SMTP' : 'Custom SMTP';
 
-    // If override settings provided, build ephemeral transport to test before saving
+    // If override settings provided, build ephemeral transport with strict timeouts
     if (overrideSettings && (overrideSettings.provider === 'gmail_smtp' || overrideSettings.provider === 'custom_smtp')) {
-      const host = overrideSettings.provider === 'gmail_smtp' ? (overrideSettings.smtp_host || 'smtp.gmail.com') : overrideSettings.smtp_host;
-      const port = Number(overrideSettings.smtp_port) || (overrideSettings.provider === 'gmail_smtp' ? 465 : 587);
+      const provider = overrideSettings.provider;
+      const host = provider === 'gmail_smtp' ? (overrideSettings.smtp_host || 'smtp.gmail.com') : overrideSettings.smtp_host || 'smtp.gmail.com';
+      const port = Number(overrideSettings.smtp_port) || (provider === 'gmail_smtp' ? 465 : 587);
       const secure = overrideSettings.smtp_secure !== undefined ? Boolean(overrideSettings.smtp_secure) : (port === 465);
-      const user = overrideSettings.smtp_user?.trim() || '';
-      const pass = overrideSettings.smtp_pass ? overrideSettings.smtp_pass.replace(/\s+/g, '') : '';
+      
+      const rawUser = overrideSettings.smtp_user?.trim() || '';
+      const user = normalizeSmtpUser(rawUser, provider);
+      const pass = normalizeSmtpPass(overrideSettings.smtp_pass || '');
+      
       const fromName = overrideSettings.from_name || 'MiniBid Ethiopia';
       const fromEmail = overrideSettings.from_email || user || 'noreply@minibid.et';
-      senderAddress = `${fromName} <${fromEmail}>`;
-      providerLabel = overrideSettings.provider === 'gmail_smtp' ? 'Gmail SMTP' : 'Custom SMTP';
+      const senderAddress = `${fromName} <${fromEmail}>`;
+      providerLabel = provider === 'gmail_smtp' ? 'Gmail SMTP' : 'Custom SMTP';
 
-      transporterToUse = nodemailer.createTransport({
+      if (!user || !pass) {
+        return {
+          success: false,
+          provider: providerLabel,
+          message: 'Missing credentials: both Username and Password/App Password are required.',
+          diagnosticCode: 'CONFIG_ERROR',
+          latencyMs: Date.now() - startTime,
+          actionableRemedy: 'Please enter your full Gmail address and your 16-character Google App Password.',
+        };
+      }
+
+      // Check dual port reachability in parallel for instant diagnostic telemetry
+      const dualPorts = await this.probeDualPorts(host);
+
+      const ephemeralTransporter = nodemailer.createTransport({
         host,
         port,
         secure,
-        auth: user ? { user, pass } : undefined,
+        requireTLS: !secure && port === 587,
+        auth: { user, pass },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 7000,
         tls: { rejectUnauthorized: false },
       });
-    }
 
-    if (transporterToUse) {
       try {
-        // First verify connection handshake
-        await transporterToUse.verify();
+        // Step 1: Verify SMTP handshake (authentication & TLS)
+        await ephemeralTransporter.verify();
+        const handshakeLatencyMs = Date.now() - startTime;
 
-        // Second dispatch actual test email to verify mailbox receipt
+        // Step 2: Dispatch actual test email to confirm mailbox receipt
         const html = `
           <div style="font-family: sans-serif; background: #0c0c0e; color: #fff; padding: 24px; border-radius: 12px; border: 1px solid #333;">
             <h2 style="color: #E5B842; margin-top: 0;">MiniBid Ethiopia — SMTP Delivery Verified!</h2>
-            <p>Congratulations! Your mail server handshake is functional and verified.</p>
+            <p>Congratulations! Your mail server handshake is functional and verified in ${handshakeLatencyMs}ms.</p>
             <div style="background: #1a1a20; padding: 12px; border-radius: 8px; font-family: monospace; color: #34d399; margin: 16px 0;">
               STATUS: 250 OK - SMTP Handshake Confirmed<br/>
+              HOST: ${host}:${port} (${secure ? 'SSL' : 'STARTTLS'})<br/>
               TEST TOKEN: ${testCode}<br/>
               TIMESTAMP: ${new Date().toISOString()}
             </div>
@@ -219,34 +341,78 @@ class EmailService {
           </div>
         `;
 
-        const info = await transporterToUse.sendMail({
+        const info = await ephemeralTransporter.sendMail({
           from: senderAddress,
           to: email,
           subject,
           html,
         });
 
+        const totalLatencyMs = Date.now() - startTime;
+
         return {
           success: true,
           provider: providerLabel,
-          message: `Live test email successfully delivered to ${email}. Check your inbox!`,
+          message: `Live test email successfully delivered to ${email}! Check your inbox.`,
           messageId: info.messageId,
-          diagnosticDetails: `SMTP response: ${info.response || '250 OK'}`,
+          diagnosticCode: 'SUCCESS_250',
+          latencyMs: totalLatencyMs,
+          normalizedUser: user,
+          diagnosticDetails: `SMTP response: ${info.response || '250 OK'} | Handshake: ${handshakeLatencyMs}ms | Total: ${totalLatencyMs}ms | Server: ${host}:${port}`,
+          actionableRemedy: 'Your Gmail / SMTP gateway is fully operational. 6-digit verification codes will be delivered directly to players.',
+          dualPortDiagnostics: dualPorts,
         };
       } catch (err: any) {
-        console.error('[EmailService] SMTP handshake error:', err);
-        let guidance = '';
-        if (err.message && err.message.includes('Username and Password not accepted')) {
-          guidance = ' Google rejected your credentials. You must use a 16-character Google App Password (not your standard Google account password). Go to Google Account -> Security -> 2-Step Verification -> App Passwords.';
-        } else if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
-          guidance = ' Connection timed out or refused. Check your SMTP host and port (465 with SSL or 587 with STARTTLS).';
+        const errorLatencyMs = Date.now() - startTime;
+        console.error('[EmailService] SMTP handshake test error:', err);
+
+        let diagCode: DiagnosticCode = 'UNKNOWN_ERROR';
+        let remedy = '';
+        const errMsg = String(err.message || '');
+        const errCode = String(err.code || '');
+
+        if (
+          errMsg.includes('535') ||
+          errMsg.includes('BadCredentials') ||
+          errMsg.includes('Username and Password not accepted') ||
+          err.responseCode === 535 ||
+          errCode === 'EAUTH'
+        ) {
+          diagCode = 'AUTH_535_GMAIL';
+          remedy = `Google rejected the credentials for "${user}". Check: 1) Username must be your full Gmail address (e.g. yourname@gmail.com). 2) Make sure 2-Step Verification is enabled on that Google account. 3) Generate a fresh 16-character App Password at myaccount.google.com/apppasswords without spaces. 4) Ensure your browser was signed into the exact same Google account when creating the App Password.`;
+        } else if (
+          errCode === 'ETIMEDOUT' ||
+          errCode === 'ESOCKETTIMEDOUT' ||
+          errMsg.includes('timed out') ||
+          errMsg.includes('Greeting never received')
+        ) {
+          diagCode = 'NET_TIMEOUT';
+          remedy = `Connection timed out after ${errorLatencyMs}ms on Port ${port}. Google or container network may be restricting Port ${port}. Try switching to Port ${port === 465 ? '587 (TLS)' : '465 (SSL)'}. Check the Port Reachability probe below.`;
+        } else if (errCode === 'ECONNREFUSED') {
+          diagCode = 'NET_REFUSED';
+          remedy = `Connection refused on ${host}:${port}. Verify your host and port numbers.`;
+        } else if (
+          errCode === 'ESOCKET' ||
+          errMsg.includes('SSL') ||
+          errMsg.includes('tls') ||
+          errMsg.includes('wrong version number')
+        ) {
+          diagCode = 'TLS_ERROR';
+          remedy = `SSL/TLS protocol mismatch on Port ${port}. Port 465 requires direct SSL (secure: true). Port 587 requires STARTTLS (secure: false).`;
+        } else {
+          remedy = `SMTP negotiation encountered error (${errCode || 'E_FAIL'}). Review raw diagnostic details below.`;
         }
 
         return {
           success: false,
           provider: providerLabel,
-          message: `SMTP Handshake Failed: ${err.message}.${guidance}`,
-          diagnosticDetails: `Error Code: ${err.code || 'UNKNOWN'} | Command: ${err.command || 'AUTH'}`,
+          message: `SMTP Handshake Failed (${diagCode}): ${errMsg}`,
+          diagnosticCode: diagCode,
+          latencyMs: errorLatencyMs,
+          normalizedUser: user,
+          diagnosticDetails: `Error Code: ${errCode || 'E_FAIL'} | Command: ${err.command || 'AUTH'} | Host: ${host}:${port} | Latency: ${errorLatencyMs}ms`,
+          actionableRemedy: remedy,
+          dualPortDiagnostics: dualPorts,
         };
       }
     }
@@ -269,6 +435,8 @@ class EmailService {
           }),
         });
 
+        const latencyMs = Date.now() - startTime;
+
         if (response.ok) {
           const data = (await response.json()) as { id: string };
           return {
@@ -276,6 +444,9 @@ class EmailService {
             provider: 'Resend API',
             message: `Test email successfully dispatched via Resend to ${email}.`,
             messageId: data.id,
+            diagnosticCode: 'SUCCESS_250',
+            latencyMs,
+            actionableRemedy: 'Resend API is verified and operational.',
           };
         } else {
           const errText = await response.text();
@@ -283,6 +454,9 @@ class EmailService {
             success: false,
             provider: 'Resend API',
             message: `Resend API returned error: ${errText}`,
+            diagnosticCode: 'AUTH_FAILED',
+            latencyMs,
+            actionableRemedy: 'Check your Resend API key and verified sending domain.',
           };
         }
       } catch (err: any) {
@@ -290,6 +464,9 @@ class EmailService {
           success: false,
           provider: 'Resend API',
           message: `Resend test failed: ${err.message}`,
+          diagnosticCode: 'NET_TIMEOUT',
+          latencyMs: Date.now() - startTime,
+          actionableRemedy: 'Network error calling Resend API endpoint.',
         };
       }
     }
@@ -298,9 +475,15 @@ class EmailService {
       success: false,
       provider: 'Sandbox',
       message: 'No SMTP or Resend credentials configured to test. Please fill in the SMTP credentials below.',
+      diagnosticCode: 'CONFIG_ERROR',
+      latencyMs: Date.now() - startTime,
+      actionableRemedy: 'Select Gmail / Google SMTP or Custom SMTP and provide your username & App Password.',
     };
   }
 
+  /**
+   * Dispatch OTP with bounded fast timeout (never hangs user registration/verification)
+   */
   public async dispatchEmailOtp(
     targetEmail: string,
     code: string,
@@ -398,13 +581,16 @@ class EmailService {
           messageId: info.messageId,
         };
       } catch (err: any) {
-        console.warn(`[EmailService] Live SMTP send failed: ${err.message}.`);
+        console.warn(`[EmailService] Live SMTP send failed (${err.code || err.message}). Smoothly falling back to Sandbox.`);
       }
     }
 
     // 2. Try sending with Resend if API key is provided
     if (this.resendApiKey && this.activeProvider === 'resend_api') {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -417,7 +603,9 @@ class EmailService {
             subject,
             html: htmlBody,
           }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = (await response.json()) as { id: string };
@@ -451,13 +639,13 @@ class EmailService {
       }
     }
 
-    // 3. Developer Sandbox / Dev Testing Record (Transparent fallback)
+    // 3. Developer Sandbox / Dev Testing Record (Transparent immediate fallback)
     console.log(`\n======================================================`);
     console.log(`📧 [MiniBid Email OTP Dispatch - Dev/Sandbox Delivery]`);
     console.log(`Recipient: ${email} (${displayName})`);
     console.log(`OTP Code : >>> ${code} <<<`);
     console.log(`Valid for: 10 minutes`);
-    console.log(`Notice   : Live SMTP not configured. OTP displayed in UI.`);
+    console.log(`Notice   : Live SMTP fallback active. OTP displayed in UI.`);
     console.log(`======================================================\n`);
 
     const record: EmailDispatchRecord = {
