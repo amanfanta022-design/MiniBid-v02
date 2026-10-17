@@ -588,21 +588,10 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
                   <Mail className="w-3.5 h-3.5 text-[#E5B842]" />
                   <span>{language === 'am' ? 'ኢሜይል አድራሻ' : 'Email Address'}</span>
                 </label>
-                {user.email_verified ? (
-                  <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>{language === 'am' ? 'የተረጋገጠ ባጅ' : 'Verified Badge Active'}</span>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsEmailVerifyOpen(true)}
-                    className="text-[10px] font-mono text-[#E5B842] hover:text-amber-300 underline cursor-pointer flex items-center gap-0.5"
-                  >
-                    <span>{language === 'am' ? 'ባጅ ለማግኘት አረጋግጥ' : 'Verify for Badge'}</span>
-                    <Sparkles className="w-2.5 h-2.5 text-[#E5B842]" />
-                  </button>
-                )}
+                <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>{language === 'am' ? 'የተረጋገጠ ባጅ' : 'Verified Badge Active'}</span>
+                </span>
               </div>
               <input
                 type="email"
@@ -613,8 +602,8 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
               />
               <p className="text-[10px] text-zinc-500 mt-1">
                 {language === 'am'
-                  ? 'ኢሜይልዎን በማረጋገጥ በመገለጫዎ ላይ የተረጋገጠ ባጅ (Verified Badge) ይውሰዱ።'
-                  : 'Verify your email to award the Verified Profile Badge to your account.'}
+                  ? 'ኢሜይልዎን ሲያስገቡ በራስ-ሰር የተረጋገጠ ባጅ (Verified Badge) ይሰጥዎታል።'
+                  : 'Adding an email automatically awards the Verified Profile Badge to your account.'}
               </p>
             </div>
 

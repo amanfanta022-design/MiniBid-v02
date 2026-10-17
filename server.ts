@@ -198,18 +198,6 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     role: user.role,
   });
 
-  // If email was provided during registration, automatically dispatch Email OTP for Verified Badge
-  let emailOtpDispatched = false;
-  if (cleanEmail) {
-    const otpRes = db.createEmailOtp(cleanEmail, user.id);
-    if (otpRes.success) {
-      emailService.dispatchEmailOtp(cleanEmail, otpRes.code, user.username).catch(err => {
-        console.warn('Failed to dispatch registration email OTP:', err);
-      });
-      emailOtpDispatched = true;
-    }
-  }
-
   db.logSystemMovement({
     category: 'USER_LIFECYCLE',
     action: 'USER_REGISTERED',
@@ -219,7 +207,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     target_id: user.id,
     target_username: user.username,
     target_type: 'USER',
-    details: `New customer account @${user.username} registered with Ethiopian phone ${user.phone}${cleanEmail ? ` and email ${cleanEmail}` : ''}.`,
+    details: `New customer account @${user.username} registered with Ethiopian phone ${user.phone}${cleanEmail ? ` and email ${cleanEmail}` : ''}. Instant access enabled (No OTP barrier).`,
     ip_address: (req.ip as string) || (req.headers['x-forwarded-for'] as string) || '127.0.0.1',
     user_agent: req.headers['user-agent'] as string,
   });
@@ -227,10 +215,8 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   res.status(201).json({
     user,
     token,
-    email_otp_dispatched: emailOtpDispatched,
-    message: emailOtpDispatched
-      ? 'Registration successful! An email verification code has been dispatched to claim your Verified Profile Badge.'
-      : 'Registration successful! Welcome to MiniBid Ethiopia. Your wallet is active with 0.00 ETB balance.',
+    success: true,
+    message: 'Registration successful! Welcome to MiniBid Ethiopia. Your wallet is active with 0.00 ETB starting balance.',
   });
 });
 
@@ -661,7 +647,7 @@ app.put('/api/auth/update-profile', authenticate, (req: AuthenticatedRequest, re
       phone,
       password,
       email,
-      email_verified: verify_email,
+      email_verified: email ? true : verify_email,
     });
 
     if (!updated) {
@@ -1203,14 +1189,39 @@ app.get('/api/superadmin/live-game-monitor', authenticate, requireRole(['superad
     };
   });
 
-  const totalActiveBids = detailedAuctions.reduce((sum, a) => sum + a.total_bids, 0);
+    const totalActiveBids = detailedAuctions.reduce((sum, a) => sum + a.total_bids, 0);
 
-  res.json({
-    active_auctions_count: detailedAuctions.length,
-    total_active_bids: totalActiveBids,
-    auctions: detailedAuctions,
+    const previousAuctions = allAuctions
+      .filter(a => a.status === 'ended' || a.status === 'cancelled')
+      .map(auc => {
+        const winnerUser = auc.winner_user_id ? db.findUserById(auc.winner_user_id) : null;
+        return {
+          id: auc.id,
+          title: auc.title,
+          category: auc.category,
+          image_url: auc.image_url,
+          status: auc.status,
+          total_bids: auc.total_bids || 0,
+          start_price: auc.start_price,
+          winning_bid_amount: auc.winning_bid_amount ?? auc.start_price,
+          winner_username: auc.winner_username || winnerUser?.username || null,
+          winner_phone: auc.winner_phone || winnerUser?.phone || null,
+          end_time: auc.end_time,
+          created_at: auc.created_at,
+          description: auc.description,
+          participation_fee: auc.participation_fee,
+          internal_cost: auc.internal_cost || 0,
+        };
+      });
+
+    res.json({
+      active_auctions_count: detailedAuctions.length,
+      total_active_bids: totalActiveBids,
+      auctions: detailedAuctions,
+      previous_auctions: previousAuctions,
+      all_auctions_count: allAuctions.length,
+    });
   });
-});
 
 // Place Bid (Atomic check and deduction; supports any decimal amount starting from 1.00 ETB)
 app.post('/api/bids/place', authenticate, (req: AuthenticatedRequest, res: Response) => {
@@ -2343,6 +2354,28 @@ app.post('/api/superadmin/auctions/:id/update', authenticate, requireRole(['supe
   });
 
   res.json({ message: 'Live auction item details and closing schedule updated successfully.', auction: result.auction });
+});
+
+// Super Admin Delete Game / Auction (Ended, Cancelled, or Unsuccessful Game Deletion)
+app.delete('/api/superadmin/auctions/:id', authenticate, requireRole(['superadmin']), (req: AuthenticatedRequest, res: Response) => {
+  const result = db.deleteAuction(req.params.id, req.user!);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  db.logSystemMovement({
+    category: 'AUCTIONS_ITEMS',
+    action: 'AUCTION_DELETED',
+    actor_id: req.user!.id,
+    actor_username: req.user!.username,
+    actor_role: 'superadmin',
+    target_id: req.params.id,
+    target_type: 'AUCTION',
+    details: `Superadmin permanently deleted auction game #${req.params.id}.`,
+    ip_address: (req.ip as string) || (req.headers['x-forwarded-for'] as string) || '127.0.0.1',
+  });
+
+  res.json({ success: true, message: 'Game successfully deleted from platform history.' });
 });
 
 // Master Audit Log Ledger

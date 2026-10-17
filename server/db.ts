@@ -586,7 +586,7 @@ function getInitialSeed(): DatabaseSchema {
       role: 'customer',
       wallet_balance: 0,
       status: 'active',
-      email_verified: false,
+      email_verified: true,
       created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
       password_hash: bidder3Pass.hash,
       salt: bidder3Pass.salt,
@@ -2006,7 +2006,8 @@ class Database {
       admin_code_prefix: assignedPrefix || undefined,
       wallet_balance: initialBalance, // Exactly 0.00 ETB at start
       status: 'active',
-      email_verified: false,
+      email_verified: true,
+      phone_verified: true,
       created_at: new Date().toISOString(),
       password_hash: hash,
       salt,
@@ -3375,11 +3376,19 @@ class Database {
       internal_cost?: number;
       end_time?: string;
       status?: AuctionStatus;
+      total_bids?: number;
+      winning_bid_amount?: number;
+      winning_price?: number;
+      current_price?: number;
+      winner_username?: string;
+      winner_phone?: string;
+      winner_user_id?: string;
+      winner_email?: string;
     },
     actor: { id: string; username: string; role: UserRole }
   ): { success: boolean; error?: string; auction?: Auction } {
     if (actor.role !== 'superadmin') {
-      return { success: false, error: 'Access denied: Only Super Admin can edit live auctions.' };
+      return { success: false, error: 'Access denied: Only Super Admin can edit auctions.' };
     }
 
     const auction = this.memoryData.auctions.find(a => a.id === auctionId);
@@ -3418,6 +3427,31 @@ class Database {
       auction.internal_cost = Number(Number(data.internal_cost).toFixed(2));
       changes.push(`Internal Cost: ${auction.internal_cost} ETB`);
     }
+    if (data.total_bids !== undefined) {
+      const bidsVal = Math.max(0, Math.floor(Number(data.total_bids)));
+      auction.total_bids = bidsVal;
+      changes.push(`Total Bids: ${bidsVal}`);
+    }
+    const resolvedWinningPrice = data.winning_bid_amount ?? data.winning_price ?? data.current_price;
+    if (resolvedWinningPrice !== undefined && !isNaN(Number(resolvedWinningPrice))) {
+      const winPrice = Number(Number(resolvedWinningPrice).toFixed(2));
+      auction.winning_bid_amount = winPrice;
+      changes.push(`Winning Price: ${winPrice} ETB`);
+    }
+    if (data.winner_username !== undefined) {
+      auction.winner_username = data.winner_username.trim();
+      changes.push(`Winner: @${auction.winner_username}`);
+    }
+    if (data.winner_phone !== undefined) {
+      auction.winner_phone = data.winner_phone.trim();
+      changes.push(`Winner Phone: ${auction.winner_phone}`);
+    }
+    if (data.winner_user_id !== undefined) {
+      auction.winner_user_id = data.winner_user_id.trim();
+    }
+    if (data.winner_email !== undefined) {
+      auction.winner_email = data.winner_email.trim();
+    }
     if (data.end_time !== undefined) {
       const newEndTime = new Date(data.end_time);
       if (isNaN(newEndTime.getTime())) {
@@ -3447,6 +3481,42 @@ class Database {
 
     this.persist(this.memoryData);
     return { success: true, auction };
+  }
+
+  // Super Admin: Delete previous/unsuccessful game
+  public deleteAuction(
+    auctionId: string,
+    actor: { id: string; username: string; role: UserRole }
+  ): { success: boolean; error?: string } {
+    if (actor.role !== 'superadmin') {
+      return { success: false, error: 'Access denied: Only Super Admin can delete games.' };
+    }
+
+    const index = this.memoryData.auctions.findIndex(a => a.id === auctionId);
+    if (index === -1) {
+      return { success: false, error: 'Auction game not found' };
+    }
+
+    const removed = this.memoryData.auctions.splice(index, 1)[0];
+
+    // Purge associated bids for this auction
+    const initialBidCount = this.memoryData.bids.length;
+    this.memoryData.bids = this.memoryData.bids.filter(b => b.auction_id !== auctionId);
+    const purgedBids = initialBidCount - this.memoryData.bids.length;
+
+    this.memoryData.audit_logs.unshift({
+      id: `aud_${Date.now()}`,
+      actor_id: actor.id,
+      actor_username: actor.username,
+      actor_role: actor.role,
+      action: 'DELETE_AUCTION_GAME',
+      details: `Super Admin @${actor.username} deleted game #${auctionId} ("${removed.title}") and purged ${purgedBids} associated bids.`,
+      ip_reference: '197.156.103.1',
+      created_at: new Date().toISOString(),
+    });
+
+    this.persist(this.memoryData);
+    return { success: true };
   }
 
   // Send Notification (Direct or Broadcast)

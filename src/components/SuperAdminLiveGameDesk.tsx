@@ -23,6 +23,9 @@ import {
   Check,
   Filter,
   Edit3,
+  Trash2,
+  Archive,
+  Hash,
 } from 'lucide-react';
 import type { AuctionStatus, Auction } from '../types.js';
 import { SuperAdminEditAuctionModal } from './SuperAdminEditAuctionModal.js';
@@ -85,6 +88,24 @@ interface LiveGameAuction {
   bids: LiveBidItem[];
 }
 
+export interface PreviousGameAuction {
+  id: string;
+  title: string;
+  category: string;
+  image_url: string;
+  status: AuctionStatus;
+  total_bids: number;
+  start_price: number;
+  winning_bid_amount: number;
+  winner_username: string | null;
+  winner_phone: string | null;
+  end_time: string;
+  created_at: string;
+  description?: string;
+  participation_fee: number;
+  internal_cost: number;
+}
+
 interface SuperAdminLiveGameDeskProps {
   onSelectAuction?: (auctionId: string) => void;
 }
@@ -95,7 +116,9 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
   const { token, user } = useAuth();
   const { language, t } = useTranslation();
 
+  const [deskView, setDeskView] = useState<'live' | 'previous'>('live');
   const [games, setGames] = useState<LiveGameAuction[]>([]);
+  const [previousGames, setPreviousGames] = useState<PreviousGameAuction[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -109,6 +132,11 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedClusterAmount, setExpandedClusterAmount] = useState<number | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAuction, setEditingAuction] = useState<Auction | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PreviousGameAuction | null>(null);
+  const [prevGameSearch, setPrevGameSearch] = useState<string>('');
+  const [prevStatusFilter, setPrevStatusFilter] = useState<'all' | 'ended' | 'cancelled'>('all');
   const [, setClockTick] = useState(0);
 
   // 1-second live countdown ticker
@@ -128,17 +156,19 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
         const data = await res.json();
         const auctionsList: LiveGameAuction[] = data.auctions || [];
         setGames(auctionsList);
+        if (data.previous_auctions) {
+          setPreviousGames(data.previous_auctions);
+        }
         setLastUpdated(new Date());
         setError('');
 
-        // Requirement 8: When superadmin views live auction game radar, preserve their clicked selection!
-        // Never override active selection back to the latest game during background polling.
+        // Preserve active selection
         setSelectedGameId(prevId => {
           if (auctionsList.length === 0) return null;
           if (prevId && auctionsList.some(g => g.id === prevId)) {
-            return prevId; // Keep current user selection
+            return prevId;
           }
-          return auctionsList[0].id; // Fallback to first if none selected or deleted
+          return auctionsList[0].id;
         });
       } else {
         const data = await res.json().catch(() => ({}));
@@ -149,6 +179,28 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
     } finally {
       setIsLoading(false);
       if (manual) setIsRefreshing(false);
+    }
+  };
+
+  const handleDeleteGame = async (gameId: string) => {
+    if (!token) return;
+    setDeletingId(gameId);
+    try {
+      const res = await fetch(`/api/superadmin/auctions/${gameId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setDeleteConfirmTarget(null);
+        fetchLiveGames(true);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error || 'Failed to delete game');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Network error deleting game');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -213,6 +265,23 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
     return list;
   }, [activeGame, statusFilter, searchQuery, sortBy]);
 
+  // Filtered Previous & Concluded Games
+  const filteredPreviousGames = useMemo(() => {
+    return previousGames.filter(g => {
+      const q = prevGameSearch.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        g.title.toLowerCase().includes(q) ||
+        g.category.toLowerCase().includes(q) ||
+        (g.winner_username && g.winner_username.toLowerCase().includes(q)) ||
+        (g.winner_phone && g.winner_phone.includes(q)) ||
+        g.id.toLowerCase().includes(q);
+      const matchesStatus =
+        prevStatusFilter === 'all' || g.status === prevStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [previousGames, prevGameSearch, prevStatusFilter]);
+
   return (
     <div className="space-y-6">
       {/* 1. Header Banner */}
@@ -267,8 +336,46 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
         </div>
       )}
 
-      {/* 2. Platform Live Telemetry Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      {/* Top View Mode Switcher: Live Radar vs Previous Games */}
+      <div className="flex items-center gap-2 bg-[#121215] p-1.5 rounded-2xl border border-[#27272a] w-fit">
+        <button
+          type="button"
+          onClick={() => setDeskView('live')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            deskView === 'live'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-950/50'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>{language === 'am' ? 'የቀጥታ ጨዋታዎች ራዳር' : 'Live Games Radar'}</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/50 text-emerald-400 font-mono text-[10px]">
+            {games.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDeskView('previous')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            deskView === 'previous'
+              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-950/50'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Archive className="w-3.5 h-3.5" />
+          <span>{language === 'am' ? 'ያለፉ ጨዋታዎች ቁጥጥርና ማረም' : 'Previous Games & State Override'}</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-purple-950 border border-purple-500/50 text-purple-300 font-mono text-[10px]">
+            {previousGames.length}
+          </span>
+        </button>
+      </div>
+
+      {/* 2. LIVE RADAR VIEW */}
+      {deskView === 'live' && (
+        <div className="space-y-6">
+          {/* Platform Live Telemetry Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-[#121215] border border-[#27272a] shadow-lg space-y-1">
           <div className="text-[10px] uppercase font-mono text-zinc-400">
             {language === 'am' ? 'የቀጥታ ጨዋታዎች' : 'Active Games'}
@@ -1022,17 +1129,234 @@ export const SuperAdminLiveGameDesk: React.FC<SuperAdminLiveGameDeskProps> = ({
           </div>
         </div>
       )}
+    </div>
+  )}
 
-      {/* Super Admin Edit Live Auction Modal */}
-      {activeGame && (
+      {/* 3. PREVIOUS & CONCLUDED GAMES MANAGEMENT VIEW */}
+      {deskView === 'previous' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Super Admin Control Bar */}
+          <div className="p-5 rounded-2xl bg-[#121215] border border-amber-500/30 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Archive className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-bold text-white">
+                  {language === 'am' ? 'ያለፉና የተጠናቀቁ ጨዋታዎች ቁጥጥር' : 'Previous & Concluded Games Management'}
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold">
+                  {filteredPreviousGames.length} GAMES
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-1">
+                {language === 'am'
+                  ? 'የተጠናቀቁ ወይም ያልተሳኩ ጨዋታዎችን የጨረታ ብዛት፣ የዕቃውን ስም፣ የአሸናፊ ዋጋውን ያስተካክሉ ወይም ሙሉ በሙሉ ይሰርዙ።'
+                  : 'Directly modify previous game parameters (item title, total bids count, winning price, winner details) or permanently delete unsuccessful/ended games from the platform history.'}
+              </p>
+            </div>
+
+            {/* Search & Filter */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[220px]">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder={language === 'am' ? 'በስም ወይም አሸናፊ ፈልግ...' : 'Search title, winner, category...'}
+                  value={prevGameSearch}
+                  onChange={e => setPrevGameSearch(e.target.value)}
+                  className="w-full bg-[#18181b] border border-zinc-700 focus:border-amber-400 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                />
+              </div>
+
+              <select
+                value={prevStatusFilter}
+                onChange={e => setPrevStatusFilter(e.target.value as any)}
+                className="bg-[#18181b] border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:outline-none font-mono"
+              >
+                <option value="all">All States</option>
+                <option value="ended">Ended Only</option>
+                <option value="cancelled">Cancelled Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Previous Games Table / Cards */}
+          {filteredPreviousGames.length === 0 ? (
+            <div className="p-12 rounded-3xl bg-[#121215] border border-[#27272a] text-center space-y-3">
+              <Archive className="w-12 h-12 text-zinc-600 mx-auto" />
+              <h3 className="text-base font-bold text-white">
+                {language === 'am' ? 'ምንም የተጠናቀቀ ጨዋታ አልተገኘም' : 'No Previous Games Found'}
+              </h3>
+              <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                {language === 'am'
+                  ? 'ከፍለጋዎ ጋር የሚዛመድ ወይም የተጠናቀቀ ጨዋታ በሲስተሙ ውስጥ የለም።'
+                  : 'There are currently no concluded or cancelled games matching your criteria.'}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-[#121215] border border-[#27272a] rounded-3xl overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-zinc-300">
+                  <thead className="bg-[#16161c] text-[10px] font-mono uppercase text-zinc-400 border-b border-zinc-800">
+                    <tr>
+                      <th className="py-3 px-4">Item & ID</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Total Bids</th>
+                      <th className="py-3 px-4">Winning Price</th>
+                      <th className="py-3 px-4">Winning Bidder</th>
+                      <th className="py-3 px-4">Closing Date</th>
+                      <th className="py-3 px-4 text-right">Super Admin Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60 font-mono">
+                    {filteredPreviousGames.map(g => (
+                      <tr key={g.id} className="hover:bg-zinc-900/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3 font-sans">
+                            <img
+                              src={g.image_url}
+                              alt={g.title}
+                              className="w-11 h-11 rounded-xl object-cover border border-zinc-800 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-white text-xs truncate max-w-xs">{g.title}</div>
+                              <div className="text-[10px] text-zinc-500 font-mono flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[#E5B842]">#{g.id}</span>
+                                <span>•</span>
+                                <span className="uppercase">{g.category}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                              g.status === 'ended'
+                                ? 'bg-purple-950/80 text-purple-300 border-purple-700/60'
+                                : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                            }`}
+                          >
+                            {g.status}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-[#E5B842] text-sm flex items-center gap-1">
+                            <Hash className="w-3.5 h-3.5 text-zinc-500" />
+                            {g.total_bids}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-emerald-400 text-sm">
+                            {(g.winning_bid_amount ?? g.start_price).toFixed(2)} ETB
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 font-sans">
+                          {g.winner_username ? (
+                            <div>
+                              <div className="font-bold text-white text-xs flex items-center gap-1">
+                                <Trophy className="w-3 h-3 text-emerald-400" />
+                                <span>@{g.winner_username}</span>
+                              </div>
+                              <div className="text-[10px] text-zinc-400 font-mono mt-0.5">{g.winner_phone || 'No phone'}</div>
+                            </div>
+                          ) : (
+                            <span className="text-zinc-500 text-[11px] italic">No winner recorded</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-[11px] text-zinc-400">
+                          {new Date(g.end_time).toLocaleDateString()} {new Date(g.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAuction(g as unknown as Auction);
+                                setIsEditModalOpen(true);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[#E5B842] text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                              title="Edit item title, bids count, winning price, winner info"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmTarget(g)}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                              title="Delete game from platform history"
+                            >
+                              <Trash2 className="w-3 h-3 text-rose-400" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Super Admin Edit Auction Modal (Works for both active and previous games) */}
+      {isEditModalOpen && (
         <SuperAdminEditAuctionModal
           isOpen={isEditModalOpen}
-          auction={activeGame as unknown as Auction}
-          onClose={() => setIsEditModalOpen(false)}
+          auction={editingAuction || (activeGame as unknown as Auction)}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingAuction(null);
+          }}
           onUpdated={() => {
             fetchLiveGames(true);
           }}
+          onDeleted={() => {
+            fetchLiveGames(true);
+          }}
         />
+      )}
+
+      {/* Confirmation Dialog for Deleting Game */}
+      {deleteConfirmTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-[#121215] border border-rose-600/60 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-950/80 border border-rose-600/50 flex items-center justify-center text-rose-400 mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-bold text-white">Permanently Delete Game?</h3>
+              <p className="text-xs text-zinc-300">
+                You are about to delete <span className="font-bold text-rose-300">"{deleteConfirmTarget.title}"</span> (#{deleteConfirmTarget.id}). This will permanently remove its record and all associated bids from platform history.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingId === deleteConfirmTarget.id}
+                onClick={() => handleDeleteGame(deleteConfirmTarget.id)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer shadow-lg shadow-rose-950/50 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
+              >
+                {deletingId === deleteConfirmTarget.id ? 'Deleting...' : 'Yes, Delete Game'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

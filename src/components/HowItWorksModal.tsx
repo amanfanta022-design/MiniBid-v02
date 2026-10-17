@@ -148,8 +148,8 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
       tag: 'REGISTER',
       summary:
         language === 'am'
-          ? 'በስም እና በኢትዮጵያ ስልክ ቁጥር (+251...) ይመዝገቡ። ተጨማሪ የኢሜይል ማረጋገጫ ኮድ (OTP) በማስገባት የተረጋገጠ ባጅ ያግኙ!'
-          : 'Register using Username & Ethiopian phone (+251 9... / 09...). Add optional Email with OTP verification to unlock the Verified Profile Badge!',
+          ? 'በስም እና በኢትዮጵያ ስልክ ቁጥር (+251...) ፈጣን ምዝገባ ያድርጉ። ምንም የ OTP መጠበቅ ሳይኖር ወዲያውኑ ይጀምሩ!'
+          : 'Register using Username & Ethiopian phone (+251 9... / 09...). Instant onboarding with zero OTP delay!',
     },
     {
       id: 1,
@@ -330,7 +330,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
                         <span className="text-amber-300">abebe@gmail.com</span>
                       </div>
                       <div className="p-1.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[10px] flex items-center justify-between">
-                        <span>OTP Code Verified:</span>
+                        <span>Verification Status:</span>
                         <span className="font-bold tracking-widest">🛡️ VERIFIED BADGE</span>
                       </div>
                     </div>
@@ -582,7 +582,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
                     <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
                       <span className="text-[#E5B842] font-bold block mb-1">3. Optional Email (Badge)</span>
                       <p className="text-zinc-400 text-[11px]">
-                        Add email and verify with 6-digit OTP to get the Gold & Emerald Verified badge.
+                        Add email to automatically unlock the Gold & Emerald Verified badge on your profile.
                       </p>
                     </div>
                   </div>

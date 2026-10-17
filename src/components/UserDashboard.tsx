@@ -193,8 +193,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <div className="flex items-center gap-2 self-start md:self-auto">
             <div className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-[11px] font-mono text-zinc-300 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-zinc-400">TELECOM OTP RAIL:</span>
-              <span className="text-emerald-400 font-bold">ONLINE</span>
+              <span className="text-zinc-400">PLATFORM SECURITY:</span>
+              <span className="text-emerald-400 font-bold">ARMORED</span>
             </div>
             <button
               onClick={handleManualRefresh}
@@ -463,8 +463,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <span className="text-emerald-400 font-bold">Reverse Lowest Unique</span>
                 </div>
                 <div className="flex items-center justify-between py-1 border-b border-zinc-800/60">
-                  <span className="text-zinc-500">SMS Gateway:</span>
-                  <span className="text-zinc-300">OTP 2FA Active</span>
+                  <span className="text-zinc-500">Auth Protocol:</span>
+                  <span className="text-emerald-400">Password Shield Active</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <span className="text-zinc-500">Anti-Collusion Guard:</span>
@@ -804,17 +804,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     {user.email || 'No email attached'}
                   </div>
                 </div>
-                {user.email_verified ? (
+                {user.email ? (
                   <span className="px-2 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-mono text-[10px] font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
                     <span>BADGE ACTIVE</span>
                   </span>
                 ) : (
                   <button
-                    onClick={() => setIsEmailModalOpen(true)}
+                    onClick={onOpenLedger}
                     className="px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-[#E5B842] hover:bg-amber-500/30 font-mono text-[10px] font-bold cursor-pointer"
                   >
-                    VERIFY EMAIL
+                    ADD EMAIL
                   </button>
                 )}
               </div>

@@ -16,6 +16,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Plus,
+  Trash2,
+  Trophy,
+  Hash,
 } from 'lucide-react';
 
 interface SuperAdminEditAuctionModalProps {
@@ -23,6 +26,7 @@ interface SuperAdminEditAuctionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdated?: (updatedAuction: Auction) => void;
+  onDeleted?: (deletedAuctionId: string) => void;
 }
 
 export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProps> = ({
@@ -30,6 +34,7 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
   isOpen,
   onClose,
   onUpdated,
+  onDeleted,
 }) => {
   const { token } = useAuth();
   const { language } = useTranslation();
@@ -42,8 +47,15 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
   const [participationFee, setParticipationFee] = useState<number>(0);
   const [internalCost, setInternalCost] = useState<number>(0);
   const [endTime, setEndTime] = useState('');
+  const [status, setStatus] = useState<string>('active');
+  const [totalBids, setTotalBids] = useState<number>(0);
+  const [winningPrice, setWinningPrice] = useState<number>(0);
+  const [winnerUsername, setWinnerUsername] = useState<string>('');
+  const [winnerPhone, setWinnerPhone] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -70,8 +82,14 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
       setParticipationFee(auction.participation_fee || 0);
       setInternalCost(auction.internal_cost || 0);
       setEndTime(formatForDateTimeLocal(auction.end_time));
+      setStatus(auction.status || 'active');
+      setTotalBids(auction.total_bids || 0);
+      setWinningPrice(auction.winning_bid_amount ?? auction.start_price ?? 0);
+      setWinnerUsername(auction.winner_username || '');
+      setWinnerPhone(auction.winner_phone || '');
       setErrorMsg('');
       setSuccessMsg('');
+      setConfirmDelete(false);
     }
   }, [auction, isOpen]);
 
@@ -82,6 +100,40 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
     const baseDate = endTime ? new Date(endTime) : new Date();
     const newDate = new Date(baseDate.getTime() + hoursToAdd * 3600000);
     setEndTime(formatForDateTimeLocal(newDate.toISOString()));
+  };
+
+  const handleDelete = async () => {
+    if (!token || !auction) return;
+    setIsDeleting(true);
+    setErrorMsg('');
+
+    try {
+      const res = await fetch(`/api/superadmin/auctions/${auction.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      setIsDeleting(false);
+
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Failed to delete game.');
+        return;
+      }
+
+      setSuccessMsg('Game successfully deleted from platform history.');
+      if (onDeleted) {
+        onDeleted(auction.id);
+      }
+      setTimeout(() => {
+        onClose();
+      }, 800);
+    } catch (err: any) {
+      setIsDeleting(false);
+      setErrorMsg(err.message || 'Error occurred while deleting game.');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -118,6 +170,12 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
         participation_fee: Number(participationFee),
         internal_cost: Number(internalCost),
         end_time: selectedClosing.toISOString(),
+        status,
+        total_bids: Number(totalBids),
+        winning_bid_amount: Number(winningPrice),
+        winning_price: Number(winningPrice),
+        winner_username: winnerUsername.trim() || undefined,
+        winner_phone: winnerPhone.trim() || undefined,
       };
 
       const res = await fetch(`/api/superadmin/auctions/${auction.id}`, {
@@ -137,7 +195,7 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
         return;
       }
 
-      setSuccessMsg('Live auction details and schedule successfully updated!');
+      setSuccessMsg('Game details, stats, and schedule successfully updated!');
       if (onUpdated && data.auction) {
         onUpdated(data.auction);
       }
@@ -312,7 +370,98 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
             </div>
           </div>
 
-          {/* 5. BID CLOSING TIME & QUICK EXTENSION (Core Feature Request) */}
+          {/* 5. GAME STATUS & PREVIOUS GAME STATS OVERRIDE (Super Admin Control) */}
+          <div className="bg-[#131318] border border-purple-500/40 rounded-2xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-mono font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                <Trophy className="w-4 h-4 text-purple-400" />
+                <span>Game State & Results Management (Direct Stats Override)</span>
+              </label>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">
+                Super Admin Power
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-zinc-400 mb-1">
+                  Game Status
+                </label>
+                <select
+                  value={status}
+                  onChange={e => setStatus(e.target.value)}
+                  className="w-full bg-[#1a1a22] border border-purple-500/40 focus:border-purple-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono uppercase font-bold"
+                >
+                  <option value="active">Active (Live)</option>
+                  <option value="ended">Ended (Concluded)</option>
+                  <option value="cancelled">Cancelled (Aborted)</option>
+                  <option value="paused">Paused</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-zinc-400 mb-1 flex items-center gap-1">
+                  <Hash className="w-3 h-3 text-[#E5B842]" />
+                  <span>Total Bids Count</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={totalBids}
+                  onChange={e => setTotalBids(parseInt(e.target.value) || 0)}
+                  className="w-full bg-[#1a1a22] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-[#E5B842] font-mono font-bold"
+                  placeholder="e.g. 142"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-emerald-400 mb-1 flex items-center gap-1">
+                  <Coins className="w-3 h-3 text-emerald-400" />
+                  <span>Winning Price (ETB)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={winningPrice}
+                  onChange={e => setWinningPrice(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-[#1a1a22] border border-emerald-700/60 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-mono font-bold"
+                  placeholder="e.g. 12.50"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-zinc-800">
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-zinc-400 mb-1">
+                  Winner Username (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={winnerUsername}
+                  onChange={e => setWinnerUsername(e.target.value)}
+                  placeholder="e.g. amanuel_f"
+                  className="w-full bg-[#1a1a22] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-zinc-400 mb-1">
+                  Winner Phone (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={winnerPhone}
+                  onChange={e => setWinnerPhone(e.target.value)}
+                  placeholder="+251911..."
+                  className="w-full bg-[#1a1a22] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 6. BID CLOSING TIME & QUICK EXTENSION (Core Feature Request) */}
           <div className="bg-gradient-to-br from-amber-500/10 via-[#181820] to-rose-500/10 border border-amber-500/40 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
@@ -380,22 +529,60 @@ export const SuperAdminEditAuctionModal: React.FC<SuperAdminEditAuctionModalProp
           </div>
 
           {/* Action buttons */}
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-zinc-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold cursor-pointer transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 cursor-pointer transition-all disabled:opacity-60 flex items-center gap-1.5"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving Live Changes...' : 'Save Auction Updates'}</span>
-            </button>
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-zinc-800">
+            {/* Delete Previous/Unsuccessful Game */}
+            <div>
+              {!confirmDelete ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-3.5 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Delete this game and its bids permanently"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Delete Game</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 p-1.5 rounded-xl bg-rose-950/60 border border-rose-600">
+                  <span className="text-[11px] font-bold text-rose-200 pl-1">
+                    Permanently delete game?
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={handleDelete}
+                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs cursor-pointer disabled:opacity-60"
+                  >
+                    {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 cursor-pointer transition-all disabled:opacity-60 flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isSubmitting ? 'Saving Live Changes...' : 'Save Auction Updates'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

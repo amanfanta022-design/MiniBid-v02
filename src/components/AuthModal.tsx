@@ -17,7 +17,6 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
-import { EmailVerificationModal } from './EmailVerificationModal.js';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -46,11 +45,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [errorCode, setErrorCode] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
 
-  // Email verification prompt modal
-  const [showEmailVerifyModal, setShowEmailVerifyModal] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState('');
-
-  if (!isOpen && !showEmailVerifyModal) return null;
+  if (!isOpen) return null;
 
   // Handle Unified Login (Username or Phone + Password)
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -154,20 +149,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     if (!res.success) {
       setErrorMessage(res.error || (language === 'am' ? 'አካውንት መክፈት አልተቻለም።' : 'Failed to create account'));
     } else {
-      if (cleanEmail && res.email_otp_dispatched) {
-        // Open Email Verification Modal to let user claim their Verified Badge immediately!
-        setRegisteredEmail(cleanEmail);
-        setShowEmailVerifyModal(true);
-      } else {
-        onClose();
-      }
+      onClose();
     }
   };
 
   return (
-    <>
-      {isOpen && !showEmailVerifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
           <div className="relative w-full max-w-md bg-[#121215] border border-[#27272a] rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-7 md:p-8 text-zinc-100 my-auto sm:my-8 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
             {/* Top Action Header */}
             <div className="flex items-center justify-between absolute top-4 sm:top-5 right-4 sm:right-5 gap-2 z-10">
@@ -402,8 +389,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   </div>
                   <p className="text-[10px] text-zinc-400 mt-1">
                     {language === 'am'
-                      ? 'ኢሜይል ካስገቡ የማረጋገጫ ኮድ ይላክሎታል፤ ሲያረጋግጡ የተረጋገጠ ባጅ (Verified Badge) ይሰጥዎታል!'
-                      : 'Adding an email sends an instant OTP to unlock the Verified Profile Badge on your account.'}
+                      ? 'ፈጣን ምዝገባ በስም፣ ስልክ እና የይለፍ ቃል፤ ምንም የ OTP መጠበቅ አያስፈልግም!'
+                      : 'Instant registration with Name, Phone, and Password. No OTP required!'}
                   </p>
                 </div>
 
@@ -440,23 +427,5 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Post-Registration Email Verification Prompt */}
-      {showEmailVerifyModal && (
-        <EmailVerificationModal
-          isOpen={showEmailVerifyModal}
-          initialEmail={registeredEmail}
-          onClose={() => {
-            setShowEmailVerifyModal(false);
-            onClose();
-          }}
-          onSuccess={() => {
-            setShowEmailVerifyModal(false);
-            onClose();
-          }}
-        />
-      )}
-    </>
   );
 };
