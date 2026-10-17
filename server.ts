@@ -1553,23 +1553,24 @@ app.get('/api/admin/deposits', authenticate, requireRole(['admin', 'superadmin']
   res.json({ deposits: allDeposits });
 });
 
-// Approve Deposit Request (Exclusively for assigned Operations Admin, NOT Super Admin)
+// Approve Deposit Request (Exclusively for assigned Operations Admin, with Super Admin Executive Override option)
 app.post(
   '/api/admin/deposits/:id/approve',
   authenticate,
   (req: AuthenticatedRequest, res: Response) => {
-    if (req.user?.role === 'superadmin') {
+    const isExecutiveOverride = req.user?.role === 'superadmin' && (req.body?.executive_override === true || req.body?.executive_override === 'true');
+    if (req.user?.role === 'superadmin' && !isExecutiveOverride) {
       return res.status(403).json({
-        error: 'Super Admins are executive authorities and cannot approve customer deposit requests. Customer deposit verification and disbursement is exclusively handled by assigned Operations Administrators.'
+        error: 'Super Admins are executive authorities and cannot approve customer deposit requests directly without executive override intervention.'
       });
     }
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied: Operations Administrator role required.' });
+    if (req.user?.role !== 'admin' && !isExecutiveOverride) {
+      return res.status(403).json({ error: 'Access denied: Operations Administrator role or Super Admin Executive Override required.' });
     }
 
     const idempotencyKey = (req.headers['x-idempotency-key'] as string) || req.body?.idempotency_key;
 
-    db.approveDeposit(req.params.id, req.user!, { idempotencyKey })
+    db.approveDeposit(req.params.id, req.user!, { idempotencyKey, executiveOverride: isExecutiveOverride })
       .then(result => {
         if (!result.success) {
           return res.status(400).json({ error: result.error });
@@ -1577,6 +1578,8 @@ app.post(
         return res.json({
           message: result.was_idempotent
             ? 'Deposit approval was already processed (idempotent result).'
+            : isExecutiveOverride
+            ? 'Deposit approved via Super Admin Executive Override.'
             : 'Deposit approved and wallet credited successfully.',
           deposit: result.deposit,
           ledger: result.ledger,
@@ -1607,18 +1610,19 @@ app.post(
   }
 );
 
-// Reject Deposit Request (Exclusively for assigned Operations Admin, NOT Super Admin)
+// Reject Deposit Request (Exclusively for assigned Operations Admin, with Super Admin Executive Override option)
 app.post(
   '/api/admin/deposits/:id/reject',
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (req.user?.role === 'superadmin') {
+    const isExecutiveOverride = req.user?.role === 'superadmin' && (req.body?.executive_override === true || req.body?.executive_override === 'true');
+    if (req.user?.role === 'superadmin' && !isExecutiveOverride) {
       return res.status(403).json({
-        error: 'Super Admins cannot reject customer deposit requests. Customer deposit verification is exclusively handled by assigned Operations Administrators.'
+        error: 'Super Admins cannot reject customer deposit requests directly without executive override intervention.'
       });
     }
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied: Operations Administrator role required.' });
+    if (req.user?.role !== 'admin' && !isExecutiveOverride) {
+      return res.status(403).json({ error: 'Access denied: Operations Administrator role or Super Admin Executive Override required.' });
     }
 
     const { reason } = req.body;
@@ -1627,11 +1631,16 @@ app.post(
     }
 
     try {
-      const result = await db.rejectDeposit(req.params.id, reason, req.user!);
+      const result = await db.rejectDeposit(req.params.id, reason, req.user!, { executiveOverride: isExecutiveOverride });
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }
-      return res.json({ message: 'Deposit rejected and applicant notified.', deposit: result.deposit });
+      return res.json({
+        message: isExecutiveOverride
+          ? 'Deposit rejected via Super Admin Executive Override and applicant notified.'
+          : 'Deposit rejected and applicant notified.',
+        deposit: result.deposit,
+      });
     } catch (err: any) {
       if (err instanceof ConcurrentApprovalConflictError) {
         return res.status(409).json({
@@ -1644,6 +1653,61 @@ app.post(
       }
       return res.status(500).json({ error: err.message || 'Deposit rejection failed.' });
     }
+  }
+);
+
+// 15-Minute Deposit SLA Breach Radar (Super Admin Oversight)
+app.get(
+  '/api/superadmin/deposits/sla-breaches',
+  authenticate,
+  requireRole(['superadmin']),
+  (_req: Request, res: Response) => {
+    const breaches = db.getSlaBreachedDeposits();
+    res.json({
+      success: true,
+      count: breaches.length,
+      breaches,
+    });
+  }
+);
+
+// Super Admin Warn Assigned Admin (Urgent speed warning dispatch)
+app.post(
+  '/api/superadmin/deposits/:id/warn-admin',
+  authenticate,
+  requireRole(['superadmin']),
+  (req: AuthenticatedRequest, res: Response) => {
+    const { message } = req.body;
+    const result = db.warnAssignedAdmin(req.params.id, req.user!, message);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json({
+      message: `Speed warning #${result.warning_count} successfully transmitted to assigned administrator.`,
+      deposit: result.deposit,
+      warning_count: result.warning_count,
+    });
+  }
+);
+
+// Super Admin Reassign Delayed Deposit to Another Active Admin
+app.post(
+  '/api/superadmin/deposits/:id/reassign',
+  authenticate,
+  requireRole(['superadmin']),
+  (req: AuthenticatedRequest, res: Response) => {
+    const { target_admin_id, reason } = req.body;
+    if (!target_admin_id) {
+      return res.status(400).json({ error: 'Target administrator ID is required for ticket reassignment.' });
+    }
+    const result = db.reassignDepositAdmin(req.params.id, target_admin_id, req.user!, reason);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json({
+      message: `Deposit #${result.deposit?.deposit_code || req.params.id} successfully reassigned to Admin @${result.deposit?.assigned_admin_username}.`,
+      deposit: result.deposit,
+    });
   }
 );
 

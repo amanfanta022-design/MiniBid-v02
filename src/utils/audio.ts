@@ -168,3 +168,79 @@ export function playVictoryChime(): void {
     // Ignore
   }
 }
+
+/**
+ * SLA Breach Alarm for Super Admin when customer deposit exceeds 15 minutes.
+ * Distinct, authoritative pulsating alarm with dual tones.
+ */
+export function playSlaBreachAlarm(): void {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const pulses = [
+      { freq: 880, start: 0, dur: 0.16 },
+      { freq: 659.25, start: 0.2, dur: 0.16 },
+      { freq: 880, start: 0.4, dur: 0.22 },
+    ];
+
+    pulses.forEach(({ freq, start, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + start;
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + dur);
+    });
+  } catch {
+    // Ignore
+  }
+}
+
+/**
+ * High-urgency warning beep played in the assigned Admin's workstation
+ * when the Super Admin issues a speed escalation warning.
+ */
+export function playUrgentAdminWarningBeep(): void {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const beeps = [0, 0.12, 0.24];
+
+    beeps.forEach(offset => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + offset;
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(1046.5, t); // C6
+      osc.frequency.exponentialRampToValueAtTime(1318.51, t + 0.08); // E6
+
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.09);
+    });
+  } catch {
+    // Ignore
+  }
+}
+

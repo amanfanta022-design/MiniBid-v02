@@ -1078,8 +1078,26 @@ class Database {
     return this.memoryData.bids;
   }
 
-  public getDeposits() {
-    return this.memoryData.deposits;
+  public getDeposits(): DepositRequest[] {
+    const now = Date.now();
+    return this.memoryData.deposits.map(d => {
+      const createdTime = new Date(d.created_at).getTime();
+      const elapsedSeconds = Math.max(0, Math.floor((now - createdTime) / 1000));
+      const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+      const isSlaBreached = d.status.toLowerCase() === 'pending' && elapsedSeconds >= 900;
+      return {
+        ...d,
+        elapsed_seconds: elapsedSeconds,
+        elapsed_minutes: elapsedMinutes,
+        is_sla_breached: isSlaBreached,
+      };
+    });
+  }
+
+  public getSlaBreachedDeposits(): DepositRequest[] {
+    return this.getDeposits().filter(
+      d => d.status.toLowerCase() === 'pending' && (d.is_sla_breached || (d.elapsed_seconds || 0) >= 900)
+    );
   }
 
   public getTransactions(userId?: string) {
@@ -2610,7 +2628,7 @@ class Database {
   public async approveDeposit(
     depositId: string,
     reviewer: { id: string; username: string; role: UserRole },
-    options?: { idempotencyKey?: string; simulateFailure?: boolean; bypassSuperadminBlock?: boolean }
+    options?: { idempotencyKey?: string; simulateFailure?: boolean; bypassSuperadminBlock?: boolean; executiveOverride?: boolean }
   ): Promise<{ success: boolean; error?: string; deposit?: DepositRequest; ledger?: FinancialLedgerEntry; was_idempotent?: boolean }> {
     // 0. Check Idempotency Cache
     if (options?.idempotencyKey && this.memoryData.idempotency_cache?.[options.idempotencyKey]) {
@@ -2673,15 +2691,15 @@ class Database {
       const user = this.findUserById(deposit.user_id);
       if (!user) throw new Error('Recipient user account not found');
 
-      // Super Admin Guard: Superadmin is strictly executive governance and cannot approve customer deposits
-      if (reviewer.role === 'superadmin' && !(options as any)?.bypassSuperadminBlock) {
+      // Super Admin Guard: Superadmin is strictly executive governance and cannot approve customer deposits unless executiveOverride
+      if (reviewer.role === 'superadmin' && !(options as any)?.bypassSuperadminBlock && !(options as any)?.executiveOverride) {
         throw new Error(
           'Super Admins are executive authorities and cannot approve customer deposit requests. Customer deposit verification and balance disbursement is strictly the assigned Operations Administrator\'s work.'
         );
       }
 
-      // Assignment Guard: Only the assigned Operations Admin can approve this deposit
-      if (deposit.assigned_admin_id && deposit.assigned_admin_id !== reviewer.id && !(options as any)?.bypassSuperadminBlock) {
+      // Assignment Guard: Only the assigned Operations Admin can approve this deposit unless executive override
+      if (deposit.assigned_admin_id && deposit.assigned_admin_id !== reviewer.id && !(options as any)?.bypassSuperadminBlock && !(options as any)?.executiveOverride) {
         throw new Error(
           `This deposit request (D.Code: ${deposit.deposit_code || 'unassigned'}) is assigned to Admin @${deposit.assigned_admin_username || 'another admin'}. Only the assigned administrator can approve this request.`
         );
@@ -2714,6 +2732,9 @@ class Database {
         deposit.approved_at = deposit.reviewed_at;
         deposit.reviewed_by = reviewer.username;
         deposit.approved_by = reviewer.username;
+        if ((options as any)?.executiveOverride) {
+          deposit.executive_override = true;
+        }
 
         // Requirement 6: To save workspace memory after successfully approving users deposit request,
         // the system compresses the uploaded receipt screenshot to under 100KB size data!
@@ -2878,7 +2899,8 @@ class Database {
   public async rejectDeposit(
     depositId: string,
     reason: string,
-    reviewer: { id: string; username: string; role: UserRole }
+    reviewer: { id: string; username: string; role: UserRole },
+    options?: { executiveOverride?: boolean }
   ): Promise<{ success: boolean; error?: string; deposit?: DepositRequest }> {
     return this.withDepositLock(depositId, async () => {
       const deposit = this.memoryData.deposits.find(d => d.id === depositId);
@@ -2887,15 +2909,15 @@ class Database {
         throw new ConcurrentApprovalConflictError('This deposit has already been processed by another administrator.');
       }
 
-      // Super Admin Guard: Superadmin is strictly executive governance and cannot reject customer deposits
-      if (reviewer.role === 'superadmin') {
+      // Super Admin Guard: Superadmin can reject if executiveOverride is true
+      if (reviewer.role === 'superadmin' && !(options as any)?.executiveOverride) {
         throw new Error(
           'Super Admins cannot reject customer deposit requests. Customer deposit verification is exclusively handled by assigned Operations Administrators.'
         );
       }
 
-      // Assignment Guard: Only the assigned Operations Admin can reject this deposit
-      if (deposit.assigned_admin_id && deposit.assigned_admin_id !== reviewer.id) {
+      // Assignment Guard: Only the assigned Operations Admin can reject this deposit unless executive override
+      if (deposit.assigned_admin_id && deposit.assigned_admin_id !== reviewer.id && !(options as any)?.executiveOverride) {
         throw new Error(
           `This deposit request (D.Code: ${deposit.deposit_code || 'unassigned'}) is assigned to Admin @${deposit.assigned_admin_username || 'another admin'}. Only the assigned administrator can reject this request.`
         );
@@ -2909,6 +2931,9 @@ class Database {
       deposit.approved_at = deposit.reviewed_at;
       deposit.reviewed_by = reviewer.username;
       deposit.approved_by = reviewer.username;
+      if ((options as any)?.executiveOverride) {
+        deposit.executive_override = true;
+      }
 
       if (user) {
         this.memoryData.notifications.unshift({
@@ -2961,6 +2986,190 @@ class Database {
       this.persist(this.memoryData);
       return { success: true, deposit };
     });
+  }
+
+  // Warn Assigned Admin on 15-minute+ SLA Breach
+  public warnAssignedAdmin(
+    depositId: string,
+    actor: { id: string; username: string; role: UserRole },
+    customMessage?: string
+  ): { success: boolean; error?: string; deposit?: DepositRequest; warning_count?: number } {
+    if (actor.role !== 'superadmin') {
+      return { success: false, error: 'Only Super Administrators can dispatch official speed warnings.' };
+    }
+
+    const deposit = this.memoryData.deposits.find(d => d.id === depositId);
+    if (!deposit) {
+      return { success: false, error: 'Deposit request not found.' };
+    }
+
+    if (deposit.status.toLowerCase() !== 'pending') {
+      return { success: false, error: 'Cannot issue speed warning on an already processed deposit.' };
+    }
+
+    deposit.warning_count = (deposit.warning_count || 0) + 1;
+    deposit.last_warned_at = new Date().toISOString();
+    deposit.last_warned_by = actor.username;
+    deposit.warning_message = customMessage?.trim() || 'Urgent 15-minute SLA breach. Approve or decline customer deposit immediately.';
+
+    const now = Date.now();
+    const elapsedMinutes = Math.max(1, Math.floor((now - new Date(deposit.created_at).getTime()) / 60000));
+
+    const assignedAdmin = this.memoryData.users.find(
+      u => u.id === deposit.assigned_admin_id || (deposit.assigned_admin_username && u.username.toLowerCase() === deposit.assigned_admin_username.toLowerCase())
+    );
+
+    // Urgent notification to assigned admin
+    const notifTitle = `🚨 URGENT SLA WARNING (#${deposit.warning_count}): Deposit ${deposit.deposit_code || deposit.id}`;
+    const notifMsg = `Super Admin @${actor.username} issued an urgent speed warning for Customer @${deposit.username}'s deposit (${deposit.amount.toLocaleString()} ETB, Ref: ${deposit.reference_code}, D.Code: ${deposit.deposit_code || 'N/A'}). Elapsed: ${elapsedMinutes}m. Please approve or decline immediately!`;
+
+    this.memoryData.notifications.unshift({
+      id: `notif_warn_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      recipient_type: 'admin',
+      target_user_id: assignedAdmin ? assignedAdmin.id : deposit.assigned_admin_id,
+      target_username: assignedAdmin ? assignedAdmin.username : deposit.assigned_admin_username,
+      title: notifTitle,
+      message: notifMsg,
+      type: 'urgent',
+      created_at: new Date().toISOString(),
+      read_by: [],
+    });
+
+    // Super Admin notification feedback
+    this.memoryData.notifications.unshift({
+      id: `notif_sa_warn_confirm_${Date.now()}`,
+      recipient_type: 'superadmin',
+      target_username: actor.username,
+      title: `⚡ Speed Warning Dispatched to Admin @${deposit.assigned_admin_username || 'unassigned'}`,
+      message: `Speed warning #${deposit.warning_count} delivered to Admin @${deposit.assigned_admin_username || 'operations'} regarding Deposit #${deposit.deposit_code || deposit.id} (${deposit.amount} ETB, ${elapsedMinutes}m elapsed).`,
+      type: 'alert',
+      created_at: new Date().toISOString(),
+      read_by: [actor.username],
+    });
+
+    this.logSystemMovement({
+      category: 'SUPERADMIN_ACTION',
+      action: 'DEPOSIT_SLA_WARNING_DISPATCHED',
+      actor_id: actor.id,
+      actor_username: actor.username,
+      actor_role: 'superadmin',
+      target_id: deposit.id,
+      target_username: deposit.assigned_admin_username || 'unassigned',
+      target_type: 'DEPOSIT',
+      details: `Super Admin @${actor.username} dispatched urgent SLA speed warning #${deposit.warning_count} to Admin @${deposit.assigned_admin_username} for Deposit #${deposit.deposit_code || deposit.id} (${deposit.amount} ETB, ${elapsedMinutes}m elapsed).`,
+    });
+
+    this.memoryData.audit_logs.unshift({
+      id: `aud_sla_warn_${Date.now()}`,
+      actor_id: actor.id,
+      actor_username: actor.username,
+      actor_role: 'superadmin',
+      action: 'DEPOSIT_SLA_SPEED_WARNING',
+      details: `Super Admin @${actor.username} issued urgent speed warning #${deposit.warning_count} to Admin @${deposit.assigned_admin_username} for Deposit #${deposit.deposit_code || deposit.id}.`,
+      ip_reference: '197.156.103.1',
+      created_at: new Date().toISOString(),
+    });
+
+    this.persist(this.memoryData);
+    return { success: true, deposit, warning_count: deposit.warning_count };
+  }
+
+  // Super Admin Reassign Deposit Request
+  public reassignDepositAdmin(
+    depositId: string,
+    targetAdminId: string,
+    actor: { id: string; username: string; role: UserRole },
+    reason?: string
+  ): { success: boolean; error?: string; deposit?: DepositRequest } {
+    if (actor.role !== 'superadmin') {
+      return { success: false, error: 'Only Super Administrators have authority to reassign deposit allocations.' };
+    }
+
+    const deposit = this.memoryData.deposits.find(d => d.id === depositId);
+    if (!deposit) {
+      return { success: false, error: 'Deposit request not found.' };
+    }
+
+    if (deposit.status.toLowerCase() !== 'pending') {
+      return { success: false, error: 'Cannot reassign a deposit that has already been processed.' };
+    }
+
+    const targetAdmin = this.memoryData.users.find(u => u.id === targetAdminId && (u.role === 'admin' || u.role === 'superadmin'));
+    if (!targetAdmin) {
+      return { success: false, error: 'Target administrator staff account not found.' };
+    }
+
+    const previousAdminUsername = deposit.assigned_admin_username || 'unassigned';
+    const previousAdminId = deposit.assigned_admin_id;
+
+    deposit.reassigned_from_id = previousAdminId;
+    deposit.reassigned_from_username = previousAdminUsername;
+    deposit.reassigned_at = new Date().toISOString();
+    deposit.reassigned_by = actor.username;
+
+    deposit.assigned_admin_id = targetAdmin.id;
+    deposit.assigned_admin_username = targetAdmin.username;
+    deposit.assigned_admin_prefix = targetAdmin.admin_code_prefix || targetAdmin.username.slice(0, 2);
+
+    // Update deposit code prefix
+    if (deposit.deposit_code) {
+      const matchDigits = deposit.deposit_code.match(/\d+$/);
+      const digits = matchDigits ? matchDigits[0] : Math.floor(1000 + Math.random() * 9000);
+      deposit.deposit_code = `${deposit.assigned_admin_prefix}${digits}`;
+    }
+
+    // In-app urgent notification to target admin
+    this.memoryData.notifications.unshift({
+      id: `notif_reassigned_in_${Date.now()}`,
+      recipient_type: 'admin',
+      target_user_id: targetAdmin.id,
+      target_username: targetAdmin.username,
+      title: `📋 Urgent Ticket Reassigned: Deposit #${deposit.deposit_code || deposit.id}`,
+      message: `Super Admin @${actor.username} reassigned Customer @${deposit.username}'s deposit of ${deposit.amount.toLocaleString()} ETB (Ref: ${deposit.reference_code}) to your desk. ${reason ? `Reason: "${reason}"` : 'Please verify and disburse promptly.'}`,
+      type: 'urgent',
+      created_at: new Date().toISOString(),
+      read_by: [],
+    });
+
+    if (previousAdminId) {
+      this.memoryData.notifications.unshift({
+        id: `notif_reassigned_out_${Date.now()}`,
+        recipient_type: 'admin',
+        target_user_id: previousAdminId,
+        target_username: previousAdminUsername,
+        title: `Deposit #${deposit.deposit_code || deposit.id} Reassigned Away`,
+        message: `Super Admin @${actor.username} reassigned Deposit #${deposit.deposit_code || deposit.id} (${deposit.amount} ETB) from your queue to Admin @${targetAdmin.username}.`,
+        type: 'info',
+        created_at: new Date().toISOString(),
+        read_by: [],
+      });
+    }
+
+    this.logSystemMovement({
+      category: 'SUPERADMIN_ACTION',
+      action: 'DEPOSIT_REASSIGNED',
+      actor_id: actor.id,
+      actor_username: actor.username,
+      actor_role: 'superadmin',
+      target_id: deposit.id,
+      target_username: targetAdmin.username,
+      target_type: 'DEPOSIT',
+      details: `Super Admin @${actor.username} reassigned Deposit #${deposit.deposit_code || deposit.id} from @${previousAdminUsername} to @${targetAdmin.username}. Reason: "${reason || '15-minute SLA breach escalation'}"`,
+    });
+
+    this.memoryData.audit_logs.unshift({
+      id: `aud_reassign_${Date.now()}`,
+      actor_id: actor.id,
+      actor_username: actor.username,
+      actor_role: 'superadmin',
+      action: 'DEPOSIT_REASSIGNED',
+      details: `Super Admin @${actor.username} transferred Deposit #${deposit.deposit_code || deposit.id} (${deposit.amount} ETB) from Admin @${previousAdminUsername} to Admin @${targetAdmin.username}.`,
+      ip_reference: '197.156.103.1',
+      created_at: new Date().toISOString(),
+    });
+
+    this.persist(this.memoryData);
+    return { success: true, deposit };
   }
 
   // Financial Ledger & Audit Getters

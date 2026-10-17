@@ -22,9 +22,14 @@ import {
   X,
   Lock,
   UserCheck,
+  Zap,
+  UserPlus,
+  RefreshCw,
+  AlertOctagon,
+  Flame,
 } from 'lucide-react';
 import { DepositRequest, AdminFloatRequest } from '../types.js';
-import { playDepositApprovalChime } from '../utils/audio.js';
+import { playDepositApprovalChime, playSlaBreachAlarm, playUrgentAdminWarningBeep } from '../utils/audio.js';
 import { useTranslation } from '../utils/i18n.js';
 
 interface AdminDepositRequestsProps {
@@ -43,10 +48,13 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Live 1-second interval ticker for continuous SLA countdowns
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+
   // Inspection modal
   const [inspectDeposit, setInspectDeposit] = useState<DepositRequest | null>(null);
 
-  // Reject modal
+  // Reject modal (standard Operations Admin)
   const [rejectingDeposit, setRejectingDeposit] = useState<DepositRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [actionError, setActionError] = useState('');
@@ -59,6 +67,52 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
   const [floatSubmitting, setFloatSubmitting] = useState(false);
   const [floatSuccess, setFloatSuccess] = useState('');
   const [floatError, setFloatError] = useState('');
+
+  // 15-Minute SLA Speed Warning Modal (Super Admin -> Assigned Admin)
+  const [warningDeposit, setWarningDeposit] = useState<DepositRequest | null>(null);
+  const [warningCustomMsg, setWarningCustomMsg] = useState('');
+  const [isSendingWarning, setIsSendingWarning] = useState(false);
+  const [warningSuccess, setWarningSuccess] = useState('');
+
+  // Reassignment Modal (Super Admin -> Reassign ticket to another admin)
+  const [reassignDeposit, setReassignDeposit] = useState<DepositRequest | null>(null);
+  const [targetAdminId, setTargetAdminId] = useState('');
+  const [reassignReason, setReassignReason] = useState('15-Minute SLA Breach Escalation');
+  const [adminStaffList, setAdminStaffList] = useState<Array<{ id: string; username: string; admin_code_prefix?: string; role: string }>>([]);
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [reassignSuccess, setReassignSuccess] = useState('');
+
+  // Direct Executive Action Modal (Super Admin Override for unresponsive admins)
+  const [executiveActionDeposit, setExecutiveActionDeposit] = useState<DepositRequest | null>(null);
+  const [executiveActionType, setExecutiveActionType] = useState<'approve' | 'reject'>('approve');
+  const [executiveRejectReason, setExecutiveRejectReason] = useState('');
+  const [isExecutingOverride, setIsExecutingOverride] = useState(false);
+  const [overrideSuccess, setOverrideSuccess] = useState('');
+
+  // 1-second live ticker
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatElapsedTime = (createdAt: string) => {
+    const elapsedMs = Math.max(0, currentTime - new Date(createdAt).getTime());
+    const totalSeconds = Math.floor(elapsedMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const isSlaBreached = totalSeconds >= 900; // >= 15 minutes
+    const isCritical = totalSeconds >= 1800; // >= 30 minutes
+    return {
+      totalSeconds,
+      minutes,
+      seconds,
+      display: `${minutes}m ${seconds < 10 ? '0' : ''}${seconds}s`,
+      isSlaBreached,
+      isCritical,
+    };
+  };
 
   const fetchDeposits = async () => {
     if (!token) return;
@@ -92,15 +146,33 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
     }
   };
 
+  const fetchAdminStaff = async () => {
+    if (!token || !isSuperAdmin) return;
+    try {
+      const res = await fetch('/api/superadmin/admins', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminStaffList(data.admins || []);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     fetchDeposits();
     fetchFloatRequests();
+    if (isSuperAdmin) {
+      fetchAdminStaff();
+    }
     const interval = setInterval(() => {
       fetchDeposits();
       fetchFloatRequests();
-    }, 5000);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, isSuperAdmin]);
 
   const handleApprove = async (depId: string) => {
     setActionError('');
@@ -240,6 +312,149 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
       setFloatError('Network error while submitting float request.');
     } finally {
       setFloatSubmitting(false);
+    }
+  };
+
+  const handleSendSpeedWarning = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!warningDeposit) return;
+    setIsSendingWarning(true);
+    setWarningSuccess('');
+    setActionError('');
+    try {
+      const res = await fetch(`/api/superadmin/deposits/${warningDeposit.id}/warn-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: warningCustomMsg }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error || 'Failed to dispatch speed warning.');
+      } else {
+        setWarningSuccess(`Urgent speed warning dispatched to Admin @${warningDeposit.assigned_admin_username}!`);
+        playSlaBreachAlarm();
+        fetchDeposits();
+        setTimeout(() => {
+          setWarningDeposit(null);
+          setWarningCustomMsg('');
+          setWarningSuccess('');
+        }, 1200);
+      }
+    } catch {
+      setActionError('Network error while dispatching speed warning.');
+    } finally {
+      setIsSendingWarning(false);
+    }
+  };
+
+  const handleReassignDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reassignDeposit || !targetAdminId) {
+      setActionError('Please select a target operations administrator.');
+      return;
+    }
+    setIsReassigning(true);
+    setReassignSuccess('');
+    setActionError('');
+    try {
+      const res = await fetch(`/api/superadmin/deposits/${reassignDeposit.id}/reassign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          target_admin_id: targetAdminId,
+          reason: reassignReason,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error || 'Failed to reassign deposit.');
+      } else {
+        setReassignSuccess(data.message || 'Deposit successfully reassigned.');
+        fetchDeposits();
+        setTimeout(() => {
+          setReassignDeposit(null);
+          setTargetAdminId('');
+          setReassignSuccess('');
+        }, 1200);
+      }
+    } catch {
+      setActionError('Network error while reassigning deposit.');
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
+  const handleExecutiveOverrideConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!executiveActionDeposit) return;
+    setIsExecutingOverride(true);
+    setOverrideSuccess('');
+    setActionError('');
+
+    try {
+      if (executiveActionType === 'approve') {
+        const idempotencyKey = `exec_appr_${executiveActionDeposit.id}_${Date.now()}`;
+        const res = await fetch(`/api/admin/deposits/${executiveActionDeposit.id}/approve`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-Idempotency-Key': idempotencyKey,
+          },
+          body: JSON.stringify({ executive_override: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setActionError(data.error || 'Failed to execute direct approval.');
+        } else {
+          playDepositApprovalChime();
+          setOverrideSuccess(`Executive override: Deposit #${executiveActionDeposit.deposit_code || executiveActionDeposit.id} directly approved and credited!`);
+          fetchDeposits();
+          setTimeout(() => {
+            setExecutiveActionDeposit(null);
+            setOverrideSuccess('');
+          }, 1200);
+        }
+      } else {
+        if (!executiveRejectReason.trim()) {
+          setActionError('Please specify a valid audit rejection reason.');
+          setIsExecutingOverride(false);
+          return;
+        }
+        const res = await fetch(`/api/admin/deposits/${executiveActionDeposit.id}/reject`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            reason: executiveRejectReason,
+            executive_override: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setActionError(data.error || 'Failed to execute direct rejection.');
+        } else {
+          setOverrideSuccess(`Executive override: Deposit #${executiveActionDeposit.deposit_code || executiveActionDeposit.id} rejected.`);
+          fetchDeposits();
+          setTimeout(() => {
+            setExecutiveActionDeposit(null);
+            setExecutiveRejectReason('');
+            setOverrideSuccess('');
+          }, 1200);
+        }
+      }
+    } catch {
+      setActionError('Network error while performing executive override.');
+    } finally {
+      setIsExecutingOverride(false);
     }
   };
 
@@ -419,6 +634,251 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
 
       {activeSection === 'user_deposits' ? (
         <>
+          {/* Operations Admin Urgent Warning Banner */}
+          {!isSuperAdmin && (
+            (() => {
+              const myDelayed = deposits.filter(
+                d => d.status === 'pending' && isDepositAssignedToMe(d) && (formatElapsedTime(d.created_at).isSlaBreached || (d.warning_count || 0) > 0)
+              );
+              if (myDelayed.length === 0) return null;
+              return (
+                <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-red-950/80 via-amber-950/50 to-[#121215] border-2 border-red-500/80 shadow-2xl animate-pulse">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                        <AlertOctagon className="w-5 h-5 text-red-400 animate-bounce" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-extrabold text-[10px] tracking-wider uppercase">
+                            High Priority Alert
+                          </span>
+                          <span className="text-sm font-extrabold text-white">
+                            {language === 'am'
+                              ? '🚨 የሱፐር አድሚን አስቸኳይ ማስጠንቀቂያ፦ የተቀማጭ ጥያቄ ከ15 ደቂቃ በላይ ቆይቷል!'
+                              : '🚨 URGENT SPEED WARNING: Deposit Request Exceeds 15-Minute SLA!'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-300 mt-1 max-w-2xl leading-relaxed">
+                          {language === 'am'
+                            ? `በእርስዎ ወረፋ ውስጥ ${myDelayed.length} ተቀማጭ(ዎች) ከ15 ደቂቃ በላይ ሳይረጋገጥ ቆይቷል። ሱፐር አድሚን አስቸኳይ እርምጃ እንዲወሰድ ጠይቋል። እባክዎ አሁኑኑ አጽድቁ ወይም ውድቅ አድርጉ።`
+                            : `You have ${myDelayed.length} deposit request(s) pending over 15 minutes in your queue. Super Admin executive oversight has dispatched an urgent escalation warning. Please verify and disburse or decline immediately.`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="px-3 py-1.5 rounded-xl bg-red-500/20 text-red-300 font-mono text-xs font-bold border border-red-500/40">
+                        {myDelayed.length} Delayed Ticket(s)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          )}
+
+          {/* Super Admin 15-Minute SLA Breach Escalation Radar */}
+          {isSuperAdmin && (
+            (() => {
+              const slaBreaches = deposits.filter(
+                d => d.status === 'pending' && (formatElapsedTime(d.created_at).isSlaBreached || (d.warning_count || 0) > 0)
+              );
+              return (
+                <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-red-950/40 via-[#18181f] to-[#121215] border-2 border-red-600/50 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+
+                  {/* Radar Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                        <Flame className="w-5 h-5 animate-pulse text-red-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white font-mono font-black text-[10px] uppercase tracking-wider animate-pulse">
+                            15-Min SLA Radar
+                          </span>
+                          <span className="text-[11px] font-mono text-zinc-400">
+                            Automated Financial Oversight Watchdog
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-bold font-serif text-white mt-0.5 flex items-center gap-2">
+                          <span>{language === 'am' ? 'የተቀማጭ ገንዘቦች የ15 ደቂቃ መዘግየት ቁጥጥር ራዳር' : '15-Minute Deposit SLA Breach Escalation Radar'}</span>
+                          {slaBreaches.length > 0 ? (
+                            <span className="px-2 py-0.5 rounded-full bg-red-500 text-black text-xs font-mono font-black animate-bounce">
+                              {slaBreaches.length} Delayed
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-mono font-semibold">
+                              ✓ All SLA Targets Met
+                            </span>
+                          )}
+                        </h2>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-zinc-400 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-400" />
+                      <span>SLA Breach Threshold: <strong className="text-white font-mono">15m 00s</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Radar Explanatory Guide */}
+                  <p className="text-xs text-zinc-300 mt-3 leading-relaxed">
+                    {language === 'am'
+                      ? 'ይህ ራዳር ከ15 ደቂቃ በላይ ሳይመለሱ የቆዩ ደንበኞች የተቀማጭ ጥያቄዎችን በቅጽበት ይለያል። ሱፐር አድሚን ለተመደበው አድሚን አስቸኳይ ማስጠንቀቂያ መላክ፣ ስራውን ለሌላ አድሚን ማስተላለፍ ወይም በቀጥታ ማጽደቅ/ውድቅ ማድረግ ይችላል።'
+                      : 'Live engine flags pending deposit tickets unattended over 15 minutes. Super Admin can immediately dispatch urgent speed warnings to the assigned Admin, reassign the ticket to another active operations admin, or execute direct executive approval/decline.'}
+                  </p>
+
+                  {/* Delayed Deposit Cards Grid */}
+                  {slaBreaches.length === 0 ? (
+                    <div className="mt-4 p-6 rounded-2xl bg-[#121215]/80 border border-zinc-800 text-center">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                      <div className="text-sm font-bold text-white">All customer deposits are within the 15-minute SLA limit</div>
+                      <div className="text-xs text-zinc-400 mt-1">Operations Administrators are responding swiftly. No tickets are currently breached.</div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {slaBreaches.map(dep => {
+                        const elapsed = formatElapsedTime(dep.created_at);
+                        const hasWarning = (dep.warning_count || 0) > 0;
+                        return (
+                          <div
+                            key={dep.id}
+                            className={`p-4 rounded-2xl border-2 transition-all relative overflow-hidden ${
+                              elapsed.isCritical
+                                ? 'bg-red-950/40 border-red-500 shadow-xl shadow-red-950/40'
+                                : 'bg-amber-950/30 border-amber-500/70 shadow-lg shadow-amber-950/30'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-lg bg-[#E5B842]/20 text-[#E5B842] border border-[#E5B842]/40 font-mono font-extrabold text-xs">
+                                    D.Code: {dep.deposit_code || 'N/A'}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-lg font-mono font-black text-xs inline-flex items-center gap-1 ${
+                                    elapsed.isCritical
+                                      ? 'bg-red-600 text-white animate-pulse'
+                                      : 'bg-amber-500 text-black'
+                                  }`}>
+                                    <Clock className="w-3 h-3" />
+                                    {elapsed.display} elapsed
+                                  </span>
+                                </div>
+                                <div className="text-base font-bold text-white mt-1.5 flex items-center gap-2">
+                                  <span>@{dep.username}</span>
+                                  <span className="text-xs text-zinc-400 font-mono font-normal">({dep.user_phone})</span>
+                                </div>
+                                <div className="text-xs text-zinc-400 font-mono mt-0.5">
+                                  {dep.payment_channel} • Ref: <span className="text-zinc-200 font-bold">{dep.reference_code}</span>
+                                </div>
+                              </div>
+
+                              <div className="text-right">
+                                <div className="text-lg font-mono font-black text-emerald-400">
+                                  {dep.amount.toLocaleString()} <span className="text-xs text-zinc-400">ETB</span>
+                                </div>
+                                <div className="mt-1">
+                                  <span className="px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[11px]">
+                                    👤 Assigned: @<strong>{dep.assigned_admin_username || 'unassigned'}</strong>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Warning Status */}
+                            <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+                              <div>
+                                {hasWarning ? (
+                                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold inline-flex items-center gap-1">
+                                    <Zap className="w-3 h-3 text-amber-400" />
+                                    Speed Warning Sent ({dep.warning_count}x) {dep.last_warned_by ? `by @${dep.last_warned_by}` : ''}
+                                  </span>
+                                ) : (
+                                  <span className="text-zinc-400 flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                    No speed warning dispatched yet
+                                  </span>
+                                )}
+                              </div>
+                              {dep.reassigned_from_username && (
+                                <span className="text-blue-300">
+                                  Reassigned from @{dep.reassigned_from_username}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Action Buttons for Super Admin */}
+                            <div className="mt-3 pt-2.5 border-t border-zinc-800/80 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {/* 1. Warn Assigned Admin */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setWarningDeposit(dep);
+                                  setWarningCustomMsg('');
+                                }}
+                                className="py-2 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-[11px] font-mono flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm"
+                                title="Send urgent speed warning to assigned admin"
+                              >
+                                <Zap className="w-3.5 h-3.5" />
+                                <span>Warn Admin</span>
+                              </button>
+
+                              {/* 2. Reassign to another admin */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReassignDeposit(dep);
+                                  setTargetAdminId('');
+                                  setReassignReason('15-Minute SLA Breach Escalation');
+                                }}
+                                className="py-2 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] font-mono flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm"
+                                title="Reassign to another active Operations Admin"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>Reassign</span>
+                              </button>
+
+                              {/* 3. Direct Approve Override */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExecutiveActionDeposit(dep);
+                                  setExecutiveActionType('approve');
+                                }}
+                                className="py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] font-mono flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm"
+                                title="Super Admin Direct Approval Override"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+
+                              {/* 4. Direct Reject Override */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExecutiveActionDeposit(dep);
+                                  setExecutiveActionType('reject');
+                                  setExecutiveRejectReason('');
+                                }}
+                                className="py-2 px-2.5 rounded-xl bg-red-600/30 hover:bg-red-600 border border-red-500/50 text-red-200 hover:text-white font-bold text-[11px] font-mono flex items-center justify-center gap-1 transition-all cursor-pointer"
+                                title="Super Admin Direct Reject Override"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Decline</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          )}
+
           {/* Queue Scope Switcher: My Assigned Queue vs All Team Requests */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-[#18181c] border border-[#27272a]">
             <div className="flex flex-wrap items-center gap-2">
@@ -550,8 +1010,18 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                     {filteredDeposits.map(dep => {
                       const canAfford = adminBalance >= dep.amount;
                       const isMine = isDepositAssignedToMe(dep);
+                      const elapsed = formatElapsedTime(dep.created_at);
+                      const isSlaBreached = dep.status === 'pending' && elapsed.isSlaBreached;
+
                       return (
-                        <tr key={dep.id} className="hover:bg-zinc-900/40 transition-colors">
+                        <tr
+                          key={dep.id}
+                          className={`hover:bg-zinc-900/40 transition-colors ${
+                            isSlaBreached
+                              ? 'border-l-4 border-l-red-500 bg-red-950/20'
+                              : ''
+                          }`}
+                        >
                           <td className="p-4">
                             <div className="flex items-center gap-1.5">
                               <span className="px-2.5 py-1 rounded-lg bg-[#E5B842]/15 text-[#E5B842] border border-[#E5B842]/40 font-mono font-extrabold text-xs tracking-wider">
@@ -598,9 +1068,33 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                           </td>
                           <td className="p-4">
                             {dep.status === 'pending' && (
-                              <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold">
-                                {language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending Approval'}
-                              </span>
+                              <div className="space-y-1">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full font-mono text-[10px] font-bold inline-flex items-center gap-1 ${
+                                    isSlaBreached
+                                      ? elapsed.isCritical
+                                        ? 'bg-red-600 text-white animate-pulse'
+                                        : 'bg-amber-500 text-black animate-pulse'
+                                      : 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
+                                  }`}
+                                >
+                                  {isSlaBreached ? (
+                                    <>
+                                      <Clock className="w-3 h-3" />
+                                      <span>15m+ Delay ({elapsed.display})</span>
+                                    </>
+                                  ) : (
+                                    <span>{language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending Approval'}</span>
+                                  )}
+                                </span>
+
+                                {(dep.warning_count || 0) > 0 && (
+                                  <div className="text-[10px] font-mono font-bold text-amber-400 flex items-center gap-1">
+                                    <Zap className="w-3 h-3" />
+                                    <span>Warned ({dep.warning_count}x)</span>
+                                  </div>
+                                )}
+                              </div>
                             )}
                             {dep.status === 'approved' && (
                               <div>
@@ -640,13 +1134,60 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                               {dep.status === 'pending' && (
                                 <>
                                   {isSuperAdmin ? (
-                                    <span
-                                      className="px-2.5 py-1.5 rounded-lg bg-purple-950/40 border border-purple-800/40 text-purple-300 font-mono text-[10px] flex items-center gap-1.5"
-                                      title={language === 'am' ? 'የሱፐር አድሚን ቁጥጥር ብቻ፦ ተቀማጭን ማፅደቅ የአስተዳዳሪዎች ስራ ነው' : 'Super Admin Supervisory Mode: Verification is handled by assigned Operations Administrator'}
-                                    >
-                                      <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                                      <span>Desk: @{dep.assigned_admin_username || 'operations'}</span>
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      {/* Quick Speed Warning */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setWarningDeposit(dep);
+                                          setWarningCustomMsg('');
+                                        }}
+                                        className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 border border-amber-500/40 text-amber-300 hover:text-black transition-all cursor-pointer"
+                                        title={`Warn Assigned Admin @${dep.assigned_admin_username || 'operations'} to speed up approval`}
+                                      >
+                                        <Zap className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Quick Reassign */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setReassignDeposit(dep);
+                                          setTargetAdminId('');
+                                          setReassignReason('15-Minute SLA Breach Escalation');
+                                        }}
+                                        className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500 border border-blue-500/40 text-blue-300 hover:text-white transition-all cursor-pointer"
+                                        title="Reassign ticket to another active operations admin"
+                                      >
+                                        <UserPlus className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Direct Executive Action (Approve / Reject) */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExecutiveActionDeposit(dep);
+                                          setExecutiveActionType('approve');
+                                        }}
+                                        className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 border border-emerald-500/40 text-emerald-300 hover:text-black transition-all cursor-pointer"
+                                        title="Direct Executive Approve (Override)"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExecutiveActionDeposit(dep);
+                                          setExecutiveActionType('reject');
+                                          setExecutiveRejectReason('');
+                                        }}
+                                        className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500 border border-red-500/40 text-red-300 hover:text-white transition-all cursor-pointer"
+                                        title="Direct Executive Reject (Override)"
+                                      >
+                                        <XCircle className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   ) : !isMine ? (
                                     <span
                                       className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[10px] flex items-center gap-1"
@@ -1051,6 +1592,368 @@ export const AdminDepositRequests: React.FC<AdminDepositRequestsProps> = ({ onBa
                   className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs font-mono cursor-pointer"
                 >
                   {language === 'am' ? 'ውድቅ ማድረጉን አረጋግጥ' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Super Admin Speed Warning Modal */}
+      {warningDeposit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border-2 border-amber-500/70 rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full shadow-2xl space-y-4 my-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-white text-base">
+                    {language === 'am' ? 'ለአስተዳዳሪው አስቸኳይ የፍጥነት ማስጠንቀቂያ ላክ' : 'Send Urgent Speed Warning to Assigned Admin'}
+                  </h3>
+                  <p className="text-[10px] text-zinc-400 font-mono">
+                    High-Priority In-App Alert & Acoustic Chime
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setWarningDeposit(null)} className="text-zinc-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target Ticket Details */}
+            <div className="p-3.5 rounded-2xl bg-[#18181f] border border-zinc-800 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Target Deposit:</span>
+                <span className="font-mono font-bold text-white">
+                  D.Code: {warningDeposit.deposit_code || warningDeposit.id} ({warningDeposit.amount.toLocaleString()} ETB)
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Customer:</span>
+                <span className="font-bold text-zinc-200">@{warningDeposit.username} ({warningDeposit.payment_channel})</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Assigned Operations Admin:</span>
+                <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-300 font-mono font-bold">
+                  @{warningDeposit.assigned_admin_username || 'operations'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Elapsed Waiting Time:</span>
+                <span className="font-mono font-black text-red-400 animate-pulse">
+                  {formatElapsedTime(warningDeposit.created_at).display} (&gt; 15m SLA breach)
+                </span>
+              </div>
+              {(warningDeposit.warning_count || 0) > 0 && (
+                <div className="text-[11px] font-mono text-amber-400 pt-1 border-t border-zinc-800">
+                  ⚠️ This admin has already been warned {warningDeposit.warning_count} time(s).
+                </div>
+              )}
+            </div>
+
+            {warningSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-semibold">
+                ✓ {warningSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleSendSpeedWarning} className="space-y-4">
+              <div>
+                <label className="block text-zinc-300 font-mono text-xs mb-1.5 font-bold">
+                  Warning Message & Directive:
+                </label>
+                <textarea
+                  rows={3}
+                  value={warningCustomMsg}
+                  onChange={e => setWarningCustomMsg(e.target.value)}
+                  placeholder="Urgent 15-minute SLA breach: Customer is waiting for funds to place bids. Verify payment slip and approve or decline immediately!"
+                  className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Preset quick message chips */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-400 font-mono uppercase">Quick Presets:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setWarningCustomMsg('⚠️ 15-Minute SLA breached. Please approve or decline this customer request immediately!')}
+                    className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
+                  >
+                    15m SLA Breach
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWarningCustomMsg('Customer is active on live auction and waiting for wallet balance. High priority!')}
+                    className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
+                  >
+                    Active Auction Player
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWarningCustomMsg('Final SLA warning: If not processed in 5 minutes, ticket will be reassigned away from your desk.')}
+                    className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
+                  >
+                    Reassignment Notice
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWarningDeposit(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingWarning}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs font-mono flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-amber-950/50"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>{isSendingWarning ? 'Transmitting...' : 'Dispatch Urgent Warning'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Super Admin Reassign Deposit Modal */}
+      {reassignDeposit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border-2 border-blue-500/70 rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full shadow-2xl space-y-4 my-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-white text-base">
+                    Reassign Delayed Deposit Request
+                  </h3>
+                  <p className="text-[10px] text-zinc-400 font-mono">
+                    Transfer ticket from idle/unresponsive admin to an active staff member
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setReassignDeposit(null)} className="text-zinc-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target Ticket Details */}
+            <div className="p-3.5 rounded-2xl bg-[#18181f] border border-zinc-800 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Deposit Ticket:</span>
+                <span className="font-mono font-bold text-white">
+                  D.Code: {reassignDeposit.deposit_code || reassignDeposit.id} ({reassignDeposit.amount.toLocaleString()} ETB)
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Current Assigned Admin:</span>
+                <span className="font-mono text-amber-300 font-bold">
+                  @{reassignDeposit.assigned_admin_username || 'unassigned'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Elapsed Waiting Time:</span>
+                <span className="font-mono font-black text-red-400 animate-pulse">
+                  {formatElapsedTime(reassignDeposit.created_at).display} (&gt; 15m SLA breach)
+                </span>
+              </div>
+            </div>
+
+            {reassignSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-semibold">
+                ✓ {reassignSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleReassignDeposit} className="space-y-4">
+              <div>
+                <label className="block text-zinc-300 font-mono text-xs mb-1.5 font-bold">
+                  Select Target Operations Administrator:
+                </label>
+                <select
+                  value={targetAdminId}
+                  onChange={e => setTargetAdminId(e.target.value)}
+                  required
+                  className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-mono focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">-- Choose active operations administrator --</option>
+                  {adminStaffList
+                    .filter(a => a.id !== reassignDeposit.assigned_admin_id)
+                    .map(admin => (
+                      <option key={admin.id} value={admin.id}>
+                        @{admin.username} ({admin.role.toUpperCase()}) — Prefix: {admin.admin_code_prefix || 'ad'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-zinc-300 font-mono text-xs mb-1.5 font-bold">
+                  Reason for Reassignment:
+                </label>
+                <input
+                  type="text"
+                  value={reassignReason}
+                  onChange={e => setReassignReason(e.target.value)}
+                  placeholder="e.g. 15-Minute SLA Breach Escalation"
+                  className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-[11px] text-blue-300 flex items-start gap-2 leading-relaxed">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
+                <span>
+                  Reassigning will instantly update the deposit code routing, deliver high-urgency notifications to the new admin's desk, and log an audit movement.
+                </span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReassignDeposit(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isReassigning}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs font-mono flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-blue-950/50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isReassigning ? 'animate-spin' : ''}`} />
+                  <span>{isReassigning ? 'Reassigning...' : 'Confirm Reassignment'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Super Admin Direct Executive Action Modal (Override) */}
+      {executiveActionDeposit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="bg-[#121215] border-2 border-purple-500/70 rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full shadow-2xl space-y-4 my-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                  executiveActionType === 'approve'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : 'bg-red-500/20 text-red-400 border border-red-500/40'
+                }`}>
+                  {executiveActionType === 'approve' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-white text-base">
+                    {executiveActionType === 'approve'
+                      ? 'Executive Override: Direct Approval & Disbursement'
+                      : 'Executive Override: Direct Rejection'}
+                  </h3>
+                  <p className="text-[10px] text-purple-300 font-mono">
+                    Super Admin Direct Executive Authority Intervention
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setExecutiveActionDeposit(null)} className="text-zinc-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target Ticket Details */}
+            <div className="p-3.5 rounded-2xl bg-[#18181f] border border-zinc-800 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Customer Account:</span>
+                <span className="font-bold text-white">@{executiveActionDeposit.username} ({executiveActionDeposit.user_phone})</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Deposit Amount:</span>
+                <span className="font-mono font-black text-emerald-400 text-sm">
+                  {executiveActionDeposit.amount.toLocaleString()} ETB
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Bank Channel & Ref:</span>
+                <span className="font-mono text-zinc-200">
+                  {executiveActionDeposit.payment_channel} ({executiveActionDeposit.reference_code})
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Assigned Operations Admin:</span>
+                <span className="font-mono text-amber-300">
+                  @{executiveActionDeposit.assigned_admin_username || 'unassigned'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400 font-mono">Elapsed Inactive Time:</span>
+                <span className="font-mono font-black text-red-400 animate-pulse">
+                  {formatElapsedTime(executiveActionDeposit.created_at).display}
+                </span>
+              </div>
+            </div>
+
+            {overrideSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-semibold">
+                ✓ {overrideSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleExecutiveOverrideConfirm} className="space-y-4">
+              {executiveActionType === 'approve' ? (
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-emerald-300">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Direct Executive Balance Crediting</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-zinc-300">
+                    Because the assigned Operations Admin has remained unresponsive over the 15-minute SLA, clicking confirm will immediately credit {executiveActionDeposit.amount.toLocaleString()} ETB to Customer @{executiveActionDeposit.username}'s playable wallet balance and generate a financial ledger audit record.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-zinc-300 font-mono text-xs font-bold">
+                    Audit Rejection Reason:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={executiveRejectReason}
+                    onChange={e => setExecutiveRejectReason(e.target.value)}
+                    required
+                    placeholder="e.g. Unresponsive admin SLA intervention: Bank reference verified invalid / duplicate transaction slip."
+                    className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs focus:outline-none focus:border-red-500"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setExecutiveActionDeposit(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isExecutingOverride}
+                  className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs font-mono flex items-center justify-center gap-1.5 cursor-pointer shadow-lg ${
+                    executiveActionType === 'approve'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50'
+                      : 'bg-red-600 hover:bg-red-500 text-white shadow-red-950/50'
+                  }`}
+                >
+                  {isExecutingOverride
+                    ? 'Processing...'
+                    : executiveActionType === 'approve'
+                    ? 'Execute Direct Approval'
+                    : 'Execute Direct Rejection'}
                 </button>
               </div>
             </form>

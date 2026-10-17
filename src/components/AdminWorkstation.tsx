@@ -48,7 +48,7 @@ import {
   ArrowRight,
   Building2,
 } from 'lucide-react';
-import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
+import { isAudioEnabled, toggleAudio, playSlaBreachAlarm, playUrgentAdminWarningBeep } from '../utils/audio.js';
 
 export const AdminWorkstation: React.FC = () => {
   const { user, login, logout, isLoading: authLoading } = useAuth();
@@ -69,6 +69,10 @@ export const AdminWorkstation: React.FC = () => {
   const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
   const [pendingDepositsCount, setPendingDepositsCount] = useState<number>(0);
+  const [slaBreachesCount, setSlaBreachesCount] = useState<number>(0);
+  const [hasAdminUrgentWarning, setHasAdminUrgentWarning] = useState<boolean>(false);
+  const prevSlaBreachesRef = React.useRef<number>(0);
+  const prevUrgentNotifsRef = React.useRef<number>(0);
 
   // Login form state (for non-authenticated visitors to /admin or admin.minibid.et)
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -96,7 +100,7 @@ export const AdminWorkstation: React.FC = () => {
     }
   }, [user?.role]);
 
-  // Polling for admin notifications & pending deposit requests
+  // Polling for admin notifications, SLA breaches & pending deposit requests
   useEffect(() => {
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) return;
 
@@ -113,6 +117,29 @@ export const AdminWorkstation: React.FC = () => {
           const data = await depRes.json();
           const pending = (data.deposits || []).filter((d: { status: string }) => d.status === 'pending');
           setPendingDepositsCount(pending.length);
+
+          if (user.role === 'admin') {
+            const myDelayed = (data.deposits || []).filter(
+              (d: any) => d.status === 'pending' && (d.is_sla_breached || (d.warning_count || 0) > 0)
+            );
+            setHasAdminUrgentWarning(myDelayed.length > 0);
+          }
+        }
+
+        // Super Admin SLA breaches check
+        if (user.role === 'superadmin') {
+          const slaRes = await fetch('/api/superadmin/deposits/sla-breaches', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (slaRes.ok) {
+            const slaData = await slaRes.json();
+            const count = slaData.count || 0;
+            setSlaBreachesCount(count);
+            if (count > 0 && count > prevSlaBreachesRef.current) {
+              playSlaBreachAlarm();
+            }
+            prevSlaBreachesRef.current = count;
+          }
         }
 
         // Notifications
@@ -121,7 +148,16 @@ export const AdminWorkstation: React.FC = () => {
         });
         if (notifRes.ok) {
           const notifData = await notifRes.json();
-          setNotifications(notifData.notifications || []);
+          const notifs = notifData.notifications || [];
+          setNotifications(notifs);
+
+          if (user.role === 'admin') {
+            const urgentCount = notifs.filter((n: any) => n.type === 'urgent').length;
+            if (urgentCount > prevUrgentNotifsRef.current) {
+              playUrgentAdminWarningBeep();
+            }
+            prevUrgentNotifsRef.current = urgentCount;
+          }
         }
       } catch {
         // silent
@@ -404,9 +440,34 @@ export const AdminWorkstation: React.FC = () => {
                 <button
                   onClick={handleAudioToggle}
                   className="w-8 h-8 rounded-lg border border-zinc-800 bg-[#121217] text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-all"
+                  title={audioOn ? 'Audio alerts active' : 'Audio alerts muted'}
                 >
                   {audioOn ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-zinc-600" />}
                 </button>
+
+                {/* Super Admin Glowing SLA Breach Alert Badge */}
+                {isSuperAdmin && slaBreachesCount > 0 && (
+                  <button
+                    onClick={() => setCurrentTab('admin-deposits')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white font-extrabold text-xs shadow-lg shadow-red-950/70 border border-red-400/80 animate-pulse cursor-pointer transition-all hover:scale-105"
+                    title="15-Minute SLA breached on pending customer deposits. Click to open SLA Escalation Radar."
+                  >
+                    <AlertCircle className="w-4 h-4 text-white animate-spin" />
+                    <span className="tracking-wide">⚠️ 15m+ Delayed ({slaBreachesCount})</span>
+                  </button>
+                )}
+
+                {/* Operations Admin Urgent Warning Alert Badge */}
+                {!isSuperAdmin && hasAdminUrgentWarning && (
+                  <button
+                    onClick={() => setCurrentTab('admin-deposits')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-black font-extrabold text-xs shadow-lg shadow-amber-950/70 border border-amber-300 animate-bounce cursor-pointer transition-all"
+                    title="Super Admin has issued an urgent speed escalation warning for your queue!"
+                  >
+                    <AlertCircle className="w-4 h-4 text-black" />
+                    <span>🚨 URGENT SLA WARNING</span>
+                  </button>
+                )}
 
                 {/* Notifications */}
                 <div className="relative">
@@ -515,10 +576,20 @@ export const AdminWorkstation: React.FC = () => {
               >
                 <Inbox className="w-4 h-4" />
                 <span>Deposit Verification Desk</span>
-                {pendingDepositsCount > 0 && (
-                  <span className="w-4 h-4 bg-amber-400 text-black font-black text-[10px] rounded-full flex items-center justify-center animate-bounce">
-                    {pendingDepositsCount}
+                {isSuperAdmin && slaBreachesCount > 0 ? (
+                  <span className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] rounded-full flex items-center justify-center animate-pulse border border-red-300 shadow-sm">
+                    ⚠️ {slaBreachesCount} SLA Breached
                   </span>
+                ) : !isSuperAdmin && hasAdminUrgentWarning ? (
+                  <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black text-[10px] rounded-full flex items-center justify-center animate-bounce border border-amber-200 shadow-sm">
+                    🚨 URGENT
+                  </span>
+                ) : (
+                  pendingDepositsCount > 0 && (
+                    <span className="w-4 h-4 bg-amber-400 text-black font-black text-[10px] rounded-full flex items-center justify-center animate-bounce">
+                      {pendingDepositsCount}
+                    </span>
+                  )
                 )}
               </button>
 

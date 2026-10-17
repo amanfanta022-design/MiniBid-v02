@@ -163,6 +163,18 @@ export interface DepositRequest {
   assigned_admin_id?: string;
   assigned_admin_username?: string;
   assigned_admin_prefix?: string;
+  warning_count?: number;
+  last_warned_at?: string;
+  last_warned_by?: string;
+  warning_message?: string;
+  reassigned_from_id?: string;
+  reassigned_from_username?: string;
+  reassigned_at?: string;
+  reassigned_by?: string;
+  elapsed_seconds?: number;
+  elapsed_minutes?: number;
+  is_sla_breached?: boolean;
+  executive_override?: boolean;
 }
 
 export interface FinancialLedgerEntry {
