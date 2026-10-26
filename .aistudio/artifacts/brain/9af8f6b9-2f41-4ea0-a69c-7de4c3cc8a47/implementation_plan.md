@@ -1,123 +1,100 @@
-# 15-Minute Deposit SLA Monitoring & Admin Escalation System
+# Executive Multi-Sector Sponsorship Proposal & Direct PDF Generation (Super Admin Exclusive)
 
-A real-time financial SLA oversight and escalation engine that detects customer deposit requests pending over 15 minutes, alerts the Super Admin via an audio alarm and glowing SLA breach badge, and empowers the Super Admin to issue urgent speed warnings to the assigned Admin or reassign and directly process the request.
+A comprehensive, realistic, and high-impact corporate sponsorship package designed specifically for Ethiopian enterprises across multiple industries (Automotive, Real Estate, Electronics, Telecom, Banking, FMCG).
 
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following parameters were confirmed during Phase 1 clarification:
-> - **Super Admin Alert Channel**: Audio alarm and glowing SLA breach badge in the executive workstation header and deposit desk.
-> - **Admin Warning Protocol**: In-app urgent warning notification with high-priority audio alert delivered straight to the assigned Admin's workstation.
-> - **Super Admin Executive Authority**: If the assigned Admin is unresponsive, the Super Admin has the power to either reassign the deposit to another active admin or directly approve/decline the request via executive override.
+The package details the **"1-Product Showcase Lottery" sponsorship model**, where a partner company provides a single showcase product/asset in exchange for a massive nationwide marketing campaign that introduces their brand to hundreds of thousands of active consumers. The entire dossier is provided in both **English and formal Amharic**, restricted strictly to the Super Admin workstation, and equipped with a direct downloadable PDF engine.
 
 ---
 
-## 1. Overview & Core Concept
+## 1. Core Changes & User Feedback Alignment
 
-When players submit ETB deposits (via CBE, Telebirr, Awash Bank), funds must be confirmed swiftly so players can enter live auctions without friction. If an assigned Operations Administrator delays or goes idle, deposit requests could sit unattended.
+### 1.1 Complete Removal from Public Facing Site
+- Remove all buttons, badges, and links to the sponsorship proposal from the public customer view:
+  - Remove from `Header.tsx` (desktop nav bar and mobile drawer).
+  - Remove from `src/App.tsx` (guest announcement banner and footer navigation).
+  - Ensure regular users and unauthorized visitors cannot view or access the sponsorship pitch.
 
-This system provides:
-1. **Automated 15-Minute SLA Watchdog**: A background and real-time evaluator that tracks elapsed time for every `pending` deposit.
-2. **Super Admin Glowing SLA Breach HUD & Audio Alarm**: Real-time visual and acoustic alerting when any request crosses the 15-minute threshold.
-3. **1-Click Urgent Speed Warning Dispatch**: Super Admin can immediately issue high-urgency notifications to the specific assigned Admin (`alex`, `admin_ops`, etc.), logging an official warning in the activity ledger.
-4. **Assigned Admin Urgent Warning Rail**: The assigned Admin's workstation triggers a high-priority alert chime and displays a prominent flashing warning banner on their allocated deposit card.
-5. **Executive Intervention & Reassignment**: If the assigned admin remains inactive, Super Admin can reassign the deposit to another active admin or execute a direct approval/rejection override.
+### 1.2 Super Admin Exclusive Access & Command Hub
+- Retain and elevate the sponsorship hub inside `src/components/AdminWorkstation.tsx`.
+- Only accessible when logged in as a verified `superadmin`.
+- Super Admin can customize the target company name, toggle industry presets, switch between English and Amharic, and trigger instant PDF generation.
 
----
+### 1.3 The "1-Product Showcase" Sponsorship Deal Model
+- **The Core Value Proposition**:
+  - Ethiopian companies often spend millions of Birr on passive TV commercials, radio spots, and roadside billboards that yield low engagement.
+  - Under this partnership deal, the corporate sponsor commits **one single showcase product or asset** (e.g., 1 electric vehicle, 1 residential apartment or plot, 1 flagship smartphone or home theater bundle, 1 commercial machinery unit).
+  - In return, MiniBid launches a dedicated nationwide promotional showcase:
+    - Millions of visual brand impressions and continuous daily app screen-time.
+    - Viral social media and Telegram campaigns featuring the sponsor's brand.
+    - Verified consumer leads and foot-traffic to sponsor showrooms and branches.
+    - 15x–30x ROI compared to traditional marketing spend, turning a single asset donation into permanent brand prestige.
 
-## 2. User Experience & Visual Design
+### 1.4 Authentic High-Prestige Amharic Version (የስፖንሰርሺፕ እና የቢዝነስ አጋርነት ይፋዊ ጥሪ)
+- A full 4-page translation written in sophisticated Ethiopian corporate and institutional Amharic terminology:
+  - **ገጽ 1፦ ራዕይ፣ የገበያ ዕድል እና ብሔራዊ የዲጂታል ኢኮኖሚ ትስስር** (ዲጂታል ኢትዮጵያ 2025፣ የቴሌብር እና ባንክ ክፍያዎች ፈሳሽነት)።
+  - **ገጽ 2፦ የጎልማሶች እና ወጣቶች የስራ ዕድል ፈጠራ** (የአስተዳደር ዴስክ ኦፕሬተሮች፣ የክልል ወኪሎች፣ የደንበኞች እንክብካቤ ባለሙያዎች)።
+  - **ገጽ 3፦ የባለ 1-ምርት ስፖንሰርሺፕ ሞዴል እና የቢዝነስ ትርፋማነት** (መኪና፣ ቤት፣ ኤሌክትሮኒክስ፣ ቴሌኮም እና ባንክ)።
+  - **ገጽ 4፦ የአጋርነት ደረጃዎች፣ ህጋዊ አሰራር እና ቀጣይ እርምጃዎች** (የስምምነት ማዕቀፍ እና ይፋዊ የፊርማ ቦታ)።
+- Instant 1-click toggle between **English** and **አማርኛ**.
 
-### Super Admin Executive Workstation Flow
-1. **Header SLA Breach Indicator**:
-   - In `AdminWorkstation.tsx`, beside the deposit tab, if any pending deposit exceeds 15 minutes, a pulsing rose-amber badge displays: `⚠️ 15m+ Delayed (N)`.
-   - An audible procedural alert tone plays once when new SLA breaches are detected (with an audio mute/toggle option).
-2. **Deposit Verification Desk - SLA Warning Radar**:
-   - Above the standard deposits queue, an **"SLA Breach Escalation Radar"** card highlights all requests older than 15 minutes with elapsed time counters (`16m elapsed`, `23m elapsed`, etc.).
-   - Each delayed deposit card provides:
-     - **"Send Speed Warning"**: Dispatches an urgent escalation notification to the assigned Admin.
-     - **"Reassign Admin"**: Opens a dropdown to transfer the ticket to another active operations administrator.
-     - **"Direct Executive Action"**: Allows Super Admin to directly approve (crediting the user) or decline with a reason.
-
-### Operations Admin Workstation Flow
-1. **Urgent Escalation Banner**:
-   - When an assigned Admin receives a speed warning, an urgent notification pill appears in their workstation, accompanied by a double-pulse audio chime.
-   - The delayed deposit card in their queue flashes with an amber border and a badge: `⚠️ SUPER ADMIN SPEED WARNING: Approve or Decline Immediately`.
-
----
-
-## 3. Key Product Decisions & Trade-Offs
-
-- **Real-Time Client-Side Ticker & Server Validation**:
-  - *Approach*: Server evaluates elapsed time and includes `elapsed_minutes` and `is_sla_breached` flags in `/api/admin/deposits` and `/api/superadmin/deposits/sla-breaches`. Frontend maintains a 1-second interval ticker for live minute/second countdowns.
-  - *Why*: Guarantees zero latency on the UI without requiring heavy polling, while keeping the server authoritative.
-- **Dedicated Warning Dispatch Endpoint**:
-  - *Approach*: `POST /api/superadmin/deposits/:id/warn-admin` creates an urgent notification, logs the event in `system_movements` and `audit_logs`, and marks `warning_sent_at` on the deposit.
-  - *Why*: Creates an immutable accountability trail showing which admin was warned, by whom, and when.
-- **Executive Direct Action Bypass**:
-  - *Approach*: Extend `approveDeposit` and `rejectDeposit` in `server/db.ts` to allow `superadmin` role execution when invoked with `executiveOverride: true`, bypassing the operational admin restriction for emergency unblocking.
+### 1.5 Direct Downloadable PDF & Print Engine
+- In addition to the browser print dialog, integrate a direct, automated PDF generator that exports a cleanly formatted corporate file (`MiniBid_Sponsorship_Proposal_Amharic.pdf` or `MiniBid_Sponsorship_Proposal_English.pdf`) with formal letterhead, A4 page margins, page numbering, and signature seals.
+- Incorporate a direct standalone printable HTML view to guarantee flawless offline saving across all devices and browsers.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 2. Multi-Sector Industry Alignment (Page 3 Focus)
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        MINIBID DEPOSIT SLA ENGINE                      │
-└────────────────────────────────────────────────────────────────────────┘
+The proposal articulates tailored value propositions across 6 key Ethiopian economic sectors:
 
-  Customer Deposits (Pending Queue)
-         │
-         ▼
-  ┌────────────────────────────────────────────────────────┐
-  │ Background SLA Evaluator (Date.now() - created_at)     │
-  │ > 15 Minutes Threshold Check                           │
-  └──────────────────────────┬─────────────────────────────┘
-                             │
-            ┌────────────────┴────────────────┐
-            ▼                                 ▼
-  ┌───────────────────────────┐    ┌───────────────────────────────────┐
-  │ Normal (< 15 mins)        │    │ SLA Breach (> 15 mins)            │
-  │ Standard Admin Queue      │    │ 1. Glowing SLA Badge in Header    │
-  └───────────────────────────┘    │ 2. Procedural Audio Alarm         │
-                                   │ 3. Super Admin Breach Radar Card  │
-                                   └─────────────────┬─────────────────┘
-                                                     │
-                             ┌───────────────────────┴───────────────────────┐
-                             │ Super Admin Actions                           │
-                             ├───────────────────────────────────────────────┤
-                             │ • POST /api/superadmin/deposits/:id/warn-admin│
-                             │ • POST /api/superadmin/deposits/:id/reassign  │
-                             │ • Direct Approve / Decline Override           │
-                             └───────────────────────┬───────────────────────┘
-                                                     │
-                                                     ▼
-                                    ┌─────────────────────────────────┐
-                                    │ Assigned Admin Urgent Notice    │
-                                    │ • Urgent Notification & Chime   │
-                                    │ • Flashing Priority Alert Badge │
-                                    └─────────────────────────────────┘
-```
-
-### Endpoints & Interfaces
-
-1. `GET /api/superadmin/deposits/sla-breaches`
-   - Returns all pending deposits where `elapsed_seconds >= 900` (15 mins), with assigned admin info and warning history.
-2. `POST /api/superadmin/deposits/:id/warn-admin`
-   - Dispatches high-urgency notification to assigned admin, updates `warning_count` and `last_warned_at`.
-3. `POST /api/superadmin/deposits/:id/reassign`
-   - Reassigns deposit to target admin ID, updates `deposit_code` prefix if needed, and logs movement.
-4. `POST /api/admin/deposits/:id/approve` & `POST /api/admin/deposits/:id/reject`
-   - Allow `superadmin` role with `executive_override: true` to directly process delayed deposits.
-5. `src/utils/audio.ts`
-   - Add `playSlaBreachAlarm()` and `playUrgentAdminWarningBeep()` via Web Audio API.
+1. **Automotive & EV Assemblers (Belayab, Marathon/Hyundai, Changan, BYD distributors)**:
+   - Provide: 1 City Car or EV.
+   - Receive: High-profile nationwide buzz, test-drive registrations, and brand positioning as Ethiopia's leading mobility provider.
+2. **Real Estate & Residential Developers (Noah, Gift, Flintstone, Ovid, etc.)**:
+   - Provide: 1 Studio Apartment or Residential Property.
+   - Receive: Massive viral brand awareness, massive database of diaspora and domestic homebuyers, and luxury brand elevation.
+3. **Consumer Electronics & Home Appliances (Samsung, LG, Hisense, local distributors)**:
+   - Provide: 1 Premium TV, Refrigerator, or Smartphone bundle.
+   - Receive: High-frequency youth engagement, showroom traffic, and direct product feature spotlights.
+4. **Telecommunications & Tech Providers (Ethio Telecom, Safaricom Ethiopia)**:
+   - Provide: Data packages, co-branded smartphone bundles.
+   - Receive: Exponential growth in mobile data consumption and payment app velocity.
+5. **Fintech & Commercial Banks (Telebirr, CBE, Awash, Dashen, Hibret)**:
+   - Provide: Integration co-sponsorship or cash prize escrow.
+   - Receive: Surging digital deposit volume, new digital wallet sign-ups, and transaction fee revenue.
+6. **Agro-Processing & Fast-Moving Consumer Goods (BGI, Moha, East Africa Bottling)**:
+   - Provide: High-value hospitality or commercial merchandise vouchers.
+   - Receive: Ubiquitous brand association with winning and lifestyle.
 
 ---
 
-## 5. Verification & Completion Status
+## 3. Technical Implementation Plan
 
-- [x] **Database & Endpoints**: Added `getSlaBreachedDeposits`, `warnAssignedAdmin`, `reassignDepositAdmin`, and executive override capability in `approveDeposit` / `rejectDeposit`.
-- [x] **Web Audio API**: Implemented procedural `playSlaBreachAlarm` (pulsing dual-tone sawtooth) and `playUrgentAdminWarningBeep` (high-urgency alert beep) in `src/utils/audio.ts`.
-- [x] **Super Admin Visual & Sound Alert**: Glowing animated SLA breach badge in the workstation header and deposit tab with automated audio triggers on new breaches.
-- [x] **15-Minute SLA Radar HUD**: Integrated real-time countdown timer, warning history badges, 1-click **Warn Admin**, **Reassign**, and **Direct Approve/Decline Override**.
-- [x] **Assigned Admin Notification & Desk Banner**: Flashing high-priority alert rail and audio alert on the assigned Operations Admin's desk when a breach or warning is active.
-- [x] **Build & Runtime Verification**: `compile_applet` passed, TypeScript typecheck passed with 0 errors, endpoints verified via live API tests.
+1. **Clean Public Surface**:
+   - Edit `src/components/Header.tsx` to remove `onOpenSponsorDeck` prop and buttons.
+   - Edit `src/App.tsx` to remove `isSponsorDeckOpen` state, guest welcome banner button, and footer link.
+2. **Upgrade `src/components/SponsorProposalDeck.tsx`**:
+   - Add comprehensive bilingual engine (English and complete native Amharic).
+   - Expand content to detail the **"1-Product Showcase Lottery" model** with realistic multi-sector breakdowns.
+   - Emphasize intellectual property safeguards (Black-box Dynamic Demand Optimization Core).
+   - Emphasize nationwide adult job creation (Regional operations, verification desks, logistics).
+   - Implement an automated client-side PDF / document download engine that generates a direct `.pdf` or downloadable standalone printable dossier.
+3. **Mount in `src/components/AdminWorkstation.tsx`**:
+   - Retain the executive toolbar button for Super Admin.
+   - Add language switcher (EN / AM) and direct PDF download trigger.
+4. **Verification**:
+   - Verify that regular users and guest visitors see zero sponsorship buttons.
+   - Verify that Super Admin can access, customize sponsor names, toggle Amharic/English, print, and download PDF.
+   - Run compilation and linting to ensure 100% build health.
+
+---
+
+## 4. Verification & Completion Status
+
+- [x] **Cleaned Public Site**: Removed all sponsorship buttons and modal references from `Header.tsx` (desktop and mobile drawer) and `src/App.tsx` (guest banner, footer navigation, and modal mount). Verified via curl test that public HTML contains zero sponsor references.
+- [x] **Super Admin Exclusive Access**: Accessible exclusively in `AdminWorkstation.tsx` behind the `isSuperAdmin` guard via the executive toolbar button `የስፖንሰርሺፕ ጥሪ (4 ገጽ)` / `Sponsor Deck (4-Page)`.
+- [x] **"1-Product Showcase Lottery" Model**: Comprehensively detailed the deal mechanics where the sponsor provides 1 asset (Car/EV, Apartment, Electronics bundle, Commercial appliance) in exchange for 20x nationwide advertising reach, millions of impressions, and foot traffic to showrooms.
+- [x] **Bilingual Engine (English & Authentic Amharic)**: Complete native Amharic corporate translation (`የስፖንሰርሺፕ እና የቢዝነስ አጋርነት ይፋዊ ጥሪ`) alongside English with a 1-click switcher.
+- [x] **Adult Job Creation**: Showcases 500+ direct adult jobs across 4 categories (120+ verification desk administrators, 200+ regional agents, 80+ customer concierge staff, 50+ asset inspection and logistics officers).
+- [x] **Direct PDF Download & Print Engine**: Built `handleDirectDownloadPdf` allowing instant, direct file export (`.pdf`/`.html` standalone document) and native Print-to-PDF.
+- [x] **Build & Verification**: Applet compiles with 0 errors, TypeScript check passes with 0 lint warnings.

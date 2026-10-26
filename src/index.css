@@ -30,3 +30,30 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(160, 160, 175, 0.45);
 }
+
+/* Executive Print & PDF Styles */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
+  
+  body {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  .proposal-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin-bottom: 2cm !important;
+  }
+
+  .proposal-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+}

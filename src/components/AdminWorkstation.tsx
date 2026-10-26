@@ -17,8 +17,10 @@ import { AuctionDetailModal } from './AuctionDetailModal.js';
 import { AdminSmsGateway } from './AdminSmsGateway.js';
 import { AdminEmailSmtpDesk } from './AdminEmailSmtpDesk.js';
 import { GoldenParticleBackground } from './GoldenParticleBackground.js';
+import { SponsorProposalDeck } from './SponsorProposalDeck.js';
 import { User, PlatformNotification } from '../types.js';
 import {
+  Briefcase,
   Mail,
   ShieldAlert,
   ShieldCheck,
@@ -63,6 +65,7 @@ export const AdminWorkstation: React.FC = () => {
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
   const [isCreateAuctionOpen, setIsCreateAuctionOpen] = useState(false);
   const [targetUserForAdjust, setTargetUserForAdjust] = useState<User | null>(null);
+  const [isSponsorDeckOpen, setIsSponsorDeckOpen] = useState(false);
 
   // Sound and notifications
   const [audioOn, setAudioOn] = useState(true);
@@ -425,6 +428,18 @@ export const AdminWorkstation: React.FC = () => {
                   <PlusSquare className="w-3.5 h-3.5" />
                   <span>{language === 'am' ? 'አዲስ ጨረታ ፍጠር' : 'Post Auction'}</span>
                 </button>
+
+                {/* Executive 4-Page Sponsor Proposal Deck (Super Admin Exclusive) */}
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => setIsSponsorDeckOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-600/25 to-blue-500/20 hover:from-amber-500/35 hover:to-blue-500/35 border border-amber-500/50 text-amber-300 hover:text-white font-bold text-xs shadow-md cursor-pointer transition-all"
+                    title="Open and print the 4-Page Executive Sponsorship & Investor Proposal Deck"
+                  >
+                    <Briefcase className="w-3.5 h-3.5 text-[#E5B842]" />
+                    <span>{language === 'am' ? 'የስፖንሰርሺፕ ጥሪ (4 ገጽ)' : 'Sponsor Deck (4-Page)'}</span>
+                  </button>
+                )}
 
                 {/* Return/View Player Site */}
                 <button
@@ -797,6 +812,11 @@ export const AdminWorkstation: React.FC = () => {
           onClose={() => setSelectedAuctionId(null)}
           onOpenDeposit={() => {}}
           onOpenAuth={() => {}}
+        />
+
+        <SponsorProposalDeck
+          isOpen={isSponsorDeckOpen}
+          onClose={() => setIsSponsorDeckOpen(false)}
         />
 
         {/* Dedicated Admin Footer */}

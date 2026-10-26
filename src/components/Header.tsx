@@ -33,6 +33,7 @@ import {
   Settings,
   Activity,
   CheckCircle2,
+  Briefcase,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
 import { PlatformNotification } from '../types.js';
