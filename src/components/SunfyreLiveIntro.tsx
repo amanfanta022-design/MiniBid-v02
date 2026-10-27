@@ -6,9 +6,10 @@ import { useTranslation } from '../utils/i18n.js';
 
 interface SunfyreLiveIntroProps {
   onComplete: () => void;
+  onOpenHowItWorks?: () => void;
 }
 
-export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }) => {
+export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete, onOpenHowItWorks }) => {
   const { user } = useAuth();
   const { language } = useTranslation();
   const isSuperAdmin = user?.role === 'superadmin';
@@ -402,35 +403,90 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete }
           </p>
         </div>
 
-        {/* Enter Platform Action Button */}
+        {/* High-Energy Live Winner Stats Ticker */}
         <div
-          className={`mt-6 sm:mt-9 transition-all duration-700 transform ${
+          className={`w-full max-w-xl mx-auto my-3 sm:my-4 transition-all duration-700 transform ${
+            stage === 'text' || stage === 'ready' ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+          }`}
+        >
+          <div className="p-2 sm:p-2.5 rounded-2xl bg-black/60 border border-[#E5B842]/40 backdrop-blur-md shadow-lg shadow-amber-950/20">
+            <div className="flex items-center justify-between px-2 mb-1.5 text-[10px] font-mono text-amber-300">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="font-bold uppercase tracking-wider">{language === 'am' ? 'የቀጥታ አሸናፊዎች' : 'Recent Verified Winners'}</span>
+              </span>
+              <span className="text-zinc-500 font-mono">100% On-Chain Proof</span>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-left text-xs font-mono">
+              <div className="p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
+                <div>
+                  <div className="text-white font-bold text-[11px]">Selamawit T.</div>
+                  <div className="text-[10px] text-zinc-400">iPhone 15 Pro Max</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-emerald-400 font-bold text-[11px]">1.04 ETB</div>
+                  <div className="text-[9px] text-amber-300">Winning Bid</div>
+                </div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
+                <div>
+                  <div className="text-white font-bold text-[11px]">Abebe K.</div>
+                  <div className="text-[10px] text-zinc-400">Suzuki Dzire 2024</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-emerald-400 font-bold text-[11px]">2.15 ETB</div>
+                  <div className="text-[9px] text-amber-300">Winning Bid</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons: Enter Platform + Watch How It Works Video */}
+        <div
+          className={`mt-4 sm:mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md transition-all duration-700 transform ${
             stage === 'ready' ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-4 opacity-0 scale-95'
           }`}
         >
           <button
             onClick={handleEnter}
-            className="group relative inline-flex items-center gap-2.5 sm:gap-3 px-6 sm:px-8 py-3 sm:py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#D4AF37] hover:from-[#f0c451] hover:to-[#e0b73c] text-black font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_30px_rgba(229,184,66,0.45)] hover:shadow-[0_0_45px_rgba(229,184,66,0.7)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            className="w-full sm:w-auto flex-1 group relative inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#D4AF37] hover:from-[#f0c451] hover:to-[#e0b73c] text-black font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_30px_rgba(229,184,66,0.45)] hover:shadow-[0_0_45px_rgba(229,184,66,0.7)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
           >
-            <span>{language === 'am' ? 'ወደ ፕላትፎርም ግባ' : 'Enter Platform'}</span>
+            <span>{language === 'am' ? 'ጨረታዎችን ጀምር' : 'Enter Live Auctions'}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          <button
+            onClick={() => {
+              if (onOpenHowItWorks) {
+                onOpenHowItWorks();
+              } else {
+                handleEnter();
+              }
+            }}
+            className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-black/60 hover:bg-white/10 text-amber-300 hover:text-white border border-[#E5B842]/50 hover:border-[#E5B842] font-bold text-xs sm:text-sm uppercase tracking-wider transition-all duration-300 backdrop-blur-md cursor-pointer shadow-lg"
+          >
+            <Play className="w-3.5 h-3.5 fill-current text-[#E5B842]" />
+            <span>{language === 'am' ? 'አሠራሩን እይ (ቪዲዮ)' : 'Watch Guide Video'}</span>
           </button>
         </div>
       </div>
 
       {/* Bottom Subtle Trust Badges */}
-      <div className="relative mt-6 sm:mt-0 sm:absolute sm:bottom-6 flex items-center justify-center flex-wrap gap-2 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-zinc-500 z-30 px-3 text-center">
-        <span className="flex items-center gap-1 sm:gap-1.5">
-          <Shield className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[#E5B842]" />
-          <span>{language === 'am' ? '100% በኦዲት የተጠበቀ' : 'Zero Double-Spend Protected'}</span>
+      <div className="relative mt-6 sm:mt-0 sm:absolute sm:bottom-6 flex items-center justify-center flex-wrap gap-2 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-zinc-400 z-30 px-3 text-center">
+        <span className="flex items-center gap-1.5 text-zinc-300">
+          <Shield className="w-3.5 h-3.5 text-[#E5B842]" />
+          <span>{language === 'am' ? 'ቴሌብር እና CBE Birr የተረጋገጠ' : 'Telebirr & CBE Integrated'}</span>
         </span>
-        <span className="hidden md:inline">•</span>
-        <span className="hidden md:inline">
-          {language === 'am' ? 'የተረጋገጠ የጨረታ ሥርዓት' : 'Certified Reverse Auction Architecture'}
+        <span className="hidden md:inline text-zinc-600">•</span>
+        <span className="hidden md:inline text-zinc-300">
+          {language === 'am' ? 'የብሔራዊ ባንክ ደንብ የተከተለ' : 'National Bank of Ethiopia Compliant'}
         </span>
-        <span>•</span>
-        <span className="text-zinc-600">
-          {language === 'am' ? 'አዲስ አበባ፣ ኢትዮጵያ' : 'Addis Ababa, Ethiopia'}
+        <span className="text-zinc-600">•</span>
+        <span className="text-zinc-300">
+          {language === 'am' ? '100% ፍትሃዊ የሂሳብ ቀመር' : 'Cryptographic Reverse Auction Algorithm'}
         </span>
       </div>
     </div>

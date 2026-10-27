@@ -62,6 +62,11 @@ const MainAppContent: React.FC = () => {
             sessionStorage.setItem('sunfyre_intro_dismissed', 'true');
             setShowIntro(false);
           }}
+          onOpenHowItWorks={() => {
+            sessionStorage.setItem('sunfyre_intro_dismissed', 'true');
+            setShowIntro(false);
+            setIsHowItWorksOpen(true);
+          }}
         />
       )}
 
@@ -187,6 +192,15 @@ const MainAppContent: React.FC = () => {
         <HowItWorksModal
           isOpen={isHowItWorksOpen}
           onClose={() => setIsHowItWorksOpen(false)}
+          onOpenDeposit={() => {
+            setIsHowItWorksOpen(false);
+            if (!user) setIsAuthOpen(true);
+            else setIsDepositOpen(true);
+          }}
+          onOpenAuth={tab => {
+            setIsHowItWorksOpen(false);
+            setIsAuthOpen(true);
+          }}
         />
 
         <DepositModal

@@ -49,6 +49,12 @@ import {
   ArrowLeft,
   ArrowRight,
   Building2,
+  Menu,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { isAudioEnabled, toggleAudio, playSlaBreachAlarm, playUrgentAdminWarningBeep } from '../utils/audio.js';
 
@@ -60,6 +66,9 @@ export const AdminWorkstation: React.FC = () => {
   // Selected administrative tab
   const [currentTab, setCurrentTab] = useState<string>('super-live-games');
   const [governanceSubTab, setGovernanceSubTab] = useState<'staff' | 'audit'>('staff');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals & inspect targets
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
@@ -383,61 +392,352 @@ export const AdminWorkstation: React.FC = () => {
   // =========================================================================
   // VIEW 3: FULL EXECUTIVE WORKSTATION (Admin & Super Admin)
   // =========================================================================
+  interface AdminNavItem {
+    id: string;
+    label: string;
+    labelAm: string;
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+    badge?: React.ReactNode;
+    superAdminOnly?: boolean;
+  }
+
+  interface AdminCategory {
+    title: string;
+    titleAm: string;
+    items: AdminNavItem[];
+  }
+
+  const adminCategories: AdminCategory[] = [
+    {
+      title: 'Operations Desk',
+      titleAm: 'የቀጥታ ኦፕሬሽን',
+      items: [
+        {
+          id: 'super-live-games',
+          label: 'Live Game Radar & Full Bids',
+          labelAm: 'የቀጥታ ጨዋታዎች ራዳር',
+          icon: Activity,
+          color: 'text-rose-400',
+          superAdminOnly: true,
+        },
+        {
+          id: 'admin-deposits',
+          label: 'Deposit Verification Desk',
+          labelAm: 'የተቀማጭ ገንዘብ ማረጋገጫ',
+          icon: Inbox,
+          color: 'text-blue-400',
+          badge: isSuperAdmin && slaBreachesCount > 0 ? (
+            <span className="px-1.5 py-0.5 bg-red-600 text-white font-bold text-[9px] rounded-full animate-pulse border border-red-300">
+              ⚠️ {slaBreachesCount}
+            </span>
+          ) : pendingDepositsCount > 0 ? (
+            <span className="px-1.5 py-0.5 bg-amber-400 text-black font-bold text-[9px] rounded-full">
+              {pendingDepositsCount}
+            </span>
+          ) : null,
+        },
+        {
+          id: 'super-activity',
+          label: 'Activity Control Room',
+          labelAm: 'የእንቅስቃሴ መቆጣጠሪያ',
+          icon: Activity,
+          color: 'text-amber-400',
+          superAdminOnly: true,
+        },
+        {
+          id: 'auctions-inspector',
+          label: 'All Games Catalog',
+          labelAm: 'የጨረታዎች ካታሎግ',
+          icon: Layers,
+          color: 'text-zinc-400',
+        },
+      ],
+    },
+    {
+      title: 'Financials & Governance',
+      titleAm: 'ፋይናንስ እና ኦዲት',
+      items: [
+        {
+          id: 'super-financials',
+          label: 'Financial P&L & Margins',
+          labelAm: 'የፋይናንስ ገቢ እና ትርፍ',
+          icon: BarChart3,
+          color: 'text-amber-400',
+          superAdminOnly: true,
+        },
+        {
+          id: 'super-governance',
+          label: 'Staff Floats & Governance',
+          labelAm: 'የሰራተኞች ቁጥጥር እና ፍሎት',
+          icon: ShieldCheck,
+          color: 'text-purple-400',
+          superAdminOnly: true,
+        },
+      ],
+    },
+    {
+      title: 'Security & Infrastructure',
+      titleAm: 'ደህንነት እና ኔትወርክ',
+      items: [
+        {
+          id: 'admin-users',
+          label: isSuperAdmin ? 'System Users & Staff' : 'Customer Participants',
+          labelAm: isSuperAdmin ? 'ተጠቃሚዎች እና ሰራተኞች' : 'ተሳታፊዎች',
+          icon: Users,
+          color: 'text-blue-400',
+        },
+        {
+          id: 'super-devices',
+          label: 'Device & Session Monitor',
+          labelAm: 'የመሳሪያዎች ደህንነት',
+          icon: Laptop,
+          color: 'text-emerald-400',
+          superAdminOnly: true,
+        },
+        {
+          id: 'sms-gateway',
+          label: 'Telecom SMS Gateway',
+          labelAm: 'የቴሌኮም SMS ጌትዌይ',
+          icon: Smartphone,
+          color: 'text-blue-400',
+          superAdminOnly: true,
+        },
+        {
+          id: 'email-gateway',
+          label: 'Email & SMTP Gateway',
+          labelAm: 'የኢሜይል SMTP ጌትዌይ',
+          icon: Mail,
+          color: 'text-amber-400',
+          superAdminOnly: true,
+        },
+      ],
+    },
+  ];
+
+  const getCurrentTabLabel = () => {
+    for (const cat of adminCategories) {
+      const match = cat.items.find(i => i.id === currentTab);
+      if (match) return language === 'am' ? match.labelAm : match.label;
+    }
+    return language === 'am' ? 'ዳሽቦርድ' : 'Workstation';
+  };
+
+  const renderNavList = (onSelect?: () => void) => {
+    return (
+      <div className="space-y-4">
+        {/* Quick Search */}
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={language === 'am' ? 'ማውጫ ፈልግ...' : 'Filter desks...'}
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500/50"
+          />
+        </div>
+
+        {adminCategories.map(cat => {
+          const visibleItems = cat.items.filter(item => {
+            if (item.superAdminOnly && !isSuperAdmin) return false;
+            if (!searchQuery) return true;
+            return (
+              item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              item.labelAm.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+          });
+
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={cat.title} className="space-y-1">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 px-2 py-1 font-bold">
+                {language === 'am' ? cat.titleAm : cat.title}
+              </div>
+              <div className="space-y-0.5">
+                {visibleItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = currentTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setCurrentTab(item.id);
+                        if (onSelect) onSelect();
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-gradient-to-r from-red-950/80 via-[#221015] to-amber-950/80 border border-red-500/50 text-white shadow-md'
+                          : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#E5B842]' : item.color}`} />
+                        <span className="truncate">{language === 'am' ? item.labelAm : item.label}</span>
+                      </div>
+                      {item.badge}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#070709] text-zinc-100 flex flex-col selection:bg-rose-500/30 selection:text-rose-200 font-sans relative overflow-x-hidden">
       <GoldenParticleBackground />
 
+      {/* MOBILE & TABLET SLIDING DRAWER BACKDROP & DRAWER */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop overlay */}
+          <div
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-fadeIn"
+          />
+
+          {/* Sliding Drawer Panel */}
+          <div className="relative w-72 sm:w-80 bg-[#0c0c12] border-r border-zinc-800 h-full p-4 flex flex-col justify-between overflow-y-auto shadow-2xl z-10 animate-slideInLeft">
+            <div className="space-y-4">
+              {/* Drawer Top Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 to-amber-600 p-0.5 shadow flex items-center justify-center">
+                    <div className="w-full h-full bg-black rounded-[6px] flex items-center justify-center font-bold text-rose-400 text-xs">
+                      MB
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-serif font-black text-white text-sm">MINIBID</span>
+                    <span className="block text-[9px] font-mono text-zinc-500 uppercase">Executive Navigation</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Navigation List */}
+              {renderNavList(() => setIsSidebarOpen(false))}
+            </div>
+
+            {/* Drawer Bottom Actions */}
+            <div className="pt-4 border-t border-zinc-800 space-y-2">
+              <button
+                onClick={() => {
+                  setIsSidebarOpen(false);
+                  setIsCreateAuctionOpen(true);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow cursor-pointer"
+              >
+                <PlusSquare className="w-3.5 h-3.5" />
+                <span>{language === 'am' ? 'አዲስ ጨረታ ፍጠር' : 'Post Auction'}</span>
+              </button>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => {
+                    setIsSidebarOpen(false);
+                    setIsSponsorDeckOpen(true);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 shadow cursor-pointer"
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-[#E5B842]" />
+                  <span>{language === 'am' ? 'የስፖንሰርሺፕ ጥሪ (4 ገጽ)' : 'Sponsor Deck (4-Page)'}</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setIsSidebarOpen(false);
+                  switchPortal('player');
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
+                <span>{language === 'am' ? 'የተጫዋቾች ገፅ' : 'Player Site'}</span>
+              </button>
+
+              <button
+                onClick={() => logout()}
+                className="w-full py-2 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/50 border border-red-900/50 text-red-300 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 flex flex-col flex-1">
-        {/* Executive Workstation Header */}
+        {/* Executive Workstation Header - Clean Single Row */}
         <header className="sticky top-0 z-40 bg-[#0a0a0e]/95 backdrop-blur-md border-b border-red-950/60 shadow-xl">
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div className="h-16 flex items-center justify-between gap-3">
-              {/* Brand and security posture */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-600 p-0.5 shadow-lg shadow-red-950/60 flex items-center justify-center">
-                  <div className="w-full h-full bg-[#0a0a0e] rounded-[10px] flex items-center justify-center font-mono font-black text-rose-400 text-sm">
+              {/* Brand, Drawer Button and active desk breadcrumb */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Mobile / Tablet Sliding Drawer Toggle Button */}
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500/50 text-white font-bold text-xs shadow cursor-pointer transition-all active:scale-95"
+                  title="Open Navigation Menu"
+                >
+                  <Menu className="w-4 h-4 text-[#E5B842]" />
+                  <span className="hidden xs:inline font-mono">{language === 'am' ? 'ማውጫ' : 'Desks'}</span>
+                </button>
+
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-600 p-0.5 shadow-lg shadow-red-950/60 flex items-center justify-center shrink-0">
+                  <div className="w-full h-full bg-[#0a0a0e] rounded-[10px] flex items-center justify-center font-mono font-black text-rose-400 text-xs sm:text-sm">
                     MB
                   </div>
                 </div>
+
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-serif font-black tracking-wider text-white text-base">MINIBID</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950/80 text-rose-300 border border-red-800/60 font-mono font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-serif font-black tracking-wider text-white text-sm sm:text-base">MINIBID</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950/80 text-rose-300 border border-red-800/60 font-mono font-bold uppercase tracking-wider hidden xs:inline-block">
                       Executive Desk
                     </span>
-                    <span className="hidden md:inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/50 font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      ACID Safe
-                    </span>
                   </div>
-                  <div className="text-[10px] text-zinc-400 font-mono flex items-center gap-2">
-                    <span>{isDedicatedSubdomain ? 'admin.minibid.et' : 'Isolated Admin Portal'}</span>
-                    <span>•</span>
-                    <span className="text-zinc-500">Node: Addis-Central-01</span>
+                  <div className="text-[10px] text-zinc-400 font-mono flex items-center gap-1.5">
+                    <span className="text-zinc-500 hidden sm:inline">Active Desk:</span>
+                    <strong className="text-[#E5B842] truncate max-w-[140px] sm:max-w-none">
+                      {getCurrentTabLabel()}
+                    </strong>
                   </div>
                 </div>
               </div>
 
               {/* Action Toolbar */}
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-2.5">
                 {/* Create Auction button */}
                 <button
                   onClick={() => setIsCreateAuctionOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-950/50 cursor-pointer transition-all"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-950/50 cursor-pointer transition-all"
                 >
                   <PlusSquare className="w-3.5 h-3.5" />
-                  <span>{language === 'am' ? 'አዲስ ጨረታ ፍጠር' : 'Post Auction'}</span>
+                  <span>{language === 'am' ? 'አዲስ ጨረታ' : 'Post Auction'}</span>
                 </button>
 
                 {/* Executive 4-Page Sponsor Proposal Deck (Super Admin Exclusive) */}
                 {isSuperAdmin && (
                   <button
                     onClick={() => setIsSponsorDeckOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-600/25 to-blue-500/20 hover:from-amber-500/35 hover:to-blue-500/35 border border-amber-500/50 text-amber-300 hover:text-white font-bold text-xs shadow-md cursor-pointer transition-all"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-600/25 to-blue-500/20 hover:from-amber-500/35 hover:to-blue-500/35 border border-amber-500/50 text-amber-300 hover:text-white font-bold text-xs shadow-md cursor-pointer transition-all"
                     title="Open and print the 4-Page Executive Sponsorship & Investor Proposal Deck"
                   >
                     <Briefcase className="w-3.5 h-3.5 text-[#E5B842]" />
-                    <span>{language === 'am' ? 'የስፖንሰርሺፕ ጥሪ (4 ገጽ)' : 'Sponsor Deck (4-Page)'}</span>
+                    <span>{language === 'am' ? 'ስፖንሰርሺፕ (4 ገጽ)' : 'Sponsor Deck'}</span>
                   </button>
                 )}
 
@@ -445,10 +745,10 @@ export const AdminWorkstation: React.FC = () => {
                 <button
                   onClick={() => switchPortal('player')}
                   title="Open the player gaming view"
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zinc-700 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden xs:inline">{language === 'am' ? 'የተጫዋቾች ገፅ' : 'Player Site'}</span>
+                  <span className="hidden md:inline">{language === 'am' ? 'የተጫዋቾች ገፅ' : 'Player Site'}</span>
                 </button>
 
                 {/* Audio Toggle */}
@@ -464,11 +764,11 @@ export const AdminWorkstation: React.FC = () => {
                 {isSuperAdmin && slaBreachesCount > 0 && (
                   <button
                     onClick={() => setCurrentTab('admin-deposits')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white font-extrabold text-xs shadow-lg shadow-red-950/70 border border-red-400/80 animate-pulse cursor-pointer transition-all hover:scale-105"
-                    title="15-Minute SLA breached on pending customer deposits. Click to open SLA Escalation Radar."
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white font-extrabold text-xs shadow-lg shadow-red-950/70 border border-red-400/80 animate-pulse cursor-pointer transition-all"
+                    title="15-Minute SLA breached on pending customer deposits."
                   >
-                    <AlertCircle className="w-4 h-4 text-white animate-spin" />
-                    <span className="tracking-wide">⚠️ 15m+ Delayed ({slaBreachesCount})</span>
+                    <AlertCircle className="w-3.5 h-3.5 text-white animate-spin" />
+                    <span className="tracking-wide text-[11px]">⚠️ {slaBreachesCount} SLA</span>
                   </button>
                 )}
 
@@ -476,15 +776,15 @@ export const AdminWorkstation: React.FC = () => {
                 {!isSuperAdmin && hasAdminUrgentWarning && (
                   <button
                     onClick={() => setCurrentTab('admin-deposits')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-black font-extrabold text-xs shadow-lg shadow-amber-950/70 border border-amber-300 animate-bounce cursor-pointer transition-all"
-                    title="Super Admin has issued an urgent speed escalation warning for your queue!"
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-black font-extrabold text-xs shadow-lg shadow-amber-950/70 border border-amber-300 animate-bounce cursor-pointer transition-all"
+                    title="Super Admin has issued an urgent speed escalation warning!"
                   >
-                    <AlertCircle className="w-4 h-4 text-black" />
-                    <span>🚨 URGENT SLA WARNING</span>
+                    <AlertCircle className="w-3.5 h-3.5 text-black" />
+                    <span className="text-[11px]">🚨 URGENT</span>
                   </button>
                 )}
 
-                {/* Notifications */}
+                {/* Notifications Bell */}
                 <div className="relative">
                   <button
                     onClick={() => setShowNotifsDropdown(!showNotifsDropdown)}
@@ -521,7 +821,7 @@ export const AdminWorkstation: React.FC = () => {
                 </div>
 
                 {/* Staff User Capsule */}
-                <div className="flex items-center gap-2 pl-2 border-l border-zinc-800">
+                <div className="flex items-center gap-1.5 sm:gap-2 pl-2 border-l border-zinc-800">
                   <div className="text-right hidden sm:block">
                     <div className="text-xs font-bold text-white flex items-center gap-1.5 justify-end">
                       <span>@{user.username}</span>
@@ -550,163 +850,42 @@ export const AdminWorkstation: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* Navigation Tabs Bar */}
-            <div className="flex items-center gap-1.5 overflow-x-auto py-2 border-t border-zinc-800/80 no-scrollbar">
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('super-live-games')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'super-live-games'
-                      ? 'bg-rose-600 text-white shadow-lg shadow-rose-950/50'
-                      : 'text-rose-400 hover:bg-rose-950/30 border border-rose-900/40'
-                  }`}
-                >
-                  <Activity className="w-4 h-4 animate-pulse" />
-                  <span>Live Game Radar & Full Bids</span>
-                </button>
-              )}
-
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('super-financials')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'super-financials'
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-950/50'
-                      : 'text-amber-400 hover:bg-amber-950/30 border border-amber-900/40'
-                  }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  <span>Financial P&L & Margins</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => setCurrentTab('admin-deposits')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer relative ${
-                  currentTab === 'admin-deposits'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
-                    : 'text-blue-300 hover:bg-blue-950/30 border border-blue-900/40'
-                }`}
-              >
-                <Inbox className="w-4 h-4" />
-                <span>Deposit Verification Desk</span>
-                {isSuperAdmin && slaBreachesCount > 0 ? (
-                  <span className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] rounded-full flex items-center justify-center animate-pulse border border-red-300 shadow-sm">
-                    ⚠️ {slaBreachesCount} SLA Breached
-                  </span>
-                ) : !isSuperAdmin && hasAdminUrgentWarning ? (
-                  <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black text-[10px] rounded-full flex items-center justify-center animate-bounce border border-amber-200 shadow-sm">
-                    🚨 URGENT
-                  </span>
-                ) : (
-                  pendingDepositsCount > 0 && (
-                    <span className="w-4 h-4 bg-amber-400 text-black font-black text-[10px] rounded-full flex items-center justify-center animate-bounce">
-                      {pendingDepositsCount}
-                    </span>
-                  )
-                )}
-              </button>
-
-              <button
-                onClick={() => setCurrentTab('admin-users')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                  currentTab === 'admin-users'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
-                    : 'text-zinc-300 hover:bg-zinc-800 border border-zinc-800'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>{isSuperAdmin ? 'All System Users & Staff' : 'Customer Participants'}</span>
-              </button>
-
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('super-governance')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'super-governance'
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-950/50'
-                      : 'text-purple-300 hover:bg-purple-950/30 border border-purple-900/40'
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Staff Floats & Governance</span>
-                </button>
-              )}
-
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('super-activity')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'super-activity'
-                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/50 font-bold'
-                      : 'text-amber-300 hover:bg-amber-950/30 border border-amber-900/40'
-                  }`}
-                >
-                  <Activity className="w-4 h-4" />
-                  <span>Activity Control Room</span>
-                </button>
-              )}
-
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('super-devices')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'super-devices'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/50 font-bold'
-                      : 'text-emerald-300 hover:bg-emerald-950/30 border border-emerald-900/40'
-                  }`}
-                >
-                  <Laptop className="w-4 h-4" />
-                  <span>Device & Session Monitor</span>
-                </button>
-              )}
-
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('sms-gateway')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'sms-gateway'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50 font-bold'
-                      : 'text-blue-300 hover:bg-blue-950/30 border border-blue-900/40'
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4" />
-                  <span>Telecom SMS Gateway</span>
-                </button>
-              )}
-
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setCurrentTab('email-gateway')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                    currentTab === 'email-gateway'
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-950/50 font-bold'
-                      : 'text-amber-300 hover:bg-amber-950/30 border border-amber-900/40'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>Email & SMTP Gateway</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => setCurrentTab('auctions-inspector')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                  currentTab === 'auctions-inspector'
-                    ? 'bg-zinc-700 text-white shadow-lg'
-                    : 'text-zinc-400 hover:bg-zinc-800 border border-zinc-800'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>All Games Catalog</span>
-              </button>
-            </div>
           </div>
         </header>
 
-        {/* Workstation Main Display Area */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6">
+        {/* WORKSPACE DUAL-PANEL BODY: FIXED DESKTOP SIDEBAR + RESPONSIVE MAIN VIEWPORT */}
+        <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] relative">
+          
+          {/* DESKTOP PERMANENT SIDEBAR */}
+          <aside className="hidden lg:flex flex-col w-64 xl:w-72 border-r border-zinc-800/80 bg-[#09090e] shrink-0 p-3.5 justify-between sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
+            <div className="space-y-4">
+              {renderNavList()}
+            </div>
+
+            {/* Desktop Sidebar Bottom Shortcuts */}
+            <div className="pt-3 border-t border-zinc-800 space-y-1.5">
+              <button
+                onClick={() => setIsCreateAuctionOpen(true)}
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow cursor-pointer transition-all"
+              >
+                <PlusSquare className="w-3.5 h-3.5" />
+                <span>{language === 'am' ? 'አዲስ ጨረታ ፍጠር' : 'Post Auction'}</span>
+              </button>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setIsSponsorDeckOpen(true)}
+                  className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-xs flex items-center justify-center gap-2 shadow cursor-pointer transition-all"
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-[#E5B842]" />
+                  <span>{language === 'am' ? 'የስፖንሰርሺፕ ጥሪ (4 ገጽ)' : 'Sponsor Deck (4-Page)'}</span>
+                </button>
+              )}
+            </div>
+          </aside>
+
+          {/* MAIN RESPONSIVE WORKSTATION CONTENT AREA */}
+          <main className="flex-1 min-w-0 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
           {currentTab === 'super-live-games' && isSuperAdmin && (
             <SuperAdminLiveGameDesk onSelectAuction={id => setSelectedAuctionId(id)} />
           )}
@@ -791,8 +970,9 @@ export const AdminWorkstation: React.FC = () => {
             </div>
           )}
         </main>
+      </div>
 
-        {/* Administrative Modals */}
+      {/* Administrative Modals */}
         <AdminCreateAuctionModal
           isOpen={isCreateAuctionOpen}
           onClose={() => setIsCreateAuctionOpen(false)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   CheckCircle2,
@@ -62,6 +62,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [videoProgress, setVideoProgress] = useState<number>(0);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
 
   // Interactive test simulator state
   const [simBids, setSimBids] = useState<SimBid[]>([
@@ -76,60 +77,6 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
   const [testAmount, setTestAmount] = useState('1.02');
   const [testName, setTestName] = useState('You (አንተ)');
 
-  const CHAPTER_DURATION = 6500; // ms per chapter in animated video
-
-  // Animated video player loop
-  useEffect(() => {
-    if (!isOpen || viewMode !== 'video' || !isPlaying) return;
-
-    const interval = 100;
-    const increment = (interval / CHAPTER_DURATION) * 100;
-
-    const timer = setInterval(() => {
-      setVideoProgress(prev => {
-        if (prev >= 100) {
-          setVideoChapter(c => (c + 1) % 5);
-          return 0;
-        }
-        return prev + increment;
-      });
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [isOpen, viewMode, isPlaying, videoChapter]);
-
-  if (!isOpen) return null;
-
-  // Simulator computations
-  const amountCounts: Record<number, number> = {};
-  simBids.forEach(b => {
-    const amt = Number(b.amount.toFixed(2));
-    amountCounts[amt] = (amountCounts[amt] || 0) + 1;
-  });
-
-  const uniqueAmounts = Object.keys(amountCounts)
-    .map(Number)
-    .filter(amt => amountCounts[amt] === 1)
-    .sort((a, b) => a - b);
-
-  const winningAmount = uniqueAmounts.length > 0 ? uniqueAmounts[0] : null;
-
-  const handleAddSimBid = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = parseFloat(testAmount);
-    if (isNaN(val) || val <= 0) return;
-
-    setSimBids(prev => [
-      ...prev,
-      {
-        id: `sim_${Date.now()}`,
-        name: testName || 'You',
-        amount: Number(val.toFixed(2)),
-      },
-    ]);
-    setTestAmount('');
-  };
-
   const handleResetSim = () => {
     setSimBids([
       { id: '1', name: 'Abebe (Bidder 1)', amount: 1.01 },
@@ -141,53 +88,96 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
     ]);
   };
 
+  const handleAddSimBid = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(testAmount);
+    if (isNaN(val) || val <= 0) return;
+    const newBid: SimBid = {
+      id: Date.now().toString(),
+      name: testName.trim() || 'You (አንተ)',
+      amount: Math.round(val * 100) / 100,
+    };
+    setSimBids(prev => [...prev, newBid]);
+  };
+
+  const amountCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    simBids.forEach(b => {
+      const amt = Number(b.amount.toFixed(2));
+      counts[amt] = (counts[amt] || 0) + 1;
+    });
+    return counts;
+  }, [simBids]);
+
+  const winningAmount = useMemo(() => {
+    const uniqueAmounts = Object.keys(amountCounts)
+      .map(Number)
+      .filter(amt => amountCounts[amt] === 1);
+    if (uniqueAmounts.length === 0) return null;
+    return Math.min(...uniqueAmounts);
+  }, [amountCounts]);
+
+  const BASE_CHAPTER_DURATION = 6500; // ms per chapter
+  const CHAPTER_DURATION = BASE_CHAPTER_DURATION / playbackSpeed;
+
   const videoChapters = [
     {
       id: 0,
-      title: language === 'am' ? '1. መመዝገብ (Registration)' : '1. Register Account',
+      title: language === 'am' ? '1. ፈጣን ምዝገባ (Register)' : '1. Instant Registration',
       tag: 'REGISTER',
       summary:
         language === 'am'
-          ? 'በስም እና በኢትዮጵያ ስልክ ቁጥር (+251...) ፈጣን ምዝገባ ያድርጉ። ምንም የ OTP መጠበቅ ሳይኖር ወዲያውኑ ይጀምሩ!'
-          : 'Register using Username & Ethiopian phone (+251 9... / 09...). Instant onboarding with zero OTP delay!',
+          ? 'በስም እና በስልክ ቁጥር (+251 9...) ፈጣን ምዝገባ። ወዲያውኑ 20 ብር የመጀመሪያ ቦነስ ያገኛሉ!'
+          : 'Register using Username & Ethiopian Phone (+251 9...). Instant verified badge & 20 ETB welcome bonus!',
     },
     {
       id: 1,
-      title: language === 'am' ? '2. መግባት (Login)' : '2. Login Seamlessly',
-      tag: 'LOGIN',
-      summary:
-        language === 'am'
-          ? 'በስልክ ቁጥርዎ ወይም በዩዘርኔምዎ እና በይለፍ ቃልዎ ወዲያውኑ ወደ ሒሳብዎ ይግቡ።'
-          : 'Log into your account using either your Ethiopian Phone Number or Username with your secure password.',
-    },
-    {
-      id: 2,
-      title: language === 'am' ? '3. ገንዘብ መሙላት (Deposit)' : '3. Deposit ETB',
+      title: language === 'am' ? '2. በቴሌብር/CBE ገንዘብ መሙላት (Deposit)' : '2. Deposit via Telebirr & CBE',
       tag: 'DEPOSIT',
       summary:
         language === 'am'
-          ? 'በCBE Birr፣ Telebirr ወይም ባንክ ገንዘብ ያስገቡ። የደረሰኝ ስክሪንሾት በማያያዝ ጥያቄ ያቅርቡ፤ ኦፕሬተሮች ወዲያውኑ ያረጋግጡልዎታል።'
-          : 'Top up wallet balance via CBE, Telebirr, or Awash. Upload transfer screenshot; assigned operator verifies and credits your balance.',
+          ? 'በቴሌብር ወይም በኢትዮጵያ ንግድ ባንክ ያስገቡ፤ የደረሰኝ ስክሪንሾት በማያያዝ በ2 ደቂቃ ውስጥ ሒሳብዎ ይሞላል።'
+          : 'Top up via Telebirr or CBE Birr. Attach transfer slip and get verified by operators in under 2 minutes.',
     },
     {
-      id: 3,
-      title: language === 'am' ? '4. እንዴት መጫረት እንደሚቻል (How to Bid)' : '4. How to Bid (Reverse Strategy)',
+      id: 2,
+      title: language === 'am' ? '3. ያልተደገመ ዝቅተኛ ጨረታ (Reverse Bidding)' : '3. Place Unique Reverse Bid',
       tag: 'BIDDING',
       summary:
         language === 'am'
-          ? 'ሚስጥራዊ የጨረታ ዋጋ ይስጡ። ሁለት ሰዎች አንድ አይነት ዋጋ ከሰጡ ውድቅ ይሆናሉ፤ በአንድ ሰው ብቻ የተሰጠው ዝቅተኛ ዋጋ ያሸንፋል!'
-          : 'Place sealed bids from 1.00 ETB. Duplicated amounts cancel out! The lowest unique bid placed by exactly ONE bidder wins.',
+          ? 'የተደገሙ ዋጋዎች ውድቅ ይሆናሉ! በአንድ ሰው ብቻ የተሰጠው ዝቅተኛው ሚስጥራዊ ዋጋ (ምሳሌ 1.04 ብር) ያሸንፋል።'
+          : 'Duplicated amounts cancel out! The single lowest unique bid placed by exactly one player wins the prize.',
     },
     {
-      id: 4,
-      title: language === 'am' ? '5. ውጤት እና ሽልማት (Results & Winners)' : '5. See Results & Claim Prize',
-      tag: 'RESULTS',
+      id: 3,
+      title: language === 'am' ? '4. 00:00:00 ቆጣሪ እና የድል ርክክብ (Victory)' : '4. 00:00:00 Timer & Victory',
+      tag: 'VICTORY',
       summary:
         language === 'am'
-          ? 'ቆጣሪው 00:00:00 ሲደርስ ሙሉው የጨረታ ዝርዝር በይፋ ይገለጻል! አሸናፊው በስልክ ተጠርቶ አዲሱን ዕቃ ይረከባል።'
-          : 'When the live timer hits 00:00:00, all bids are published publicly for 100% transparency. Winner receives direct delivery dispatch!',
+          ? 'ቆጣሪው ሲያበቃ ሙሉው የጨረታ መዝገብ በይፋ ይገለጻል፤ አሸናፊው በስልክ ተጠርቶ አዲሱን ዕቃ በአድራሻው ይረከባል!'
+          : 'When countdown hits 00:00:00, 100% transparent audit ledger is revealed and prize is dispatched!',
     },
   ];
+
+  // Animated video player loop
+  useEffect(() => {
+    if (!isOpen || viewMode !== 'video' || !isPlaying) return;
+
+    const interval = 80;
+    const increment = (interval / CHAPTER_DURATION) * 100;
+
+    const timer = setInterval(() => {
+      setVideoProgress(prev => {
+        if (prev >= 100) {
+          setVideoChapter(c => (c + 1) % videoChapters.length);
+          return 0;
+        }
+        return prev + increment;
+      });
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [isOpen, viewMode, isPlaying, videoChapter, playbackSpeed, videoChapters.length]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
@@ -268,179 +258,317 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* VIEW MODE 1: ANIMATED VIDEO GUIDE SIMULATION */}
+        {/* VIEW MODE 1: INTERACTIVE SIMULATED DEVICE ASSISTANT WALKTHROUGH */}
         {/* ======================================================== */}
         {viewMode === 'video' && (
           <div className="space-y-4">
             {/* Simulated Animated Video Player Screen */}
-            <div className="relative aspect-video sm:aspect-[16/9] md:aspect-[21/9] max-h-[380px] w-full rounded-2xl bg-gradient-to-br from-[#0c0c0e] via-[#14141a] to-[#0a0a0d] border border-amber-500/40 overflow-hidden shadow-2xl flex flex-col justify-between p-4 sm:p-6 group">
+            <div className="relative w-full rounded-2xl bg-gradient-to-br from-[#0a0a0e] via-[#121217] to-[#070709] border border-[#E5B842]/40 overflow-hidden shadow-2xl p-3 sm:p-5 flex flex-col justify-between">
               {/* Background Glow */}
               <div className="absolute -top-24 -left-24 w-72 h-72 bg-[#E5B842]/10 rounded-full blur-3xl pointer-events-none" />
               <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
               {/* Video Top Bar */}
-              <div className="relative z-10 flex items-center justify-between text-xs">
+              <div className="relative z-10 flex items-center justify-between text-xs pb-3 border-b border-zinc-800">
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-1 rounded-full bg-red-950/80 border border-red-500/50 text-red-300 font-mono text-[10px] font-bold flex items-center gap-1.5 shadow">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                    <span>REC GUIDE • 1080P HD</span>
+                    <span>LIVE ASSISTANT VIDEO • 1080P</span>
                   </span>
                   <span className="text-[11px] font-mono text-zinc-400 hidden sm:inline">
-                    MiniBid Official Video Walkthrough
+                    {language === 'am' ? 'በእውነተኛ ጊዜ የሚሰራ የቪዲዮ አጋዥ' : 'Autonomous Device Simulation'}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Playback speed toggle */}
+                  <div className="flex items-center bg-black/60 rounded-lg p-0.5 border border-zinc-700 text-[10px] font-mono">
+                    {[1, 1.5, 2].map(spd => (
+                      <button
+                        key={spd}
+                        onClick={() => setPlaybackSpeed(spd)}
+                        className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                          playbackSpeed === spd ? 'bg-[#E5B842] text-black font-bold' : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+
                   <button
                     onClick={() => setSoundEnabled(!soundEnabled)}
                     className="p-1.5 rounded-lg bg-black/60 border border-zinc-700 text-zinc-400 hover:text-white cursor-pointer"
-                    title={soundEnabled ? 'Mute' : 'Unmute'}
+                    title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
                   >
-                    {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                    {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-[#E5B842]" /> : <VolumeX className="w-3.5 h-3.5" />}
                   </button>
+
                   <span className="px-2 py-0.5 rounded bg-black/60 font-mono text-[10px] text-amber-300 border border-amber-500/30">
-                    Chapter {videoChapter + 1} / 5
+                    {videoChapter + 1} / {videoChapters.length}
                   </span>
                 </div>
               </div>
 
-              {/* Video Dynamic Animated Scene Display */}
-              <div className="relative z-10 my-auto py-2 flex flex-col items-center justify-center text-center">
-                {videoChapter === 0 && (
-                  /* Scene 0: Registration */
-                  <div className="space-y-3 animate-fadeIn max-w-lg">
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/20">
-                      <UserPlus className="w-7 h-7" />
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-mono text-xs font-bold">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>{language === 'am' ? 'ደረጃ 1፦ መመዝገብ እና የባጅ ማረጋገጫ' : 'Step 1: Register & Verified Badge'}</span>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-black/80 border border-zinc-800 text-left text-xs font-mono space-y-2 max-w-sm mx-auto shadow-inner">
-                      <div className="flex items-center justify-between text-zinc-400">
-                        <span>Username:</span>
-                        <span className="text-white font-bold">@abebe_bidder</span>
-                      </div>
-                      <div className="flex items-center justify-between text-zinc-400">
-                        <span>Phone (Ethiopia):</span>
-                        <span className="text-emerald-400 font-bold">+251 91 123 4567</span>
-                      </div>
-                      <div className="flex items-center justify-between text-zinc-400 pt-1.5 border-t border-zinc-800">
-                        <span>Email (Optional):</span>
-                        <span className="text-amber-300">abebe@gmail.com</span>
-                      </div>
-                      <div className="p-1.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[10px] flex items-center justify-between">
-                        <span>Verification Status:</span>
-                        <span className="font-bold tracking-widest">🛡️ VERIFIED BADGE</span>
-                      </div>
-                    </div>
+              {/* SIMULATED MOBILE DEVICE VIEWPORT */}
+              <div className="relative z-10 my-3 sm:my-4 flex items-center justify-center">
+                <div className="w-full max-w-sm bg-[#08080C] border-2 sm:border-4 border-zinc-700/80 rounded-[32px] sm:rounded-[38px] shadow-2xl p-2.5 sm:p-3 relative overflow-hidden text-left font-sans select-none">
+                  
+                  {/* Dynamic Island Notch */}
+                  <div className="w-20 sm:w-24 h-3.5 sm:h-4 bg-black rounded-full mx-auto mb-1.5 flex items-center justify-center gap-1.5 px-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-800" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-950 border border-blue-500/30" />
                   </div>
-                )}
 
-                {videoChapter === 1 && (
-                  /* Scene 1: Login */
-                  <div className="space-y-3 animate-fadeIn max-w-lg">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 mx-auto shadow-lg shadow-blue-500/20">
-                      <LogIn className="w-7 h-7" />
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950 border border-blue-500/50 text-blue-300 font-mono text-xs font-bold">
-                      <Smartphone className="w-3.5 h-3.5" />
-                      <span>{language === 'am' ? 'ደረጃ 2፦ በስልክ ወይም ዩዘርኔም መግባት' : 'Step 2: Login With Phone or Username'}</span>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-black/80 border border-zinc-800 text-left text-xs font-mono space-y-2 max-w-sm mx-auto shadow-inner">
-                      <div className="p-2 rounded bg-zinc-900 border border-zinc-700 flex items-center justify-between text-zinc-300">
-                        <span>Login Identifier:</span>
-                        <span className="text-[#E5B842] font-bold">0911234567 / @abebe</span>
-                      </div>
-                      <div className="p-2 rounded bg-zinc-900 border border-zinc-700 flex items-center justify-between text-zinc-300">
-                        <span>Password:</span>
-                        <span className="text-zinc-500">••••••••••••</span>
-                      </div>
-                      <div className="text-[10px] text-emerald-400 font-bold text-center">
-                        ✓ 2-Way Login Active (Phone or Username)
-                      </div>
+                  {/* Device Status Bar */}
+                  <div className="flex items-center justify-between text-[9px] font-mono text-zinc-400 px-2 pb-1.5 border-b border-zinc-800/60">
+                    <span>09:41</span>
+                    <span className="text-[#E5B842] font-bold">MiniBid OS</span>
+                    <div className="flex items-center gap-1">
+                      <span>Ethio 4G</span>
+                      <span>🔋 100%</span>
                     </div>
                   </div>
-                )}
 
-                {videoChapter === 2 && (
-                  /* Scene 2: Deposit */
-                  <div className="space-y-3 animate-fadeIn max-w-lg">
-                    <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-[#E5B842] mx-auto shadow-lg shadow-amber-500/20">
-                      <CreditCard className="w-7 h-7" />
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950 border border-amber-500/50 text-amber-300 font-mono text-xs font-bold">
-                      <Coins className="w-3.5 h-3.5 text-[#E5B842]" />
-                      <span>{language === 'am' ? 'ደረጃ 3፦ በCBE / Telebirr ሒሳብ መሙላት' : 'Step 3: Deposit ETB Wallet Balance'}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-left text-xs font-mono max-w-sm mx-auto">
-                      <div className="p-2.5 rounded-xl bg-black/80 border border-amber-500/30">
-                        <span className="text-[10px] text-zinc-400 block">Method:</span>
-                        <span className="text-white font-bold">CBE / Telebirr</span>
-                        <span className="text-[9px] text-emerald-400 block mt-1">Ref: ax28491</span>
+                  {/* Device In-App Header */}
+                  <div className="flex items-center justify-between py-2 px-1 border-b border-zinc-800/60">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#E5B842] to-amber-700 p-0.5">
+                        <div className="w-full h-full bg-black rounded-[6px] flex items-center justify-center font-bold text-[#E5B842] text-[10px]">
+                          MB
+                        </div>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-black/80 border border-emerald-500/30">
-                        <span className="text-[10px] text-zinc-400 block">Receipt:</span>
-                        <span className="text-emerald-300 font-bold">Uploaded (Slip)</span>
-                        <span className="text-[9px] text-[#E5B842] block mt-1">Credited Instantly</span>
-                      </div>
+                      <span className="font-serif font-black text-white text-xs">MiniBid</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-black/60 px-2 py-0.5 rounded-full border border-amber-500/30 text-[10px] font-mono text-amber-300">
+                      <Coins className="w-3 h-3 text-[#E5B842]" />
+                      <span>{videoChapter >= 1 ? '520 ETB' : '20 ETB'}</span>
                     </div>
                   </div>
-                )}
 
-                {videoChapter === 3 && (
-                  /* Scene 3: How to Bid */
-                  <div className="space-y-3 animate-fadeIn max-w-lg">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-500/20 border border-purple-500/50 flex items-center justify-center text-purple-400 mx-auto shadow-lg shadow-purple-500/20">
-                      <Target className="w-7 h-7" />
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-950 border border-purple-500/50 text-purple-300 font-mono text-xs font-bold">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>{language === 'am' ? 'ደረጃ 4፦ ሚስጥራዊና ያልተደገመ ዋጋ መጫረት' : 'Step 4: Sealed Lowest Unique Reverse Bid'}</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-black/80 border border-zinc-800 text-xs font-mono space-y-1.5 max-w-sm mx-auto text-left shadow-inner">
-                      <div className="flex items-center justify-between text-zinc-300">
-                        <span>Abebe & Selam bid:</span>
-                        <span className="text-red-400 line-through">1.01 ETB (Duplicate ✕)</span>
-                      </div>
-                      <div className="flex items-center justify-between text-emerald-300 font-bold bg-emerald-950/60 p-1.5 rounded border border-emerald-500/40">
-                        <span>Dawit bids:</span>
-                        <span>1.04 ETB (Unique & Lowest ✓)</span>
-                      </div>
-                      <div className="flex items-center justify-between text-zinc-400">
-                        <span>Almaz bids:</span>
-                        <span className="text-amber-400">1.09 ETB (Unique, higher)</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  {/* SIMULATED SCREEN CONTENT PER CHAPTER */}
+                  <div className="min-h-[220px] sm:min-h-[240px] flex flex-col justify-center py-2 relative">
+                    
+                    {/* SCENE 0: REGISTRATION DEMO */}
+                    {videoChapter === 0 && (
+                      <div className="space-y-2 text-xs font-mono">
+                        <div className="text-center pb-1">
+                          <span className="text-[11px] font-bold text-white font-serif">
+                            {language === 'am' ? 'የአካውንት ምዝገባ' : 'User Registration'}
+                          </span>
+                        </div>
 
-                {videoChapter === 4 && (
-                  /* Scene 4: See Results & Win */
-                  <div className="space-y-3 animate-fadeIn max-w-lg">
-                    <div className="w-14 h-14 rounded-2xl bg-amber-400/20 border border-[#E5B842] flex items-center justify-center text-[#E5B842] mx-auto shadow-xl shadow-[#E5B842]/20 animate-bounce">
-                      <Trophy className="w-8 h-8" />
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/30 to-emerald-500/30 border border-[#E5B842] text-amber-300 font-mono text-xs font-bold">
-                      <Crown className="w-3.5 h-3.5 text-[#E5B842]" />
-                      <span>{language === 'am' ? 'ደረጃ 5፦ 00:00:00 ቆጣሪ፣ ውጤት እና አሸናፊ!' : 'Step 5: 00:00:00 Countdown & Prize Delivery'}</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/60 via-black to-emerald-950/60 border border-[#E5B842]/60 text-xs max-w-sm mx-auto font-mono text-center">
-                      <div className="text-white font-bold text-sm">
-                        🎉 Dawit Won iPhone 16 Pro Max for 1.04 ETB!
+                        <div className="space-y-1.5">
+                          <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800">
+                            <span className="text-[9px] text-zinc-400 block">Username:</span>
+                            <div className="text-white font-bold flex items-center justify-between">
+                              <span>{videoProgress > 20 ? 'selam_ethiopia' : 'selam...'}</span>
+                              {videoProgress > 30 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                            </div>
+                          </div>
+
+                          <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800">
+                            <span className="text-[9px] text-zinc-400 block">Phone (Ethiopia):</span>
+                            <div className="text-emerald-400 font-bold flex items-center justify-between">
+                              <span>{videoProgress > 40 ? '+251 91 123 4567' : '+251 9...'}</span>
+                              {videoProgress > 50 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                            </div>
+                          </div>
+
+                          <div className={`w-full py-2 rounded-xl text-center font-bold text-xs transition-all ${
+                            videoProgress >= 65
+                              ? 'bg-amber-400 text-black scale-[0.98] shadow-lg shadow-amber-500/40'
+                              : 'bg-[#E5B842] text-black'
+                          }`}>
+                            {language === 'am' ? 'ተመዝገብ (+20 ብር ቦነስ)' : 'Create Account (+20 ETB)'}
+                          </div>
+
+                          {videoProgress >= 75 && (
+                            <div className="p-2 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[10px] text-center animate-fadeIn font-bold">
+                              ✓ {language === 'am' ? 'አካውንትዎ ተረጋግጧል! 20 ብር ቦነስ ገብቷል።' : 'Account Verified! 20 ETB Welcome Bonus Credited.'}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-emerald-300 mt-1">
-                        100% Transparent Public Bid Ledger Revealed
+                    )}
+
+                    {/* SCENE 1: DEPOSIT DEMO */}
+                    {videoChapter === 1 && (
+                      <div className="space-y-2 text-xs font-mono">
+                        <div className="text-center pb-1">
+                          <span className="text-[11px] font-bold text-white font-serif">
+                            {language === 'am' ? 'ገንዘብ መሙላት (Telebirr / CBE)' : 'Deposit ETB to Wallet'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-center text-[10px] text-zinc-400">
+                            CBE Birr
+                          </div>
+                          <div className="p-1.5 rounded-lg bg-amber-500/20 border border-[#E5B842] text-center text-[10px] text-amber-300 font-bold">
+                            ✓ Telebirr
+                          </div>
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-[10px]">
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span>Account No:</span>
+                            <span className="text-[#E5B842] font-bold">0911-234-567</span>
+                          </div>
+                          {videoProgress > 35 && (
+                            <div className="text-emerald-400 text-[9px] mt-0.5 text-right font-bold">
+                              ✓ Copied to clipboard!
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-[10px]">
+                          <span className="text-zinc-400">Receipt Slip:</span>
+                          <span className="text-emerald-300 font-bold">
+                            {videoProgress > 50 ? '📄 telebirr_slip_9281.jpg' : 'Uploading slip...'}
+                          </span>
+                        </div>
+
+                        <div className={`w-full py-2 rounded-xl text-center font-bold text-xs transition-all ${
+                          videoProgress >= 65
+                            ? 'bg-amber-400 text-black scale-[0.98]'
+                            : 'bg-[#E5B842] text-black'
+                        }`}>
+                          {language === 'am' ? 'ደረሰኝ አረጋግጥ' : 'Submit Deposit Slip'}
+                        </div>
+
+                        {videoProgress >= 75 && (
+                          <div className="p-2 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[10px] text-center animate-fadeIn font-bold">
+                            ✓ {language === 'am' ? 'በ2 ደቂቃ ውስጥ 500 ብር ገብቷል! አዲስ ቀሪ፦ 520 ብር' : 'Credited! +500 ETB. New Balance: 520 ETB'}
+                          </div>
+                        )}
                       </div>
+                    )}
+
+                    {/* SCENE 2: REVERSE BIDDING DEMO */}
+                    {videoChapter === 2 && (
+                      <div className="space-y-1.5 text-xs font-mono">
+                        <div className="p-2 rounded-xl bg-zinc-900 border border-amber-500/30 flex items-center justify-between">
+                          <div>
+                            <div className="text-white font-bold text-[11px]">iPhone 16 Pro Max</div>
+                            <div className="text-[9px] text-zinc-400">Retail: 165,000 ETB</div>
+                          </div>
+                          <div className="text-right">
+                            <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 text-[9px] font-bold">
+                              LIVE BID
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-black border border-zinc-800 text-[10px] space-y-1">
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span>1.01 ETB (2 users):</span>
+                            <span className="text-rose-400 line-through font-bold">❌ Cancelled</span>
+                          </div>
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span>1.02 ETB (3 users):</span>
+                            <span className="text-rose-400 line-through font-bold">❌ Cancelled</span>
+                          </div>
+                          <div className="flex items-center justify-between text-emerald-300 font-bold bg-emerald-950/50 p-1 rounded">
+                            <span>Your Bid:</span>
+                            <span className="text-[#E5B842] text-[11px]">1.04 ETB (Unique & Lowest)</span>
+                          </div>
+                        </div>
+
+                        <div className={`w-full py-2 rounded-xl text-center font-bold text-xs transition-all ${
+                          videoProgress >= 65
+                            ? 'bg-amber-400 text-black scale-[0.98]'
+                            : 'bg-[#E5B842] text-black'
+                        }`}>
+                          {language === 'am' ? 'ጨረታ አስገባ (ክፍያ 20 ብር)' : 'Confirm Sealed Bid (20 ETB)'}
+                        </div>
+
+                        {videoProgress >= 75 && (
+                          <div className="p-1.5 rounded-xl bg-purple-950/80 border border-purple-500/50 text-purple-300 text-[10px] text-center animate-fadeIn font-bold">
+                            🔒 {language === 'am' ? 'ሚስጥራዊ ጨረታዎ ተቀምጧል! ዝቅተኛው ያልተደገመ ነዎት።' : 'Sealed Bid Active! Currently Lowest Unique.'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* SCENE 3: COUNTDOWN & VICTORY DEMO */}
+                    {videoChapter === 3 && (
+                      <div className="space-y-2 text-xs font-mono text-center">
+                        <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-black to-emerald-500/20 border border-[#E5B842]">
+                          <div className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">
+                            {language === 'am' ? 'የጨረታው ማብቂያ ቆጣሪ' : 'Official Countdown'}
+                          </div>
+                          <div className="text-2xl font-black font-mono text-[#E5B842] my-1">
+                            {videoProgress < 50 ? '00:00:02' : '00:00:00'}
+                          </div>
+                          <div className="text-[10px] text-emerald-400 font-bold">
+                            {videoProgress < 50 ? '● Final Bids Locking...' : '🏆 AUCTION CONCLUDED'}
+                          </div>
+                        </div>
+
+                        {videoProgress >= 50 ? (
+                          <div className="p-2.5 rounded-xl bg-black border border-emerald-500/50 text-[10px] space-y-1 animate-fadeIn">
+                            <div className="font-bold text-white text-xs">
+                              🎉 Winner: Selamawit T.
+                            </div>
+                            <div className="text-emerald-400 font-bold">
+                              Won iPhone 16 Pro Max for 1.04 ETB!
+                            </div>
+                            <div className="text-[9px] text-zinc-400 pt-1 border-t border-zinc-800">
+                              📦 Handover Scheduled: Bole, Addis Ababa
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-zinc-500 font-mono">
+                            Verifying cryptographic unique entries...
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* AUTONOMOUS VIRTUAL ASSISTANT CURSOR */}
+                    <div
+                      style={{
+                        top: videoProgress < 30 ? '36%' : videoProgress < 65 ? '58%' : '74%',
+                        left: videoProgress < 30 ? '35%' : videoProgress < 65 ? '65%' : '50%',
+                        transform: 'translate(-50%, -50%)',
+                        transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                      }}
+                      className="absolute pointer-events-none z-30 flex items-center gap-1.5"
+                    >
+                      <div className="relative">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#E5B842] to-amber-300 p-0.5 shadow-lg shadow-amber-500/50 flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-black animate-ping" />
+                        </div>
+                        {videoProgress >= 65 && videoProgress <= 75 && (
+                          <div className="absolute -inset-2 rounded-full border-2 border-[#E5B842] animate-ping" />
+                        )}
+                      </div>
+                      <span className="px-1.5 py-0.5 rounded bg-black/90 border border-[#E5B842]/60 text-[9px] font-mono text-amber-300 font-bold uppercase shadow whitespace-nowrap">
+                        {videoProgress >= 65 ? 'Tapping' : 'Guide'}
+                      </span>
                     </div>
+
                   </div>
-                )}
+
+                  {/* Device Bottom Home Bar */}
+                  <div className="w-24 h-1 bg-zinc-600 rounded-full mx-auto mt-2" />
+                </div>
               </div>
 
               {/* Video Bottom Playback HUD Bar */}
               <div className="relative z-10 pt-2 border-t border-zinc-800/80 space-y-2">
                 {/* Progress bar */}
-                <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden cursor-pointer">
+                <div
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const pct = Math.max(0, Math.min(100, (clickX / rect.width) * 100));
+                    setVideoProgress(pct);
+                  }}
+                  className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden cursor-pointer relative group"
+                  title="Click to scrub"
+                >
                   <div
                     className="bg-gradient-to-r from-[#E5B842] via-amber-400 to-emerald-400 h-full transition-all duration-100 rounded-full"
                     style={{ width: `${videoProgress}%` }}
@@ -459,7 +587,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
                     <button
                       onClick={() => {
                         setVideoProgress(0);
-                        setVideoChapter(c => (c > 0 ? c - 1 : 4));
+                        setVideoChapter(c => (c > 0 ? c - 1 : videoChapters.length - 1));
                       }}
                       className="p-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
                       title="Previous Chapter"
@@ -469,7 +597,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
                     <button
                       onClick={() => {
                         setVideoProgress(0);
-                        setVideoChapter(c => (c + 1) % 5);
+                        setVideoChapter(c => (c + 1) % videoChapters.length);
                       }}
                       className="p-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
                       title="Next Chapter"
@@ -489,7 +617,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
             </div>
 
             {/* Chapter Selection Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {videoChapters.map(chap => {
                 const isSelected = videoChapter === chap.id;
                 return (
@@ -514,6 +642,38 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Quick Action CTA Bar */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#18181f] to-emerald-500/10 border border-[#E5B842]/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-zinc-300">
+                <strong className="text-white font-serif">{language === 'am' ? 'ለመጀመር ዝግጁ ነዎት?' : 'Ready to Try It Yourself?'}</strong>{' '}
+                <span className="text-zinc-400">
+                  {language === 'am'
+                    ? 'አካውንት ይክፈቱ እና በ1.00 ብር መጫረት ይጀምሩ።'
+                    : 'Create your account or deposit to place your first sealed bid.'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenAuth?.('register');
+                  }}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-[#E5B842] hover:bg-amber-400 text-black font-extrabold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  {language === 'am' ? 'አሁን ተመዝገብ' : 'Register Now'}
+                </button>
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenDeposit?.();
+                  }}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs border border-zinc-700 transition-all cursor-pointer"
+                >
+                  {language === 'am' ? 'ገንዘብ አስገባ' : 'Deposit'}
+                </button>
+              </div>
             </div>
           </div>
         )}

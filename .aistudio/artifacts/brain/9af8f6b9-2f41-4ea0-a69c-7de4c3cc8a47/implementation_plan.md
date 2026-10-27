@@ -1,90 +1,102 @@
-# Human-Crafted Strategic Sponsorship Proposal: Luxury Boardroom Edition
+# High-Energy Luxury Intro, Animated Device Guide & Responsive Super Admin Sliding Layout
 
-A high-prestige, boardroom-grade sponsorship proposal and executive pitch deck crafted in an authentic human executive voice. The proposal is designed specifically to invite CEOs and Managing Directors of top Ethiopian enterprises (Automotive, Real Estate, Electronics, Telecom, Banking, Beverage/FMCG) into a **"1-Product Showcase Lottery"** partnership deal, with a flawless, natural Amharic version and a luxury gold & deep navy print layout.
-
----
-
-## 1. Executive Strategy & Authentic Human Voice
-
-### 1.1 De-AI Tone & Strategic Partnership Voice
-- **Voice**: Authored from the perspective of an Ethiopian corporate executive and dealmaker speaking peer-to-peer with business leaders.
-- **Tone**: High-level strategic partnership invitation—courteous, economically sharp, grounded in Ethiopian market reality, and free of AI buzzwords.
-- **Core Narrative**:
-  > *"Every Ethiopian company spends millions of Birr annually on roadside billboards and 30-second television ads that are forgotten within hours. We offer an entirely different equation: Provide one single flagship product from your inventory as our showcase grand prize. In return, your brand becomes the talk of the nation for 30 consecutive days, driving hundreds of thousands of active consumers directly to your showrooms and offices."*
-
-### 1.2 Flawless, Natural Ethiopian Commercial Amharic
-- Written in authentic, respectful corporate Amharic used by Ethiopian boards of directors:
-  - *"ለተከበሩ ዋና ስራ አስፈጻሚ እና የስራ አመራር ቦርድ አባላት"* (To the Respected CEO and Board Members)
-  - *"የባለ 1-ምርት ስፖንሰርሺፕ ቀመር፦ አንድ ምርት ለሽልማት በማቅረብ የሚገኝ የ20 እጥፍ የማስታወቂያ ትርፍ"*
-  - *"በሚሊዮኖች የሚቆጠር የባህላዊ ማስታወቂያ ወጪን በማስቀረት ቀጥተኛ ደንበኞችን ወደ ሾውሩም እና ቢሮ ማምጣት"*
-  - *"ለ500+ ጎልማሶች እና ወጣቶች ቋሚ የስራ ዕድል የሚፈጥር ሀገራዊ የዲጂታል ኢኮኖሚ አጋርነት"*
+Upgrade the public homepage intro into a high-energy luxury gold showcase, implement an animated self-playing interactive device video assistant for user onboarding (registration, deposits, reverse bidding), and overhaul the Super Admin workstation with a collapsible sliding drawer sidebar supporting mobile, tablet, and desktop viewports.
 
 ---
 
-## 2. 4-Page Proposal Structure
+### User Review & Critical Decisions
 
-### Page 1: The Strategic Partnership Invitation & National Economic Fit
-- **Personalized Executive Letter**: Addressed to `{sponsorName}` leadership.
-- **The Ethiopian Market Challenge**: High product prices vs. aspirational consumers.
-- **The Solution**: Dynamic micro-commerce making luxury products accessible while keeping algorithms protected under a sealed proprietary engine.
-- **National Economic Alignment**: Digital Ethiopia 2025, cashless mobile transactions (Telebirr/CBE), and tax-transparent digital commerce.
-
-### Page 2: Adult Employment & Dignified Workforce Creation
-- **Direct Job Creation**:
-  1. *120+ Operations Verification Administrators*: Reviewing bank receipts and maintaining the 15-minute SLA.
-  2. *200+ Regional Escrow & Distribution Agents*: Local handover coordinators in Addis Ababa, Hawassa, Adama, Dire Dawa, Bahir Dar, and Mekelle.
-  3. *80+ Multilingual Customer Concierge Specialists*: 24/7 localized support in Amharic, Afaan Oromoo, Tigrinya, and English.
-  4. *50+ Technical Asset Inspectors & Logistics Officers*: Verifying showroom products before winner delivery.
-- **CSR Brand Value**: Positioned as a flagship corporate social responsibility milestone for the sponsor.
-
-### Page 3: The "1-Product Showcase Lottery" Deal & Tangible Sponsor ROI
-- **The Deal Mechanics**:
-  - Sponsor commits: 1 vehicle, 1 apartment, 1 electronics suite, or 1 commercial package.
-  - MiniBid delivers: 30 days of high-intensity digital promotion, viral Telegram/TikTok buzz, and verified consumer foot-traffic to sponsor dealerships.
-- **Concrete Deliverables for the Sponsor**:
-  - *Showroom Foot-Traffic*: Guaranteed test-drive / visit registrations.
-  - *Opt-In Buyer Leads*: Database of consumers interested in purchasing the sponsor's products.
-  - *Tax Deduction Advantage*: Promotional expense and CSR deductions under Ethiopian tax law.
-- **Comparative Analysis Table**: Traditional Advertising vs. MiniBid 1-Asset Showcase Partnership.
-
-### Page 4: Strategic Tiers, Institutional Compliance & Signature Protocol
-- **Three Partnership Engagement Tiers**:
-  1. *Title Strategic Partner*: Co-branded nationwide spotlight ("Powered by [Sponsor]"), prime app billboard.
-  2. *Premier Category Showcase Sponsor*: Exclusive vertical ownership (sole automotive or real estate sponsor).
-  3. *Workforce & CSR Sponsor*: Underwriting regional adult operations desks.
-- **Institutional Governance**: KYC compliance, dual-entry ACID ledger, pre-delivery asset authenticity certification.
-- **Execution Steps & Formal Boardroom Signature Box**: Official sign-off blocks with seal areas for both parties.
+> [!IMPORTANT]
+> The following architectural decisions were confirmed via interactive clarification:
+> - **Homepage Intro Direction**: High-energy luxury gold showcase with live winner stats, trust badges (CBE/Telebirr/NBE), and instant CTA.
+> - **How-To-Use Guide Format**: Interactive simulated device screen auto-playing registration, deposit receipt upload, and reverse bidding in real time.
+> - **Super Admin Multi-Device Layout**: Collapsible sliding drawer sidebar with smooth touch swipe, backdrop blur, and category grouping across Mobile, Tablet, and PC.
 
 ---
 
-## 3. Visual Styling: Luxury Gold & Deep Navy Boardroom Print Layout
+### 1. Overview & Core Concept
 
-- **Color Palette**:
-  - Deep Imperial Navy (`#0A1128`, `#0F172A`)
-  - Burnished Ethiopian Gold (`#D4AF37`, `#E5B842`)
-  - Warm Ivory (`#FDFBF7`) for clean reading
-  - Slate and Emerald accents for metrics
-- **Print Optimization (`@media print`)**:
-  - Enforced color preservation: `print-color-adjust: exact; -webkit-print-color-adjust: exact;`
-  - Crisp card borders, gold ribbons, and corporate letterhead styling.
-  - Page-break precision: each page formatted as a self-contained A4 sheet without mid-section spillover.
-- **Instant Export Engine**:
-  - Direct PDF / Standalone Document file download (`.pdf`/`.html`).
-  - Native browser Print-to-PDF dialog.
-  - Instant toggle between **አማርኛ** and **English**.
+1. **High-Energy Luxury Gold Intro (`SunfyreLiveIntro.tsx`)**:
+   - Replaces the basic canvas intro with a premier luxury fintech/gaming presentation.
+   - Combines dynamic golden vortex particle illumination with live ticker feeds of recent winners (real prizes, winning bids like 1.04 ETB, time stamps).
+   - Features prominent bilingual CTAs ("Enter Live Auctions" / "ጨረታዎችን ጀምር", "Watch How It Works Video"), audio chime with mute toggle, and instant skip options.
+
+2. **Self-Playing Interactive Device Guide Assistant (`HowItWorksModal.tsx`)**:
+   - An interactive simulated smartphone/tablet frame rendering an automated virtual guide assistant that executes real user flows step-by-step:
+     - **Chapter 1 (Register)**: Automated typing of user credentials, Ethiopian phone (`+251 9...`), instant account creation.
+     - **Chapter 2 (Deposit)**: Selecting Telebirr or CBE Birr, simulating account copy, receipt screenshot upload, and operator verification checkmark.
+     - **Chapter 3 (Reverse Bidding)**: Entering an auction, explaining why duplicate bids get eliminated, entering a unique bid (`1.04 ETB`), and submitting.
+     - **Chapter 4 (Countdown & Victory)**: Live countdown reaching `00:00:00`, public bid revelation, and victory celebration banner.
+   - Includes real-time timeline scrubber, play/pause controls, speed toggle (1x / 1.5x), bilingual caption box (Amharic & English), and direct "Try It Now" buttons.
+
+3. **Multi-Device Responsive Super Admin Workstation (`AdminWorkstation.tsx`)**:
+   - Eliminates horizontal overflow, cut-off buttons, and cramped toolbar rows on mobile and tablet.
+   - **Sliding Drawer Sidebar**:
+     - Mobile & Tablet: Tap the slide menu toggle or swipe to open an off-canvas slide-out drawer containing all 10 administrative consoles grouped logically:
+       - *Live Operations*: Live Game Radar, Deposit Verification Desk, Activity Control.
+       - *Finance & Analytics*: Financial P&L & Margins, Staff Floats & Governance, Audit Trail.
+       - *Infrastructure & Users*: User Management, Device Security, SMTP Email, SMS Gateway.
+     - Desktop: Collapsible sidebar with quick-collapse icon, badge notification indicators (pending deposits, SLA alerts), and persistent action bar.
+   - **Responsive Top Header**: Streamlined single-row header with hamburger toggle, brand wordmark, quick health badge, search/jump palette, and user account actions.
+   - **Fluid Content Container**: Clean responsive margins (`px-3 sm:px-6 lg:px-8`) and flexible table wrapping ensuring zero horizontal screen breakage on any phone, tablet, or monitor.
 
 ---
 
-## 4. Implementation Steps
+### 2. User Experience & Visual Design
 
-1. **Update `src/components/SponsorProposalDeck.tsx`**:
-   - Rewrite both English and Amharic text with high-level human strategic dealmaker phrasing.
-   - Apply the Luxury Gold and Deep Navy boardroom design system.
-   - Ensure the "1-Product Showcase Lottery" model is front and center.
-   - Refine the direct PDF download and print styling.
-2. **Verify Super Admin Integration**:
-   - Confirm it remains strictly accessible to Super Admin inside `AdminWorkstation.tsx`.
-   - Verify that regular users and public site visitors see zero trace of sponsorship buttons.
-3. **Build & Quality Assurance**:
-   - Run `compile_applet` and `lint_applet` to verify clean build and type safety.
-   - Test print layout and downloadable document generation.
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        TOP STREAMLINED HEADER                         │
+│  [≡ Slide Menu]  MINIBID EXECUTIVE  [Live Radar]  [Alerts]  [@Admin ▼] │
+├─────────────────────────┬──────────────────────────────────────────────┤
+│  SLIDING DRAWER SIDEBAR │             ACTIVE CONSOLE VIEW              │
+│  ─────────────────────  │  ──────────────────────────────────────────  │
+│  ▼ OPERATIONS (3)       │  [Deposit Verification Desk]                │
+│    • Live Game Radar    │  SLA Status: 100% Compliant                  │
+│    • Deposit Desk (4)   │                                              │
+│    • Activity Control   │  ┌────────────────────────────────────────┐  │
+│  ▼ FINANCIALS (2)       │  │ User     Bank    Amount   Slip    Act  │  │
+│    • P&L & Margins      │  │ Abebe    CBE     500 ETB  [View]  [OK] │  │
+│    • Staff Governance   │  │ Selam    Telebirr 1,200   [View]  [OK] │  │
+│  ▼ INFRASTRUCTURE (4)   │  └────────────────────────────────────────┘  │
+│    • Users & Staff      │                                              │
+│    • Device Fingerprint │                                              │
+│    • SMTP / SMS Desks   │                                              │
+└─────────────────────────┴──────────────────────────────────────────────┘
+```
+
+- **Aesthetic Direction**: High-contrast luxury boardroom & obsidian styling (`#08080C` background, `#D4AF37` / `#E5B842` gold accents, `#181824` cards, `#DC2626` urgent alerts).
+- **Typography & Proportions**:
+  - Headers: `Cinzel` / `Plus Jakarta Sans` bold.
+  - Data & Financial figures: `JetBrains Mono tabular-nums`.
+  - Body & Labels: `Plus Jakarta Sans` / `Noto Sans Ethiopic`.
+- **Motion & Interactions**:
+  - Drawer slide transition: `cubic-bezier(0.16, 1, 0.3, 1)` with backdrop blur overlay.
+  - Virtual device guide: Smooth cursor transitions, keypress typing simulation, and reactive pulse states.
+
+---
+
+### 3. Key Technical Decisions & Strategy
+
+1. **Stateful Simulated Walkthrough (`VirtualAssistantPlayer`)**:
+   - Implemented as a dedicated component with deterministic timestamped tick cycles rather than a heavy video file, guaranteeing zero buffering, instant responsiveness, and full bilingual text adaptability.
+2. **Accessible Off-Canvas Drawer (`AdminSlideNav`)**:
+   - Uses CSS translate transforms (`-translate-x-full` to `translate-x-0`) with hardware acceleration for 60fps mobile transitions.
+   - Captures `Escape` key and backdrop taps to close cleanly.
+3. **Responsive Grid & Table Normalization**:
+   - Wraps tables in card-level horizontal scrollers with sticky primary columns and sticky status pills, so mobile users never experience viewport stretching.
+
+---
+
+### 4. Verification & Testing Plan
+
+1. **Compilation & Build**:
+   - Run `compile_applet` to ensure TypeScript types and imports are pristine.
+   - Run `lint_applet` to verify zero formatting or syntax errors.
+2. **Responsive Viewport Verification**:
+   - Verify layout on 375px (iPhone SE/mobile), 768px (iPad/tablet), and 1440px (Desktop).
+   - Test drawer opening/closing on small screens.
+3. **Animated Walkthrough Verification**:
+   - Verify all 4 chapters auto-advance, scrubber scrubbing works, and audio toggle functions without browser policy issues.
+4. **Super Admin Privacy & Access**:
+   - Confirm public users cannot see or access Super Admin controls.
