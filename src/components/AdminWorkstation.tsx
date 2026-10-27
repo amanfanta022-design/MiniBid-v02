@@ -18,8 +18,12 @@ import { AdminSmsGateway } from './AdminSmsGateway.js';
 import { AdminEmailSmtpDesk } from './AdminEmailSmtpDesk.js';
 import { GoldenParticleBackground } from './GoldenParticleBackground.js';
 import { SponsorProposalDeck } from './SponsorProposalDeck.js';
+import { AdminBrandLogoDesk } from './AdminBrandLogoDesk.js';
+import { AdminRenderKeepAliveDesk } from './AdminRenderKeepAliveDesk.js';
 import { User, PlatformNotification } from '../types.js';
 import {
+  Crown,
+  Zap,
   Briefcase,
   Mail,
   ShieldAlert,
@@ -511,6 +515,22 @@ export const AdminWorkstation: React.FC = () => {
           color: 'text-amber-400',
           superAdminOnly: true,
         },
+        {
+          id: 'brand-logo',
+          label: 'Brand & Logo Manager',
+          labelAm: 'የብራንድ ሎጎ አስተዳደር',
+          icon: Crown,
+          color: 'text-[#E5B842]',
+          superAdminOnly: true,
+        },
+        {
+          id: 'render-keepalive',
+          label: 'Render Anti-Sleep Auto-Ping',
+          labelAm: 'የሬንደር አንቲ-ስሊፕ ፒንግ',
+          icon: Zap,
+          color: 'text-emerald-400',
+          superAdminOnly: true,
+        },
       ],
     },
   ];
@@ -899,6 +919,10 @@ export const AdminWorkstation: React.FC = () => {
           {currentTab === 'sms-gateway' && isSuperAdmin && <AdminSmsGateway />}
 
           {currentTab === 'email-gateway' && isSuperAdmin && <AdminEmailSmtpDesk />}
+
+          {currentTab === 'brand-logo' && isSuperAdmin && <AdminBrandLogoDesk />}
+
+          {currentTab === 'render-keepalive' && isSuperAdmin && <AdminRenderKeepAliveDesk />}
 
           {currentTab === 'admin-deposits' && (
             <AdminDepositRequests onBackToAuctions={() => setCurrentTab('super-live-games')} />

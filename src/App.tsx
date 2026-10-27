@@ -14,12 +14,19 @@ import { SunfyreLiveIntro } from './components/SunfyreLiveIntro.js';
 import { AdminWorkstation } from './components/AdminWorkstation.js';
 import { UserDashboard } from './components/UserDashboard.js';
 import { usePortal } from './utils/portal.js';
+import { initKeepAliveEngine } from './utils/keepAlive.js';
 import { ShieldCheck, Lock, Sparkles, Shield, ChevronRight } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
   const { language, t } = useTranslation();
   const { switchPortal } = usePortal();
+
+  // Initialize Render anti-sleep keep-alive engine
+  useEffect(() => {
+    const cleanup = initKeepAliveEngine();
+    return cleanup;
+  }, []);
 
   const [showIntro, setShowIntro] = useState<boolean>(() => {
     return !sessionStorage.getItem('sunfyre_intro_dismissed');

@@ -1,8 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, ArrowRight, Volume2, VolumeX, Shield, Play, Upload, RotateCcw } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  Shield,
+  Upload,
+  Crown,
+  Sparkles,
+} from 'lucide-react';
 import { useBrandLogo } from '../utils/brandLogo.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useTranslation } from '../utils/i18n.js';
+import { BrandLogoModal } from './BrandLogoModal.js';
 
 interface SunfyreLiveIntroProps {
   onComplete: () => void;
@@ -13,110 +21,35 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete, 
   const { user } = useAuth();
   const { language } = useTranslation();
   const isSuperAdmin = user?.role === 'superadmin';
-  const { logoUrl, isCustom, uploadCustomLogo, resetToDefault } = useBrandLogo();
+  const { logoUrl, isCustom } = useBrandLogo();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [stage, setStage] = useState<'vortex' | 'crest' | 'text' | 'ready'>('vortex');
   const [isFadingOut, setIsFadingOut] = useState(false);
-
-  // Web Audio Synth for luxury golden reveal sound
-  const playGoldenChime = () => {
-    if (isMuted) return;
-    try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
-      const ctx = new AudioContextClass();
-
-      // Deep atmospheric drone
-      const oscDrone = ctx.createOscillator();
-      const gainDrone = ctx.createGain();
-      oscDrone.type = 'sine';
-      oscDrone.frequency.setValueAtTime(110, ctx.currentTime); // A2
-      oscDrone.frequency.exponentialRampToValueAtTime(146.83, ctx.currentTime + 2.5); // D3
-      gainDrone.gain.setValueAtTime(0.01, ctx.currentTime);
-      gainDrone.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 1.2);
-      gainDrone.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.0);
-      oscDrone.connect(gainDrone);
-      gainDrone.connect(ctx.destination);
-      oscDrone.start();
-      oscDrone.stop(ctx.currentTime + 3.2);
-
-      // Shimmering harmonic chimes (Pentatonic Ethiopian / Celtic gold harmonics)
-      const freqs = [440, 554.37, 659.25, 880, 1108.73, 1318.51];
-      freqs.forEach((f, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(f, ctx.currentTime + 0.3 + idx * 0.15);
-
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime + 0.3 + idx * 0.15);
-        gain.gain.linearRampToValueAtTime(0.08 / (idx * 0.4 + 1), ctx.currentTime + 0.35 + idx * 0.15);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.2 + idx * 0.15);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + 0.3 + idx * 0.15);
-        osc.stop(ctx.currentTime + 2.4 + idx * 0.15);
-      });
-    } catch {
-      // AudioContext blocked by browser autoplay policy until interaction
-    }
-  };
-
-  // Staged timeline
-  useEffect(() => {
-    const timer1 = setTimeout(() => {
-      setStage('crest');
-      playGoldenChime();
-    }, 600);
-
-    const timer2 = setTimeout(() => {
-      setStage('text');
-    }, 1600);
-
-    const timer3 = setTimeout(() => {
-      setStage('ready');
-    }, 2400);
-
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
-  }, [isMuted]);
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
 
   // Handle ESC key to quickly exit
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !isLogoModalOpen) {
         handleEnter();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isLogoModalOpen]);
 
-  // 3D Mouse & Touch Parallax
+  // Subtle 3D mouse parallax
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ x: x * 18, y: -y * 18 });
+    setTilt({ x: x * 10, y: -y * 10 });
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!containerRef.current || e.touches.length === 0) return;
-    const touch = e.touches[0];
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = (touch.clientX - rect.left) / rect.width - 0.5;
-    const y = (touch.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ x: x * 18, y: -y * 18 });
-  };
-
-  // 3D Particle Canvas Animation
+  // 3D Ambient Golden Dust & Particle Wave
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -134,104 +67,75 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete, 
     };
     window.addEventListener('resize', handleResize);
 
-    // Particle structure
-    interface Particle3D {
+    interface Particle {
       x: number;
       y: number;
-      z: number;
       radius: number;
-      angle: number;
-      speed: number;
+      speedX: number;
+      speedY: number;
       color: string;
       alpha: number;
-      decay: number;
+      pulseSpeed: number;
     }
 
-    const particles: Particle3D[] = [];
-    const particleCount = 240;
+    const particles: Particle[] = [];
+    const count = Math.min(80, Math.floor(width / 15));
+    const colors = ['#FFDF73', '#E5B842', '#D4AF37', '#F3C34F', '#ffffff'];
 
-    const goldColors = [
-      '#FFDF73',
-      '#E5B842',
-      '#D4AF37',
-      '#F3C34F',
-      '#AA7C11',
-      '#FFFFFF',
-    ];
-
-    for (let i = 0; i < particleCount; i++) {
+    for (let i = 0; i < count; i++) {
       particles.push({
-        x: (Math.random() - 0.5) * width * 1.5,
-        y: (Math.random() - 0.5) * height * 1.5,
-        z: Math.random() * 800 + 100,
-        radius: Math.random() * 2.5 + 0.6,
-        angle: Math.random() * Math.PI * 2,
-        speed: Math.random() * 0.015 + 0.005,
-        color: goldColors[Math.floor(Math.random() * goldColors.length)],
-        alpha: Math.random() * 0.7 + 0.3,
-        decay: Math.random() * 0.005 + 0.002,
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: Math.random() * 2 + 0.8,
+        speedX: (Math.random() - 0.5) * 0.4,
+        speedY: (Math.random() - 0.5) * 0.4 - 0.1,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        alpha: Math.random() * 0.6 + 0.2,
+        pulseSpeed: Math.random() * 0.02 + 0.01,
       });
     }
 
-    let vortexSpeed = 0.01;
-
     const render = () => {
-      ctx.fillStyle = 'rgba(7, 7, 9, 0.25)';
+      ctx.fillStyle = 'rgba(6, 6, 8, 0.35)';
       ctx.fillRect(0, 0, width, height);
 
       const cx = width / 2;
       const cy = height / 2;
-      const fov = 400;
 
-      vortexSpeed += 0.0001;
+      // Soft ambient golden breathing core behind the logo
+      const time = Date.now() * 0.0015;
+      const breathe = Math.sin(time) * 30;
+      const radial = ctx.createRadialGradient(cx, cy, 10, cx, cy, 280 + breathe);
+      radial.addColorStop(0, 'rgba(229, 184, 66, 0.14)');
+      radial.addColorStop(0.4, 'rgba(212, 175, 55, 0.05)');
+      radial.addColorStop(1, 'transparent');
 
+      ctx.fillStyle = radial;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 320 + breathe, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Render floating gold particles
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-        p.angle += p.speed;
+        p.x += p.speedX;
+        p.y += p.speedY;
 
-        // Swirl dynamics
-        const dist = Math.sqrt(p.x * p.x + p.y * p.y);
-        const nextDist = dist * 0.996;
-        p.x = Math.cos(p.angle) * nextDist;
-        p.y = Math.sin(p.angle) * nextDist;
-        p.z -= 1.8;
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        if (p.y > height) p.y = 0;
 
-        if (p.z <= 20 || nextDist < 20) {
-          p.z = 800;
-          const radius = Math.random() * (Math.min(width, height) * 0.7) + 100;
-          p.x = Math.cos(p.angle) * radius;
-          p.y = Math.sin(p.angle) * radius;
-        }
-
-        const scale = fov / (fov + p.z);
-        const projX = cx + p.x * scale;
-        const projY = cy + p.y * scale;
-        const projR = Math.max(0.5, p.radius * scale * 2);
-
-        if (projX >= 0 && projX <= width && projY >= 0 && projY <= height) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(projX, projY, projR, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.alpha * Math.min(1, (800 - p.z) / 400);
-          ctx.shadowColor = '#E5B842';
-          ctx.shadowBlur = projR * 3;
-          ctx.fill();
-          ctx.restore();
-        }
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.alpha;
+        ctx.shadowColor = '#E5B842';
+        ctx.shadowBlur = p.radius * 3;
+        ctx.fill();
+        ctx.restore();
       }
-
-      // Draw subtle central gold core pulse
-      const pulse = (Math.sin(Date.now() * 0.003) + 1) * 0.5;
-      const gradient = ctx.createRadialGradient(cx, cy, 10, cx, cy, 260 + pulse * 40);
-      gradient.addColorStop(0, 'rgba(229, 184, 66, 0.12)');
-      gradient.addColorStop(0.5, 'rgba(212, 175, 55, 0.04)');
-      gradient.addColorStop(1, 'transparent');
-
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 300, 0, Math.PI * 2);
-      ctx.fill();
 
       animId = requestAnimationFrame(render);
     };
@@ -248,247 +152,188 @@ export const SunfyreLiveIntro: React.FC<SunfyreLiveIntroProps> = ({ onComplete, 
     setIsFadingOut(true);
     setTimeout(() => {
       onComplete();
-    }, 650);
+    }, 500);
   };
 
   return (
-    <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onTouchMove={handleTouchMove}
-      className={`fixed inset-0 z-[9999] bg-[#070709] flex flex-col items-center justify-center overflow-y-auto py-10 px-3 select-none transition-opacity duration-700 ${
-        isFadingOut ? 'opacity-0 pointer-events-none scale-105' : 'opacity-100'
-      }`}
-    >
-      {/* 3D Particle Starfield & Vortex Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
-
-      {/* Top Utility Bar: Audio Toggle, Logo Control & Skip Button */}
-      <div className="absolute top-4 sm:top-6 left-3 sm:left-6 right-3 sm:right-6 flex items-center justify-between z-50">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            onClick={() => {
-              const next = !isMuted;
-              setIsMuted(next);
-              if (!next) playGoldenChime();
-            }}
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-[#E5B842] text-[11px] sm:text-xs font-mono transition-all backdrop-blur-md cursor-pointer"
-            title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-          >
-            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#E5B842]" />}
-            <span className="hidden xs:inline">{isMuted ? 'Sound Off' : 'Sound On'}</span>
-          </button>
-
-          {/* Super Admin Only: Custom Brand Logo Upload & Reset */}
-          {isSuperAdmin && (
-            <>
-              <label className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/5 hover:bg-[#E5B842]/20 border border-white/10 hover:border-[#E5B842]/50 text-zinc-300 hover:text-[#E5B842] text-[11px] sm:text-xs font-mono transition-all backdrop-blur-md cursor-pointer">
-                <Upload className="w-3.5 h-3.5 text-[#E5B842]" />
-                <span className="hidden sm:inline">Use My Own Logo</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) uploadCustomLogo(file);
-                  }}
-                />
-              </label>
-
-              {isCustom && (
-                <button
-                  onClick={resetToDefault}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white/5 hover:bg-red-500/20 border border-white/10 text-zinc-400 hover:text-red-300 text-[11px] sm:text-xs font-mono transition-all backdrop-blur-md cursor-pointer"
-                  title="Reset to Sunfyre Luxury Crest"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span className="hidden md:inline">Reset Crest</span>
-                </button>
-              )}
-            </>
-          )}
-        </div>
-
-        <button
-          onClick={handleEnter}
-          className="px-3 sm:px-4 py-1.5 rounded-full bg-white/5 hover:bg-[#E5B842]/20 border border-white/10 hover:border-[#E5B842]/40 text-zinc-300 hover:text-white text-[11px] sm:text-xs font-mono tracking-wider uppercase transition-all backdrop-blur-md cursor-pointer flex items-center gap-1.5"
-        >
-          <span>{language === 'am' ? 'እለፍ (Skip)' : 'Skip'}</span>
-          <span className="hidden xs:inline text-[9px] text-zinc-500 bg-black/40 px-1.5 py-0.5 rounded font-mono">ESC</span>
-        </button>
-      </div>
-
-      {/* Center 3D Stage with Interactive Perspective Tilt */}
+    <>
       <div
-        style={{
-          transform: `perspective(1000px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)`,
-          transition: 'transform 0.15s ease-out',
-        }}
-        className="relative z-20 flex flex-col items-center text-center px-4 max-w-2xl my-auto py-14 sm:py-10"
+        ref={containerRef}
+        onMouseMove={handleMouseMove}
+        className={`fixed inset-0 z-[9999] bg-[#060608] flex flex-col items-center justify-between overflow-y-auto py-6 sm:py-8 px-4 sm:px-6 select-none transition-opacity duration-500 ${
+          isFadingOut ? 'opacity-0 pointer-events-none scale-105' : 'opacity-100'
+        }`}
       >
-        {/* Modern Sunfyre Golden Dragon 3D Crest */}
-        <div
-          className={`relative group mb-4 sm:mb-8 transition-all duration-1000 ${
-            stage !== 'vortex' ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
-          }`}
-        >
-          {/* Ambient Rotating Gold Glow Halo */}
-          <div className="absolute -inset-4 bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#AA7C11] rounded-full blur-2xl opacity-40 group-hover:opacity-70 animate-pulse transition-opacity duration-1000 pointer-events-none" />
+        {/* Background Particle Canvas */}
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
 
-          {/* Precision 3D Ring with Metallic Bevel */}
-          <div className="relative w-32 h-32 xs:w-40 xs:h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 rounded-full p-1.5 bg-gradient-to-tr from-[#946e1a] via-[#f7d779] to-[#80590a] shadow-[0_0_40px_rgba(229,184,66,0.35)]">
-            <div className="w-full h-full rounded-full overflow-hidden bg-black p-1 relative">
-              {/* Inner Metallic Emblem */}
-              <img
-                src={logoUrl}
-                alt="Sunfyre General Trading - Golden Crest Emblem"
-                className="w-full h-full object-cover rounded-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] transform group-hover:scale-105 transition-transform duration-700"
-                referrerPolicy="no-referrer"
-              />
-
-              {/* Dynamic Shimmer Light Sweep */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none rounded-full" />
-            </div>
+        {/* Top Header Bar */}
+        <div className="w-full max-w-5xl flex items-center justify-between relative z-30">
+          {/* Subtle brand tag */}
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#E5B842] shadow-[0_0_8px_#E5B842] animate-pulse" />
+            <span className="text-[10px] sm:text-xs font-mono uppercase tracking-widest text-[#E5B842]/90 font-bold">
+              MiniBid Ethiopia • Live Auctions
+            </span>
           </div>
 
-          {/* Super Admin Only: Subtle logo upload helper */}
-          {isSuperAdmin && (
-            <div className="mt-2 sm:mt-3 flex items-center justify-center">
-              <label className="text-[9px] sm:text-[10px] font-mono text-zinc-400 hover:text-[#E5B842] cursor-pointer flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-full border border-white/10 hover:border-[#E5B842]/40 transition-all">
-                <Upload className="w-3 h-3 text-[#E5B842]" />
-                <span className="truncate max-w-[220px] sm:max-w-none">
-                  {isCustom ? 'Custom logo active • Click to change' : 'Super Admin: Click to upload your custom logo'}
+          {/* Quick Skip Button */}
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <button
+                onClick={() => setIsLogoModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 hover:bg-[#E5B842]/20 border border-[#E5B842]/40 hover:border-[#E5B842] text-amber-300 hover:text-white text-xs font-mono transition-all backdrop-blur-md cursor-pointer"
+                title="Super Admin: Customize Website Logo"
+              >
+                <Crown className="w-3.5 h-3.5 text-[#E5B842]" />
+                <span className="hidden sm:inline">
+                  {language === 'am' ? 'የብራንድ ሎጎ ቀይር' : 'Change Brand Logo'}
                 </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) uploadCustomLogo(file);
-                  }}
-                />
-              </label>
-            </div>
-          )}
+              </button>
+            )}
+
+            <button
+              onClick={handleEnter}
+              className="px-4 py-1.5 rounded-full bg-white/5 hover:bg-[#E5B842]/20 border border-white/10 hover:border-[#E5B842]/40 text-zinc-300 hover:text-white text-xs font-mono tracking-wider uppercase transition-all backdrop-blur-md cursor-pointer flex items-center gap-1.5"
+            >
+              <span>{language === 'am' ? 'እለፍ (Skip)' : 'Skip'}</span>
+              <span className="hidden xs:inline text-[9px] text-zinc-500 bg-black/40 px-1.5 py-0.5 rounded font-mono">
+                ESC
+              </span>
+            </button>
+          </div>
         </div>
 
-        {/* Cinematic Title & Corporate Branding */}
+        {/* Center Stage: Logo, Slogans & Action */}
         <div
-          className={`space-y-2 sm:space-y-3 transition-all duration-1000 transform ${
-            stage === 'text' || stage === 'ready'
-              ? 'translate-y-0 opacity-100'
-              : 'translate-y-6 opacity-0'
-          }`}
+          style={{
+            transform: `perspective(1000px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)`,
+            transition: 'transform 0.15s ease-out',
+          }}
+          className="relative z-20 flex flex-col items-center text-center max-w-2xl my-auto py-4"
         >
-          {/* Main Brand Lettermark */}
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-serif font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-[#FFF5D1] via-[#E5B842] to-[#A87B19] drop-shadow-[0_4px_24px_rgba(229,184,66,0.3)]">
+          {/* Gleaming Centerpiece Brand Logo */}
+          <div className="relative group mb-5">
+            {/* Ambient Radial Golden Aura */}
+            <div className="absolute -inset-4 sm:-inset-6 bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#AA7C11] rounded-full blur-2xl opacity-40 group-hover:opacity-75 transition-opacity duration-700 pointer-events-none" />
+
+            {/* Precision 3D Luxury Ring */}
+            <div className="relative w-36 h-36 xs:w-44 xs:h-44 sm:w-52 sm:h-52 rounded-full p-1.5 bg-gradient-to-tr from-[#946e1a] via-[#f7d779] to-[#80590a] shadow-[0_0_50px_rgba(229,184,66,0.45)]">
+              <div className="w-full h-full rounded-full overflow-hidden bg-black p-1 relative flex items-center justify-center">
+                <img
+                  src={logoUrl}
+                  alt="MiniBid Ethiopia Official Brand Logo"
+                  className="w-full h-full object-cover rounded-full filter drop-shadow-[0_4px_20px_rgba(0,0,0,0.95)] transform group-hover:scale-105 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+                {/* Shimmer overlay on hover */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none rounded-full" />
+              </div>
+            </div>
+
+            {/* Super Admin Quick Logo Badge */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => setIsLogoModalOpen(true)}
+                className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1 rounded-full bg-black/90 hover:bg-[#E5B842] text-[#E5B842] hover:text-black border border-[#E5B842]/50 text-[10px] font-mono font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                title="Super Admin: Click to change official logo"
+              >
+                <Upload className="w-3 h-3" />
+                <span>{language === 'am' ? 'ሎጎ ቀይር' : 'Change Logo'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Brand Lettermark */}
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-serif font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-[#FFF5D1] via-[#E5B842] to-[#A87B19] drop-shadow-[0_4px_30px_rgba(229,184,66,0.4)]">
             MiniBid
           </h1>
 
-          {/* Sunfyre Corporate Signature */}
-          <div className="flex items-center justify-center gap-2 text-[10px] sm:text-xs md:text-sm font-mono uppercase tracking-[0.15em] sm:tracking-[0.25em] text-[#E5B842]">
-            <span className="w-6 sm:w-8 h-[1px] bg-gradient-to-r from-transparent to-[#E5B842]" />
-            <span className="font-bold drop-shadow-[0_2px_8px_rgba(229,184,66,0.4)]">
-              Powered by Sunfyre General Trading
-            </span>
-            <span className="w-6 sm:w-8 h-[1px] bg-gradient-to-l from-transparent to-[#E5B842]" />
+          {/* Corporate Backing Endorsement */}
+          <div className="mt-2 inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/10 via-amber-500/20 to-amber-500/10 border border-[#E5B842]/30 text-[10px] sm:text-xs font-mono uppercase tracking-[0.2em] text-[#E5B842]">
+            <Sparkles className="w-3 h-3 text-[#E5B842]" />
+            <span className="font-bold">Powered by Sunfyre General Trading</span>
+            <Sparkles className="w-3 h-3 text-[#E5B842]" />
           </div>
 
-          <p className="text-[11px] sm:text-xs text-zinc-400 font-sans tracking-wide max-w-md mx-auto pt-0.5 sm:pt-1 leading-relaxed">
-            {language === 'am'
-              ? 'የኢትዮጵያ ቀዳሚ ዝቅተኛ ያልተደገመ ጨረታ እና የዲጂታል ክፍያ ፕላትፎርም'
-              : "Ethiopia's Premier Reverse Auction & Digital Liquidity Platform"}
-          </p>
-        </div>
-
-        {/* High-Energy Live Winner Stats Ticker */}
-        <div
-          className={`w-full max-w-xl mx-auto my-3 sm:my-4 transition-all duration-700 transform ${
-            stage === 'text' || stage === 'ready' ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-          }`}
-        >
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-black/60 border border-[#E5B842]/40 backdrop-blur-md shadow-lg shadow-amber-950/20">
-            <div className="flex items-center justify-between px-2 mb-1.5 text-[10px] font-mono text-amber-300">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="font-bold uppercase tracking-wider">{language === 'am' ? 'የቀጥታ አሸናፊዎች' : 'Recent Verified Winners'}</span>
-              </span>
-              <span className="text-zinc-500 font-mono">100% On-Chain Proof</span>
+          {/* Centerpiece Prominent Slogans */}
+          <div className="mt-5 space-y-2 max-w-lg mx-auto">
+            {/* Primary Catchphrase */}
+            <div className="text-xl sm:text-2xl md:text-3xl font-serif font-extrabold text-amber-200 tracking-wide drop-shadow-[0_2px_14px_rgba(229,184,66,0.3)]">
+              {language === 'am' ? (
+                <span>«ዝቅተኛው ያልተደገመ ዋጋ ያሸንፋል!»</span>
+              ) : (
+                <span>«Lowest Unique Bid Wins»</span>
+              )}
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-left text-xs font-mono">
-              <div className="p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
-                <div>
-                  <div className="text-white font-bold text-[11px]">Selamawit T.</div>
-                  <div className="text-[10px] text-zinc-400">iPhone 15 Pro Max</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-emerald-400 font-bold text-[11px]">1.04 ETB</div>
-                  <div className="text-[9px] text-amber-300">Winning Bid</div>
-                </div>
-              </div>
 
-              <div className="p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
-                <div>
-                  <div className="text-white font-bold text-[11px]">Abebe K.</div>
-                  <div className="text-[10px] text-zinc-400">Suzuki Dzire 2024</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-emerald-400 font-bold text-[11px]">2.15 ETB</div>
-                  <div className="text-[9px] text-amber-300">Winning Bid</div>
-                </div>
-              </div>
+            {/* Secondary Slogan */}
+            <div className="text-sm sm:text-base font-semibold text-[#E5B842] tracking-wide">
+              {language === 'am' ? (
+                <span>በጥቂት ሳንቲሞች የቅንጦት ዕቃዎችን ያሸንፉ!</span>
+              ) : (
+                <span>Bid Smart. Win Luxury for Cents.</span>
+              )}
             </div>
+
+            {/* One-line Platform Mission */}
+            <p className="text-xs sm:text-sm text-zinc-400 font-sans tracking-normal leading-relaxed pt-1">
+              {language === 'am'
+                ? 'የኢትዮጵያ ቀዳሚ 100% ግልጽና ፍትሃዊ የጨረታ ፕላትፎርም • በቴሌብር እና በኢትዮጵያ ንግድ ባንክ ፈጣን የክፍያ ማረጋገጫ'
+                : "Ethiopia's Premier Reverse Auction & Digital Liquidity Platform • Telebirr & CBE Birr Instant Clearance"}
+            </p>
+          </div>
+
+          {/* Action CTAs: Enter Auctions + Platform Guide */}
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full max-w-md">
+            <button
+              onClick={handleEnter}
+              className="w-full sm:w-auto flex-1 group relative inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#D4AF37] hover:brightness-110 text-black font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_35px_rgba(229,184,66,0.5)] hover:shadow-[0_0_50px_rgba(229,184,66,0.75)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            >
+              <span>{language === 'am' ? 'ወደ ጨረታዎች ይግቡ' : 'Enter Live Auctions'}</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              onClick={() => {
+                if (onOpenHowItWorks) {
+                  onOpenHowItWorks();
+                } else {
+                  handleEnter();
+                }
+              }}
+              className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-black/60 hover:bg-white/10 text-amber-300 hover:text-white border border-[#E5B842]/50 hover:border-[#E5B842] font-bold text-xs sm:text-sm uppercase tracking-wider transition-all duration-300 backdrop-blur-md cursor-pointer shadow-lg"
+            >
+              <BookOpen className="w-4 h-4 text-[#E5B842]" />
+              <span>{language === 'am' ? 'የጨዋታው መመሪያ' : 'Platform Guide'}</span>
+            </button>
           </div>
         </div>
 
-        {/* Action Buttons: Enter Platform + Watch How It Works Video */}
-        <div
-          className={`mt-4 sm:mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md transition-all duration-700 transform ${
-            stage === 'ready' ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-4 opacity-0 scale-95'
-          }`}
-        >
-          <button
-            onClick={handleEnter}
-            className="w-full sm:w-auto flex-1 group relative inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#E5B842] via-[#F3C34F] to-[#D4AF37] hover:from-[#f0c451] hover:to-[#e0b73c] text-black font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_30px_rgba(229,184,66,0.45)] hover:shadow-[0_0_45px_rgba(229,184,66,0.7)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-          >
-            <span>{language === 'am' ? 'ጨረታዎችን ጀምር' : 'Enter Live Auctions'}</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </button>
-
-          <button
-            onClick={() => {
-              if (onOpenHowItWorks) {
-                onOpenHowItWorks();
-              } else {
-                handleEnter();
-              }
-            }}
-            className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-black/60 hover:bg-white/10 text-amber-300 hover:text-white border border-[#E5B842]/50 hover:border-[#E5B842] font-bold text-xs sm:text-sm uppercase tracking-wider transition-all duration-300 backdrop-blur-md cursor-pointer shadow-lg"
-          >
-            <Play className="w-3.5 h-3.5 fill-current text-[#E5B842]" />
-            <span>{language === 'am' ? 'አሠራሩን እይ (ቪዲዮ)' : 'Watch Guide Video'}</span>
-          </button>
+        {/* Bottom Trust & Compliance Footnote */}
+        <div className="w-full max-w-4xl flex items-center justify-center flex-wrap gap-3 sm:gap-6 text-[10px] sm:text-xs font-mono text-zinc-400 z-30 text-center relative pt-4">
+          <span className="flex items-center gap-1.5 text-zinc-300">
+            <Shield className="w-3.5 h-3.5 text-[#E5B842]" />
+            <span>{language === 'am' ? 'ቴሌብር እና CBE Birr የተረጋገጠ' : 'Telebirr & CBE Integrated'}</span>
+          </span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-zinc-300">
+            {language === 'am' ? '100% ግልጽና ኦዲት የሚደረግ የጨረታ ቀመር' : '100% Auditable Reverse Auction Math'}
+          </span>
+          <span className="hidden sm:inline text-zinc-600">•</span>
+          <span className="hidden sm:inline text-zinc-300">
+            {language === 'am' ? 'የብሔራዊ ባንክ ደንብ የተከተለ' : 'NBE Compliant'}
+          </span>
         </div>
       </div>
 
-      {/* Bottom Subtle Trust Badges */}
-      <div className="relative mt-6 sm:mt-0 sm:absolute sm:bottom-6 flex items-center justify-center flex-wrap gap-2 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-zinc-400 z-30 px-3 text-center">
-        <span className="flex items-center gap-1.5 text-zinc-300">
-          <Shield className="w-3.5 h-3.5 text-[#E5B842]" />
-          <span>{language === 'am' ? 'ቴሌብር እና CBE Birr የተረጋገጠ' : 'Telebirr & CBE Integrated'}</span>
-        </span>
-        <span className="hidden md:inline text-zinc-600">•</span>
-        <span className="hidden md:inline text-zinc-300">
-          {language === 'am' ? 'የብሔራዊ ባንክ ደንብ የተከተለ' : 'National Bank of Ethiopia Compliant'}
-        </span>
-        <span className="text-zinc-600">•</span>
-        <span className="text-zinc-300">
-          {language === 'am' ? '100% ፍትሃዊ የሂሳብ ቀመር' : 'Cryptographic Reverse Auction Algorithm'}
-        </span>
-      </div>
-    </div>
+      {/* Super Admin Brand Logo Modal */}
+      {isLogoModalOpen && (
+        <BrandLogoModal
+          isOpen={isLogoModalOpen}
+          onClose={() => setIsLogoModalOpen(false)}
+        />
+      )}
+    </>
   );
 };

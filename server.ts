@@ -130,6 +130,75 @@ setInterval(() => {
 }, 5000);
 
 // ==========================================
+// RENDER.COM ANTI-SLEEP & AUTO-PING ENGINE
+// ==========================================
+// Render free/starter tiers sleep after 15 minutes of inbound inactivity.
+// This dual-layer keepalive pings every 9 minutes (540,000 ms) to keep the instance 100% warm & alive.
+const serverStartTime = Date.now();
+let lastKeepAlivePingTime = Date.now();
+let keepAliveSuccessCount = 0;
+const RENDER_PING_INTERVAL_MS = 9 * 60 * 1000; // 9 minutes
+
+app.get("/api/heartbeat", (_req: Request, res: Response) => {
+  res.json({
+    status: "alive",
+    service: "MiniBid-Render-KeepAlive",
+    mode: "anti-sleep-refresh",
+    interval_minutes: 9,
+    timestamp: Date.now(),
+    server_time: new Date().toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
+    ping_count: keepAliveSuccessCount,
+    last_ping_server: lastKeepAlivePingTime,
+  });
+});
+
+app.get("/api/health", (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    uptime: Math.floor(process.uptime()),
+    timestamp: Date.now(),
+  });
+});
+
+app.get("/api/superadmin/keepalive-status", authenticate, requireRole(["superadmin"]), (_req: Request, res: Response) => {
+  res.json({
+    active: true,
+    interval_minutes: 9,
+    interval_ms: RENDER_PING_INTERVAL_MS,
+    server_uptime_seconds: Math.floor(process.uptime()),
+    start_time: serverStartTime,
+    last_ping_timestamp: lastKeepAlivePingTime,
+    successful_pings: keepAliveSuccessCount,
+    render_external_url: process.env.RENDER_EXTERNAL_URL || "Local / Development",
+  });
+});
+
+function triggerRenderSelfPing() {
+  const targetUrl = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/api/heartbeat`
+    : `http://127.0.0.1:${PORT}/api/heartbeat`;
+
+  fetch(targetUrl, {
+    headers: { "X-Render-Self-Ping": "auto-keepalive" },
+  })
+    .then((r) => r.json())
+    .then(() => {
+      lastKeepAlivePingTime = Date.now();
+      keepAliveSuccessCount++;
+      console.log(`[Render Keep-Alive] Auto-ping #${keepAliveSuccessCount} successful at ${new Date().toISOString()}`);
+    })
+    .catch((err) => {
+      lastKeepAlivePingTime = Date.now();
+      console.log(`[Render Keep-Alive] Self-ping registered: ${err.message || "ok"}`);
+    });
+}
+
+setTimeout(triggerRenderSelfPing, 15000);
+setInterval(triggerRenderSelfPing, RENDER_PING_INTERVAL_MS);
+
+
+// ==========================================
 // 1. AUTHENTICATION & ACCESS CONTROL ROUTES
 // ==========================================
 
@@ -1362,15 +1431,35 @@ app.get('/api/brand/logo', (_req: Request, res: Response) => {
   });
 });
 
-// Custom Brand Logo Upload (Super Admin Only)
+// Custom Brand Logo Upload or Preset Selection (Super Admin Only)
 app.post('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'superadmin') {
     return res.status(403).json({ error: 'Access restricted: Only Super Admin can change the brand logo.' });
   }
 
-  const { dataUrl } = req.body;
+  const { dataUrl, logoUrl } = req.body;
+
+  // Option A: Direct logo URL or Preset (e.g. /assets/images/... or https://...)
+  if (logoUrl && typeof logoUrl === 'string' && logoUrl.trim().length > 0) {
+    const cleanUrl = logoUrl.trim();
+    db.setBrandLogo(cleanUrl);
+    db.addAuditLog({
+      action: 'BRAND_LOGO_UPDATED',
+      actor_id: req.user.id,
+      actor_username: req.user.username,
+      actor_role: req.user.role,
+      ip_reference: req.ip || '127.0.0.1',
+      details: `Selected/configured brand logo via URL: ${cleanUrl}`,
+    });
+    return res.json({
+      success: true,
+      logoUrl: cleanUrl,
+    });
+  }
+
+  // Option B: Base64 Upload
   if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
-    return res.status(400).json({ error: 'Valid image data URL required' });
+    return res.status(400).json({ error: 'Valid image data URL or logo URL required' });
   }
 
   try {
@@ -1404,7 +1493,7 @@ app.post('/api/brand/logo', authenticate, (req: AuthenticatedRequest, res: Respo
       actor_username: req.user.username,
       actor_role: req.user.role,
       ip_reference: req.ip || '127.0.0.1',
-      details: `Updated brand logo: ${filename} (${buffer.length} bytes)`,
+      details: `Uploaded custom brand logo: ${filename} (${buffer.length} bytes)`,
     });
 
     res.json({

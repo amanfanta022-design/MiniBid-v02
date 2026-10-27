@@ -39,6 +39,7 @@ import { isAudioEnabled, toggleAudio } from '../utils/audio.js';
 import { PlatformNotification } from '../types.js';
 import { useBrandLogo } from '../utils/brandLogo.js';
 import { usePortal } from '../utils/portal.js';
+import { BrandLogoModal } from './BrandLogoModal.js';
 
 interface HeaderProps {
   currentTab: string;
@@ -65,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { language, setLanguage, t } = useTranslation();
   const { logoUrl, isCustom, uploadCustomLogo, resetToDefault } = useBrandLogo();
   const { switchPortal } = usePortal();
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
   const [audioOn, setAudioOn] = useState(true);
   const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
@@ -173,23 +175,18 @@ export const Header: React.FC<HeaderProps> = ({
                     referrerPolicy="no-referrer"
                   />
                   {user?.role === 'superadmin' && (
-                    <label
-                      onClick={e => e.stopPropagation()}
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        setIsLogoModalOpen(true);
+                      }}
                       className="absolute inset-0 bg-black/85 backdrop-blur-xs opacity-0 group-hover/logo:opacity-100 flex flex-col items-center justify-center text-[7px] text-[#E5B842] font-mono font-semibold transition-opacity cursor-pointer text-center p-0.5"
-                      title="Super Admin: Upload your custom logo"
+                      title="Super Admin: Manage website logo"
                     >
                       <Upload className="w-3 h-3 text-[#E5B842] mb-0.5" />
                       <span>CUSTOM</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) uploadCustomLogo(file);
-                        }}
-                      />
-                    </label>
+                    </button>
                   )}
                 </div>
               </div>
@@ -931,6 +928,14 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
       </div>
+
+      {/* Super Admin Brand Logo Customizer Modal */}
+      {isLogoModalOpen && (
+        <BrandLogoModal
+          isOpen={isLogoModalOpen}
+          onClose={() => setIsLogoModalOpen(false)}
+        />
+      )}
     </>
   );
 };
